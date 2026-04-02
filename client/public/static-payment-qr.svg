@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 280" role="img" aria-label="Static payment QR">
+  <rect width="240" height="280" fill="#ffffff"/>
+  <rect x="0" y="0" width="240" height="240" fill="#ffffff"/>
+
+  <rect x="16" y="16" width="56" height="56" fill="#000000"/>
+  <rect x="24" y="24" width="40" height="40" fill="#ffffff"/>
+  <rect x="32" y="32" width="24" height="24" fill="#000000"/>
+
+  <rect x="168" y="16" width="56" height="56" fill="#000000"/>
+  <rect x="176" y="24" width="40" height="40" fill="#ffffff"/>
+  <rect x="184" y="32" width="24" height="24" fill="#000000"/>
+
+  <rect x="16" y="168" width="56" height="56" fill="#000000"/>
+  <rect x="24" y="176" width="40" height="40" fill="#ffffff"/>
+  <rect x="32" y="184" width="24" height="24" fill="#000000"/>
+
+  <rect x="92" y="16" width="8" height="8" fill="#000000"/>
+  <rect x="108" y="16" width="8" height="8" fill="#000000"/>
+  <rect x="124" y="16" width="8" height="8" fill="#000000"/>
+  <rect x="140" y="24" width="8" height="8" fill="#000000"/>
+  <rect x="100" y="32" width="8" height="8" fill="#000000"/>
+  <rect x="116" y="32" width="8" height="8" fill="#000000"/>
+  <rect x="132" y="40" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="84" width="8" height="8" fill="#000000"/>
+  <rect x="100" y="84" width="8" height="8" fill="#000000"/>
+  <rect x="116" y="84" width="8" height="8" fill="#000000"/>
+  <rect x="132" y="84" width="8" height="8" fill="#000000"/>
+  <rect x="148" y="84" width="8" height="8" fill="#000000"/>
+  <rect x="164" y="84" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="100" width="8" height="8" fill="#000000"/>
+  <rect x="116" y="100" width="8" height="8" fill="#000000"/>
+  <rect x="148" y="100" width="8" height="8" fill="#000000"/>
+  <rect x="172" y="100" width="8" height="8" fill="#000000"/>
+
+  <rect x="92" y="116" width="8" height="8" fill="#000000"/>
+  <rect x="108" y="116" width="8" height="8" fill="#000000"/>
+  <rect x="124" y="116" width="8" height="8" fill="#000000"/>
+  <rect x="140" y="116" width="8" height="8" fill="#000000"/>
+  <rect x="156" y="116" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="132" width="8" height="8" fill="#000000"/>
+  <rect x="108" y="132" width="8" height="8" fill="#000000"/>
+  <rect x="124" y="132" width="8" height="8" fill="#000000"/>
+  <rect x="148" y="132" width="8" height="8" fill="#000000"/>
+  <rect x="164" y="132" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="148" width="8" height="8" fill="#000000"/>
+  <rect x="100" y="148" width="8" height="8" fill="#000000"/>
+  <rect x="132" y="148" width="8" height="8" fill="#000000"/>
+  <rect x="156" y="148" width="8" height="8" fill="#000000"/>
+  <rect x="172" y="148" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="164" width="8" height="8" fill="#000000"/>
+  <rect x="116" y="164" width="8" height="8" fill="#000000"/>
+  <rect x="132" y="164" width="8" height="8" fill="#000000"/>
+  <rect x="148" y="164" width="8" height="8" fill="#000000"/>
+  <rect x="180" y="164" width="8" height="8" fill="#000000"/>
+
+  <rect x="92" y="180" width="8" height="8" fill="#000000"/>
+  <rect x="108" y="180" width="8" height="8" fill="#000000"/>
+  <rect x="124" y="180" width="8" height="8" fill="#000000"/>
+  <rect x="148" y="180" width="8" height="8" fill="#000000"/>
+  <rect x="164" y="180" width="8" height="8" fill="#000000"/>
+
+  <rect x="84" y="196" width="8" height="8" fill="#000000"/>
+  <rect x="100" y="196" width="8" height="8" fill="#000000"/>
+  <rect x="116" y="196" width="8" height="8" fill="#000000"/>
+  <rect x="132" y="196" width="8" height="8" fill="#000000"/>
+  <rect x="156" y="196" width="8" height="8" fill="#000000"/>
+  <rect x="172" y="196" width="8" height="8" fill="#000000"/>
+
+  <text x="120" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#0f172a">Static Payment QR</text>
+</svg>

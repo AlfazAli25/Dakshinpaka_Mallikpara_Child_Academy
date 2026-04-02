@@ -1,0 +1,159 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Sidebar from './Sidebar';
+import { get, post } from '@/lib/api';
+import { clearSession, getToken, getUser } from '@/lib/session';
+
+export default function AppShell({ title, links, children }) {
+  const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    setUser(getUser());
+  }, []);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') {
+      return;
+    }
+
+    let active = true;
+    const loadNotifications = async () => {
+      try {
+        const response = await get('/notifications/admin', getToken());
+        if (active) {
+          setNotifications(response.data?.notifications || []);
+        }
+      } catch (_error) {
+        if (active) {
+          setNotifications([]);
+        }
+      }
+    };
+
+    loadNotifications();
+    const timer = setInterval(loadNotifications, 15000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [user?.role]);
+
+  const unreadCount = notifications.filter((item) => item.status === 'UNREAD').length;
+
+  const markRead = async (notificationId) => {
+    try {
+      await post(`/notifications/${notificationId}/read`, {}, getToken());
+      setNotifications((prev) =>
+        prev.map((item) => (item._id === notificationId ? { ...item, status: 'READ', readAt: new Date().toISOString() } : item))
+      );
+    } catch (_error) {
+      // no-op
+    }
+  };
+
+  const onLogout = () => {
+    clearSession();
+    setUser(null);
+    router.push('/');
+  };
+
+  return (
+    <div className="min-h-screen bg-[#f8f7f7]">
+      <div className="sticky top-0 z-30 border-b border-red-900 bg-gradient-to-r from-red-800 via-red-700 to-red-800 px-4 py-3 shadow-md">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20 md:hidden"
+            aria-label="Open navigation"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
+          <p className="rounded-lg border border-white/45 bg-white/10 px-3 py-1.5 text-sm font-bold uppercase tracking-[0.08em] text-white shadow-sm md:text-base">
+            {title}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20"
+              aria-label="Go to public homepage"
+              title="Public homepage"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 10.5L12 3l9 7.5" />
+                <path d="M5.5 9.5V21h13V9.5" />
+              </svg>
+            </Link>
+
+            {user?.role === 'admin' && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setNotifOpen((prev) => !prev)}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/45 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
+                >
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5" />
+                    <path d="M9 17a3 3 0 006 0" />
+                  </svg>
+                  <span>{unreadCount > 0 ? `${unreadCount} Unread` : 'Notifications'}</span>
+                </button>
+
+                {notifOpen && (
+                  <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-red-100 bg-white p-2 shadow-xl">
+                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-red-700">Payment Alerts</p>
+                    <div className="max-h-80 overflow-auto">
+                      {notifications.length === 0 ? (
+                        <p className="px-2 py-3 text-sm text-slate-500">No notifications.</p>
+                      ) : (
+                        notifications.map((item) => (
+                          <Link
+                            key={item._id}
+                            href={item.targetPath}
+                            onClick={() => markRead(item._id)}
+                            className={`block rounded-lg px-2 py-2 text-sm hover:bg-red-50 ${
+                              item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
+                            }`}
+                          >
+                            <p className="font-semibold">{item.studentName || 'Student'}: Payment submitted</p>
+                            <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString()}</p>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {user && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex h-10 items-center rounded-lg border border-white/45 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50"
+              >
+                Logout
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-h-[calc(100vh-65px)]">
+        <Sidebar title={title} links={links} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <main className="smooth-enter w-full flex-1 overflow-x-hidden p-4 md:p-7">{children}</main>
+      </div>
+    </div>
+  );
+}
