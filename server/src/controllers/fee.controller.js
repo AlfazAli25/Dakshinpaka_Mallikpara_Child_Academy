@@ -5,6 +5,8 @@ const Student = require('../models/student.model');
 
 const base = createCrudController(feeService, 'Fee');
 
+const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ''));
+
 const list = asyncHandler(async (req, res) => {
 	if (req.user?.role === 'admin') {
 		const data = await feeService.findAll(req.query || {});
@@ -152,6 +154,28 @@ const getMyPayments = asyncHandler(async (req, res) => {
 
 const getPaymentScreenshot = asyncHandler(async (req, res) => {
 	const screenshotPath = await feeService.getPaymentScreenshotPathForAdmin({ paymentId: req.params.paymentId });
+	if (isHttpUrl(screenshotPath)) {
+		const response = await fetch(screenshotPath);
+		if (!response.ok) {
+			const error = new Error('Unable to fetch screenshot from storage provider');
+			error.statusCode = 502;
+			throw error;
+		}
+
+		const contentType = response.headers.get('content-type');
+		if (contentType) {
+			res.setHeader('Content-Type', contentType);
+		}
+
+		const contentLength = response.headers.get('content-length');
+		if (contentLength) {
+			res.setHeader('Content-Length', contentLength);
+		}
+
+		const buffer = Buffer.from(await response.arrayBuffer());
+		return res.send(buffer);
+	}
+
 	return res.sendFile(screenshotPath);
 });
 

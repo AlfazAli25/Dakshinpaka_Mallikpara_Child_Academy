@@ -164,6 +164,10 @@ Frontend runs at `http://localhost:3000`.
 - `SMTP_PASS`
 - `SMTP_FROM` (optional)
 - `SMTP_SECURE` (optional; `true` for SSL/TLS transport)
+- `CLOUDINARY_CLOUD_NAME` (required for static QR screenshot uploads)
+- `CLOUDINARY_API_KEY` (required for static QR screenshot uploads)
+- `CLOUDINARY_API_SECRET` (required for static QR screenshot uploads)
+- `CLOUDINARY_FOLDER` (optional; defaults to `sms/payment-screenshots`)
 
 ### Frontend (`client/.env.local`)
 
@@ -173,4 +177,5 @@ Frontend runs at `http://localhost:3000`.
 
 - MongoDB indexes are added for common query paths (`studentId`, `classId`, `date`, etc).
 - API responses are JSON with status codes and `success` flags.
+- Static QR screenshots are stored in Cloudinary and only their URL/public ID are saved in MongoDB.
 - This scaffold is production-structured and ready for feature-level enhancements (analytics, notifications, report cards, etc.).

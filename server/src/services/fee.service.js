@@ -6,6 +6,7 @@ const smepayService = require('./smepay.service');
 const { createFeeReceipt } = require('./receipt.service');
 const { createActionLog } = require('./action-log.service');
 const { notifyAdminPaymentSubmitted } = require('./notification.service');
+const { uploadPaymentScreenshot } = require('./cloudinary.service');
 
 const base = createCrudService(Fee);
 
@@ -435,6 +436,12 @@ const uploadStaticQrScreenshotByStudent = async ({ feeId, userId, file, amount, 
 		throw error;
 	}
 
+	if (!file.buffer) {
+		const error = new Error('Payment screenshot payload is invalid');
+		error.statusCode = 400;
+		throw error;
+	}
+
 	const student = await Student.findOne({ userId }).populate('userId classId');
 	if (!student) {
 		const error = new Error('Student record not found');
@@ -469,6 +476,21 @@ const uploadStaticQrScreenshotByStudent = async ({ feeId, userId, file, amount, 
 		throw error;
 	}
 
+	let uploadedScreenshot;
+	try {
+		uploadedScreenshot = await uploadPaymentScreenshot({
+			buffer: file.buffer,
+			mimeType: file.mimetype,
+			originalName: file.originalname
+		});
+	} catch (error) {
+		if (!error.statusCode) {
+			error.statusCode = 502;
+			error.message = 'Failed to upload screenshot to storage provider';
+		}
+		throw error;
+	}
+
 	const payment = await Payment.create({
 		studentId: student._id,
 		feeId: fee._id,
@@ -477,13 +499,19 @@ const uploadStaticQrScreenshotByStudent = async ({ feeId, userId, file, amount, 
 		providerReferenceId: transactionReference,
 		paymentStatus: 'PENDING_VERIFICATION',
 		paymentMethod: 'STATIC_QR',
-		screenshotPath: file.path,
+		screenshotPath: uploadedScreenshot.secureUrl,
+		screenshotPublicId: uploadedScreenshot.publicId,
 		logs: [
 			{
 				source: 'REQUEST',
 				status: 'PENDING_VERIFICATION',
 				message: 'Student uploaded static QR screenshot for verification',
-				payload: { originalName: file.originalname, size: file.size }
+				payload: {
+					originalName: file.originalname,
+					size: file.size,
+					storage: 'cloudinary',
+					screenshotPublicId: uploadedScreenshot.publicId
+				}
 			}
 		]
 	});

@@ -26,6 +26,7 @@ const paymentSchema = new mongoose.Schema(
     providerReferenceId: { type: String, trim: true },
     paymentMethod: { type: String, trim: true, default: 'SMEPAY_QR' },
     screenshotPath: { type: String, trim: true },
+    screenshotPublicId: { type: String, trim: true },
     processedByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     verifiedByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     verifiedAt: { type: Date },
