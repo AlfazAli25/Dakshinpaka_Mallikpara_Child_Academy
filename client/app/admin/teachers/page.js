@@ -39,6 +39,7 @@ export default function AdminTeachersPage() {
   const [form, setForm] = useState(getInitialTeacherForm());
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingTeachers, setLoadingTeachers] = useState(true);
   const [deletingId, setDeletingId] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [typedTeacherId, setTypedTeacherId] = useState('');
@@ -46,34 +47,41 @@ export default function AdminTeachersPage() {
   const [error, setError] = useState('');
 
   const loadTeachers = async () => {
-    const response = await get('/teachers', getToken());
-    setRows(
-      response.data.map((item) => {
-        const row = {
-          id: String(item._id),
-          teacherId: item.teacherId,
-          name: item.userId?.name,
-          department: item.department,
-          email: item.userId?.email
-        };
+    setLoadingTeachers(true);
+    try {
+      const response = await get('/teachers', getToken());
+      setRows(
+        response.data.map((item) => {
+          const row = {
+            id: String(item._id),
+            teacherId: item.teacherId,
+            name: item.userId?.name,
+            department: item.department,
+            email: item.userId?.email
+          };
 
-        return {
-          ...row,
-          actions: (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onDeleteTeacher(row);
-              }}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Remove
-            </button>
-          )
-        };
-      })
-    );
+          return {
+            ...row,
+            actions: (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDeleteTeacher(row);
+                }}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Remove
+              </button>
+            )
+          };
+        })
+      );
+    } catch (_error) {
+      setRows([]);
+    } finally {
+      setLoadingTeachers(false);
+    }
   };
 
   const loadSubjects = async () => {
@@ -249,7 +257,7 @@ export default function AdminTeachersPage() {
           {loading ? 'Creating...' : 'Create Teacher'}
         </button>
       </form>
-      <Table columns={columns} rows={rows} getRowHref={(row) => `/admin/teachers/${row.id}`} />
+      <Table columns={columns} rows={rows} loading={loadingTeachers} getRowHref={(row) => `/admin/teachers/${row.id}`} />
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">

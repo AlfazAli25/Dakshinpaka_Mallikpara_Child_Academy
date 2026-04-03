@@ -32,6 +32,7 @@ const text = {
     email: 'Email',
     password: 'Password',
     register: 'Register',
+    registering: 'Registering...',
     already: 'Already have an account?',
     login: 'Login'
   },
@@ -48,6 +49,7 @@ const text = {
     email: 'ইমেইল',
     password: 'পাসওয়ার্ড',
     register: 'রেজিস্টার',
+    registering: 'রেজিস্টার হচ্ছে...',
     already: 'আগেই অ্যাকাউন্ট আছে?',
     login: 'লগইন'
   }
@@ -61,10 +63,12 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'admin' });
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setCurrentUser(getUser());
-  }, []);
+    router.prefetch('/login');
+  }, [router]);
 
   const panelRoute = useMemo(() => {
     const role = currentUser?.role;
@@ -77,9 +81,11 @@ export default function RegisterPage() {
     event.preventDefault();
     setError('');
     setMessage('');
+    setLoading(true);
 
     if (!EMAIL_REGEX.test(String(form.email || '').trim())) {
       setError('Please enter a valid email address.');
+      setLoading(false);
       return;
     }
 
@@ -87,11 +93,11 @@ export default function RegisterPage() {
       await post('/auth/register', form);
       setMessage('Registration successful. Redirecting to login...');
       setForm({ name: '', email: '', password: '', role: 'admin' });
-      setTimeout(() => {
-        router.push('/login?registered=1');
-      }, 700);
+      router.replace('/login?registered=1');
     } catch (apiError) {
       setError(apiError.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -153,9 +159,10 @@ export default function RegisterPage() {
 
             <button
               type="submit"
-              className="mt-2 h-11 w-full rounded-lg bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800"
+              disabled={loading}
+              className="mt-2 h-11 w-full rounded-lg bg-red-700 px-4 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {t.register}
+              {loading ? t.registering : t.register}
             </button>
 
             {currentUser ? (

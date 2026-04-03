@@ -13,29 +13,37 @@ const columns = [
 ];
 
 export default function TeacherAttendancePage() {
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const teacher = await getCurrentTeacherRecord();
-      const { token } = getAuthContext();
-      if (!teacher || !token) {
-        setRows([]);
-        return;
-      }
+      setLoading(true);
+      try {
+        const teacher = await getCurrentTeacherRecord();
+        const { token } = getAuthContext();
+        if (!teacher || !token) {
+          setRows([]);
+          return;
+        }
 
-      const response = await get('/attendance', token);
-      setRows(
-        (response.data || []).map((item) => ({
-          id: item._id,
-          student: item.studentId?.userId?.name || item.studentId?.admissionNo || '-',
-          date: item.date?.slice(0, 10),
-          status: item.status
-        }))
-      );
+        const response = await get('/attendance', token);
+        setRows(
+          (response.data || []).map((item) => ({
+            id: item._id,
+            student: item.studentId?.userId?.name || item.studentId?.admissionNo || '-',
+            date: item.date?.slice(0, 10),
+            status: item.status
+          }))
+        );
+      } catch (_error) {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   return (
@@ -45,7 +53,7 @@ export default function TeacherAttendancePage() {
         title="Mark Attendance"
         description="Mark daily attendance for your class with quick status tracking."
       />
-      <Table columns={columns} rows={rows} />
+      <Table columns={columns} rows={rows} loading={loading} />
     </div>
   );
 }

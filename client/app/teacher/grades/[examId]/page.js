@@ -18,40 +18,46 @@ const gradeColumns = [
 export default function TeacherGradesPage() {
   const params = useParams();
   const examId = params?.examId;
+  const [loading, setLoading] = useState(true);
   const [exam, setExam] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const load = async () => {
-      const teacher = await getCurrentTeacherRecord();
-      const { token } = getAuthContext();
-      if (!teacher || !token || !examId) {
+      setLoading(true);
+      try {
+        const teacher = await getCurrentTeacherRecord();
+        const { token } = getAuthContext();
+        if (!teacher || !token || !examId) {
+          setRows([]);
+          setExam(null);
+          return;
+        }
+
+        const [examRes, gradesRes] = await Promise.all([get(`/exams/${examId}`, token), get('/grades', token)]);
+        setExam(examRes.data || null);
+
+        const filtered = (gradesRes.data || []).filter((item) => String(item.examId?._id || '') === String(examId));
+        setRows(
+          filtered.map((item) => ({
+            id: item._id,
+            student: item.studentId?.userId?.name || '-',
+            admissionNo: item.studentId?.admissionNo || '-',
+            marks: `${item.marksObtained || 0}/${item.examId?.totalMarks || 0}`,
+            remarks: item.remarks || '-'
+          }))
+        );
+      } catch (apiError) {
+        setError(apiError.message);
         setRows([]);
         setExam(null);
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      const [examRes, gradesRes] = await Promise.all([get(`/exams/${examId}`, token), get('/grades', token)]);
-      setExam(examRes.data || null);
-
-      const filtered = (gradesRes.data || []).filter((item) => String(item.examId?._id || '') === String(examId));
-      setRows(
-        filtered.map((item) => ({
-          id: item._id,
-          student: item.studentId?.userId?.name || '-',
-          admissionNo: item.studentId?.admissionNo || '-',
-          marks: `${item.marksObtained || 0}/${item.examId?.totalMarks || 0}`,
-          remarks: item.remarks || '-'
-        }))
-      );
     };
 
-    load().catch((apiError) => {
-      setError(apiError.message);
-      setRows([]);
-      setExam(null);
-    });
+    load();
   }, [examId]);
 
   return (
@@ -72,7 +78,7 @@ export default function TeacherGradesPage() {
         <p className="text-sm text-slate-700">Total Marks: {exam?.totalMarks || 0}</p>
       </InfoCard>
 
-      <Table columns={gradeColumns} rows={rows} />
+      <Table columns={gradeColumns} rows={rows} loading={loading} />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { get } from '@/lib/api';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
 export default function TeacherDashboardPage() {
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([
     { title: 'Total Exams', value: '0' },
     { title: 'Attendance Records', value: '0' },
@@ -32,9 +33,52 @@ export default function TeacherDashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      const teacher = await getCurrentTeacherRecord();
-      const { token } = getAuthContext();
-      if (!teacher || !token) {
+      setLoading(true);
+      try {
+        const teacher = await getCurrentTeacherRecord();
+        const { token } = getAuthContext();
+
+        if (!teacher || !token) {
+          setTeacherProfile(null);
+          setSalaryRows([]);
+          setReceipts([]);
+          setStats([
+            { title: 'Total Exams', value: '0' },
+            { title: 'Attendance Records', value: '0' },
+            { title: 'Assigned Subjects', value: '0' }
+          ]);
+          return;
+        }
+
+        setTeacherProfile(teacher);
+
+        const [examsRes, attendanceRes, payrollRes, receiptRes] = await Promise.all([
+          get('/exams', token),
+          get('/attendance', token),
+          get('/payroll/my/history', token),
+          get('/receipts/teacher', token)
+        ]);
+
+        setSalaryRows(
+          (payrollRes.data || []).map((item) => ({
+            id: item._id,
+            month: item.month,
+            amount: `INR ${item.amount || 0}`,
+            status: item.status,
+            paidOn: item.paidOn?.slice(0, 10) || '-',
+            paymentMethod: item.paymentMethod || '-',
+            receiptNumber: item.receiptId?.receiptNumber || '-'
+          }))
+        );
+
+        setReceipts(receiptRes.data || []);
+
+        setStats([
+          { title: 'Total Exams', value: String(examsRes.data?.length || 0) },
+          { title: 'Attendance Records', value: String(attendanceRes.data?.length || 0) },
+          { title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
+        ]);
+      } catch (_error) {
         setTeacherProfile(null);
         setSalaryRows([]);
         setReceipts([]);
@@ -43,45 +87,12 @@ export default function TeacherDashboardPage() {
           { title: 'Attendance Records', value: '0' },
           { title: 'Assigned Subjects', value: '0' }
         ]);
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      setTeacherProfile(teacher);
-      const [examsRes, attendanceRes, payrollRes, receiptRes] = await Promise.all([
-        get('/exams', token),
-        get('/attendance', token),
-        get('/payroll/my/history', token),
-        get('/receipts/teacher', token)
-      ]);
-
-      setSalaryRows(
-        (payrollRes.data || []).map((item) => ({
-          id: item._id,
-          month: item.month,
-          amount: `INR ${item.amount || 0}`,
-          status: item.status,
-          paidOn: item.paidOn?.slice(0, 10) || '-',
-          paymentMethod: item.paymentMethod || '-',
-          receiptNumber: item.receiptId?.receiptNumber || '-'
-        }))
-      );
-      setReceipts(receiptRes.data || []);
-
-      setStats([
-        { title: 'Total Exams', value: String(examsRes.data?.length || 0) },
-        { title: 'Attendance Records', value: String(attendanceRes.data?.length || 0) },
-        { title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
-      ]);
     };
 
-    load().catch(() => {
-      setTeacherProfile(null);
-      setStats([
-        { title: 'Total Exams', value: '0' },
-        { title: 'Attendance Records', value: '0' },
-        { title: 'Assigned Subjects', value: '0' }
-      ]);
-    });
+    load();
   }, []);
 
   return (
@@ -93,11 +104,21 @@ export default function TeacherDashboardPage() {
       />
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => (
-          <StatCard key={item.title} title={item.title} value={item.value} />
+          <StatCard key={item.title} title={item.title} value={item.value} loading={loading} />
         ))}
       </div>
 
-      {teacherProfile && (
+      {loading ? (
+        <InfoCard title="Teacher Details">
+          <div className="space-y-2">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200" />
+          </div>
+        </InfoCard>
+      ) : teacherProfile ? (
         <InfoCard title="Teacher Details">
           <p className="text-sm text-slate-700">Name: {teacherProfile.userId?.name || '-'}</p>
           <p className="text-sm text-slate-700">Email: {teacherProfile.userId?.email || '-'}</p>
@@ -109,7 +130,7 @@ export default function TeacherDashboardPage() {
           </p>
           <p className="text-sm text-slate-700">Assigned Subjects: {teacherProfile.subjects?.length || 0}</p>
         </InfoCard>
-      )}
+      ) : null}
 
       <div>
         <h3 className="mb-2 text-base font-semibold text-slate-900">Salary History</h3>
@@ -123,12 +144,19 @@ export default function TeacherDashboardPage() {
             { key: 'receiptNumber', label: 'Receipt Number' }
           ]}
           rows={salaryRows}
+          loading={loading}
         />
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Salary Receipts</h3>
-        {receipts.length === 0 ? (
+        {loading ? (
+          <div className="mt-3 space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`receipt-skeleton-${index}`} className="h-10 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
+            ))}
+          </div>
+        ) : receipts.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">No salary receipts available yet.</p>
         ) : (
           <div className="mt-3 space-y-2">

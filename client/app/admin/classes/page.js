@@ -122,8 +122,7 @@ export default function AdminClassesPage() {
         </button>
       </form>
 
-      {loading && <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">Loading classes...</p>}
-      <Table columns={columns} rows={rows} />
+      <Table columns={columns} rows={rows} loading={loading} />
     </div>
   );
 }

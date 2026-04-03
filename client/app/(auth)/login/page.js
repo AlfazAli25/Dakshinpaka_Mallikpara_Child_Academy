@@ -95,7 +95,11 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     setRegistered(params.get('registered') === '1');
     setCurrentUser(getUser());
-  }, []);
+    router.prefetch('/register');
+    router.prefetch('/admin/dashboard');
+    router.prefetch('/teacher/dashboard');
+    router.prefetch('/student/dashboard');
+  }, [router]);
 
   const panelRoute = useMemo(() => {
     const role = currentUser?.role;
@@ -117,7 +121,7 @@ export default function LoginPage() {
     try {
       const response = await post('/auth/login', form);
       saveSession(response.data.token, response.data.user);
-      router.push(roleRoutes[response.data.user.role] || '/login');
+      router.replace(roleRoutes[response.data.user.role] || '/login');
     } catch (apiError) {
       setError(apiError.message);
     } finally {

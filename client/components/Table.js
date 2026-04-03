@@ -29,7 +29,7 @@ const getStatusClass = (rawValue) => {
   return statusClassMap[key] || '';
 };
 
-export default function Table({ columns = [], rows = [], getRowHref }) {
+export default function Table({ columns = [], rows = [], getRowHref, loading = false, skeletonRowCount = 6 }) {
   const router = useRouter();
 
   const renderCell = (col, row) => {
@@ -61,7 +61,30 @@ export default function Table({ columns = [], rows = [], getRowHref }) {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {loading ? (
+              Array.from({ length: Math.max(3, skeletonRowCount) }).map((_, rowIndex) => (
+                <tr
+                  key={`skeleton-row-${rowIndex}`}
+                  className={`border-t border-slate-100 ${rowIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
+                >
+                  {columns.length === 0 ? (
+                    <td className="px-4 py-4">
+                      <div className="h-4 w-40 animate-pulse rounded bg-slate-200" />
+                    </td>
+                  ) : (
+                    columns.map((col, colIndex) => (
+                      <td key={`skeleton-cell-${col.key}-${rowIndex}`} className="px-4 py-4">
+                        <div
+                          className={`h-4 animate-pulse rounded bg-slate-200 ${
+                            colIndex === 0 ? 'w-3/4 max-w-40' : 'w-full max-w-32'
+                          }`}
+                        />
+                      </td>
+                    ))
+                  )}
+                </tr>
+              ))
+            ) : rows.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-center text-slate-500" colSpan={Math.max(columns.length, 1)}>
                   No records found.

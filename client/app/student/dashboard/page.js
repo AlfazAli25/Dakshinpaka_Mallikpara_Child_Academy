@@ -63,6 +63,7 @@ const text = {
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([
     { title: 'Attendance %', value: '0%' },
     { title: 'Upcoming Exams', value: '0' },
@@ -85,53 +86,59 @@ export default function StudentDashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      const student = await getCurrentStudentRecord();
-      const { token } = getAuthContext();
-      if (!student || !token) {
-        return;
+      setLoading(true);
+      try {
+        const student = await getCurrentStudentRecord();
+        const { token } = getAuthContext();
+        if (!student || !token) {
+          setStudentProfile(null);
+          return;
+        }
+
+        setStudentProfile(student);
+
+        const [attendanceRes, examsRes, feesRes] = await Promise.all([
+          get('/student/attendance', token),
+          get(`/exams?classId=${student.classId?._id || ''}`, token),
+          get('/student/fees', token)
+        ]);
+
+        const attendanceRows = attendanceRes.data || [];
+        const present = attendanceRows.filter((item) => item.status === 'Present').length;
+        const attendanceFromRecords = attendanceRows.length ? Math.round((present / attendanceRows.length) * 100) : null;
+        const configuredAttendance = Number(student.attendance || 0);
+        const attendancePercent = `${
+          attendanceFromRecords !== null
+            ? attendanceFromRecords
+            : Number.isFinite(configuredAttendance)
+              ? configuredAttendance
+              : 0
+        }%`;
+        const upcomingExams = (examsRes.data || []).filter((item) => new Date(item.date).getTime() >= Date.now()).length;
+        const pendingFromFees = (feesRes.data || []).reduce(
+          (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
+          0
+        );
+        const pendingFees = Math.max(pendingFromFees, Number(student.pendingFees || 0));
+
+        setStats([
+          { title: 'Attendance %', value: attendancePercent },
+          { title: 'Upcoming Exams', value: String(upcomingExams) },
+          { title: 'Pending Fees', value: `INR ${pendingFees}` }
+        ]);
+      } catch (_error) {
+        setStudentProfile(null);
+        setStats([
+          { title: 'Attendance %', value: '0%' },
+          { title: 'Upcoming Exams', value: '0' },
+          { title: 'Pending Fees', value: 'INR 0' }
+        ]);
+      } finally {
+        setLoading(false);
       }
-
-      setStudentProfile(student);
-
-      const [attendanceRes, examsRes, feesRes] = await Promise.all([
-        get('/student/attendance', token),
-        get(`/exams?classId=${student.classId?._id || ''}`, token),
-        get('/student/fees', token)
-      ]);
-
-      const attendanceRows = attendanceRes.data || [];
-      const present = attendanceRows.filter((item) => item.status === 'Present').length;
-      const attendanceFromRecords = attendanceRows.length ? Math.round((present / attendanceRows.length) * 100) : null;
-      const configuredAttendance = Number(student.attendance || 0);
-      const attendancePercent = `${
-        attendanceFromRecords !== null
-          ? attendanceFromRecords
-          : Number.isFinite(configuredAttendance)
-            ? configuredAttendance
-            : 0
-      }%`;
-      const upcomingExams = (examsRes.data || []).filter((item) => new Date(item.date).getTime() >= Date.now()).length;
-      const pendingFromFees = (feesRes.data || []).reduce(
-        (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
-        0
-      );
-      const pendingFees = Math.max(pendingFromFees, Number(student.pendingFees || 0));
-
-      setStats([
-        { title: 'Attendance %', value: attendancePercent },
-        { title: 'Upcoming Exams', value: String(upcomingExams) },
-        { title: 'Pending Fees', value: `INR ${pendingFees}` }
-      ]);
     };
 
-    load().catch(() => {
-      setStudentProfile(null);
-      setStats([
-        { title: 'Attendance %', value: '0%' },
-        { title: 'Upcoming Exams', value: '0' },
-        { title: 'Pending Fees', value: 'INR 0' }
-      ]);
-    });
+    load();
   }, []);
 
   return (
@@ -144,11 +151,21 @@ export default function StudentDashboardPage() {
       />
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => (
-          <StatCard key={item.title} title={t.stats[item.title] || item.title} value={item.value} />
+          <StatCard key={item.title} title={t.stats[item.title] || item.title} value={item.value} loading={loading} />
         ))}
       </div>
 
-      {studentProfile && (
+      {loading ? (
+        <InfoCard title={t.detailsTitle}>
+          <div className="space-y-2">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-3/5 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+          </div>
+        </InfoCard>
+      ) : studentProfile ? (
         <InfoCard title={t.detailsTitle}>
           <p className="text-sm text-slate-700">{t.fields.name}: {studentProfile.userId?.name || '-'}</p>
           <p className="text-sm text-slate-700">{t.fields.class}: {studentProfile.classId?.name || '-'}</p>
@@ -162,7 +179,7 @@ export default function StudentDashboardPage() {
           <p className="text-sm text-slate-700">{t.fields.pendingFees}: INR {studentProfile.pendingFees || 0}</p>
           <p className="text-sm text-slate-700">{t.fields.attendance}: {studentProfile.attendance || 0}%</p>
         </InfoCard>
-      )}
+      ) : null}
     </div>
   );
 }

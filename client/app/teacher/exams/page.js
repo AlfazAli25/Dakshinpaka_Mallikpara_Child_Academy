@@ -14,30 +14,38 @@ const columns = [
 ];
 
 export default function TeacherExamsPage() {
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const teacher = await getCurrentTeacherRecord();
-      const { token } = getAuthContext();
-      if (!teacher || !token) {
-        setRows([]);
-        return;
-      }
+      setLoading(true);
+      try {
+        const teacher = await getCurrentTeacherRecord();
+        const { token } = getAuthContext();
+        if (!teacher || !token) {
+          setRows([]);
+          return;
+        }
 
-      const response = await get('/exams', token);
-      setRows(
-        (response.data || []).map((item) => ({
-          id: item._id,
-          subject: item.subjectId?.name || '-',
-          className: item.classId?.name || '-',
-          date: item.date?.slice(0, 10),
-          marks: item.totalMarks || 0
-        }))
-      );
+        const response = await get('/exams', token);
+        setRows(
+          (response.data || []).map((item) => ({
+            id: item._id,
+            subject: item.subjectId?.name || '-',
+            className: item.classId?.name || '-',
+            date: item.date?.slice(0, 10),
+            marks: item.totalMarks || 0
+          }))
+        );
+      } catch (_error) {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   return (
@@ -47,7 +55,7 @@ export default function TeacherExamsPage() {
         title="Exams"
         description="Plan and review subject-wise exam schedules and marks structure."
       />
-      <Table columns={columns} rows={rows} getRowHref={(row) => `/teacher/grades/${row.id}`} />
+      <Table columns={columns} rows={rows} loading={loading} getRowHref={(row) => `/teacher/grades/${row.id}`} />
     </div>
   );
 }

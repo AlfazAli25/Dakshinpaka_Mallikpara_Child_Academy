@@ -272,7 +272,6 @@ export default function AdminStudentsPage() {
         title="Students"
         description="View all registered students. Click any row to open full student profile and payment history."
       />
-      {loadingStudents && <p className="rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">Loading students...</p>}
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Student</h3>
         <p className="mb-4 text-sm text-slate-600">Admin must register each student one by one with all profile details.</p>
@@ -372,6 +371,7 @@ export default function AdminStudentsPage() {
       <Table
         columns={columns}
         rows={filteredRows}
+        loading={loadingStudents}
         getRowHref={(row) =>
           row.profileId ? `/admin/students/${row.profileId}` : row.userProfileId ? `/admin/students/user/${row.userProfileId}` : ''
         }

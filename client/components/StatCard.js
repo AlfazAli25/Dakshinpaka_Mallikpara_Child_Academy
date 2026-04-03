@@ -1,9 +1,18 @@
-export default function StatCard({ title, value }) {
+export default function StatCard({ title, value, loading = false }) {
   return (
     <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
-      <div className="mt-4 h-1.5 w-20 rounded-full bg-gradient-to-r from-red-700 to-red-300" />
+      {loading ? (
+        <div className="mt-3">
+          <div className="h-8 w-20 animate-pulse rounded bg-slate-200" />
+          <div className="mt-4 h-1.5 w-20 animate-pulse rounded-full bg-slate-200" />
+        </div>
+      ) : (
+        <>
+          <p className="mt-3 text-3xl font-bold text-slate-900">{value}</p>
+          <div className="mt-4 h-1.5 w-20 rounded-full bg-gradient-to-r from-red-700 to-red-300" />
+        </>
+      )}
     </div>
   );
 }

@@ -49,6 +49,7 @@ const mapPaymentStatus = ({ totalDue, totalPaid, totalPending }) => {
 export default function StudentFeesPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [profilePendingFees, setProfilePendingFees] = useState(0);
@@ -67,49 +68,58 @@ export default function StudentFeesPage() {
 
   useEffect(() => {
     const load = async () => {
-      const student = await getCurrentStudentRecord();
-      const { token } = getAuthContext();
-      if (!student || !token) {
+      setLoading(true);
+      try {
+        const student = await getCurrentStudentRecord();
+        const { token } = getAuthContext();
+        if (!student || !token) {
+          setRows([]);
+          setReceipts([]);
+          setProfilePendingFees(0);
+          return;
+        }
+
+        const profilePending = Math.max(Number(student.pendingFees || 0), 0);
+        setProfilePendingFees(profilePending);
+
+        const response = await get('/student/fees', token);
+        const receiptResponse = await get('/receipts/student', token);
+        const feeRows = response.data || [];
+        const totals = feeRows.reduce(
+          (acc, item) => {
+            acc.totalDue += item.amountDue || 0;
+            acc.totalPaid += item.amountPaid || 0;
+            return acc;
+          },
+          { totalDue: 0, totalPaid: 0 }
+        );
+
+        const ledgerPending = Math.max(totals.totalDue - totals.totalPaid, 0);
+        const totalPending = Math.max(ledgerPending, profilePending);
+        const totalDue = Math.max(totals.totalDue, totals.totalPaid + totalPending);
+
+        setRows(
+          [
+            {
+              id: 'overall-fees',
+              feeType: 'Overall',
+              amountDue: `INR ${totalDue}`,
+              amountPaid: `INR ${totals.totalPaid}`,
+              paymentStatus: mapPaymentStatus({ totalDue, totalPaid: totals.totalPaid, totalPending }),
+              pendingAmount: totalPending
+            }
+          ]
+        );
+        setReceipts(receiptResponse.data || []);
+      } catch (_error) {
         setRows([]);
-        setProfilePendingFees(0);
-        return;
+        setReceipts([]);
+      } finally {
+        setLoading(false);
       }
-
-      const profilePending = Math.max(Number(student.pendingFees || 0), 0);
-      setProfilePendingFees(profilePending);
-
-      const response = await get('/student/fees', token);
-      const receiptResponse = await get('/receipts/student', token);
-      const feeRows = response.data || [];
-      const totals = feeRows.reduce(
-        (acc, item) => {
-          acc.totalDue += item.amountDue || 0;
-          acc.totalPaid += item.amountPaid || 0;
-          return acc;
-        },
-        { totalDue: 0, totalPaid: 0 }
-      );
-
-      const ledgerPending = Math.max(totals.totalDue - totals.totalPaid, 0);
-      const totalPending = Math.max(ledgerPending, profilePending);
-      const totalDue = Math.max(totals.totalDue, totals.totalPaid + totalPending);
-
-      setRows(
-        [
-          {
-            id: 'overall-fees',
-            feeType: 'Overall',
-            amountDue: `INR ${totalDue}`,
-            amountPaid: `INR ${totals.totalPaid}`,
-            paymentStatus: mapPaymentStatus({ totalDue, totalPaid: totals.totalPaid, totalPending }),
-            pendingAmount: totalPending
-          }
-        ]
-      );
-      setReceipts(receiptResponse.data || []);
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   const pendingTotal = useMemo(
@@ -138,12 +148,18 @@ export default function StudentFeesPage() {
           </div>
         }
       />
-      <Table columns={t.columns} rows={rows} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Payment Receipts</h3>
         <p className="mb-3 text-sm text-slate-600">Receipts are generated automatically after successful fee updates.</p>
-        {receipts.length === 0 ? (
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`receipt-skeleton-${index}`} className="h-10 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
+            ))}
+          </div>
+        ) : receipts.length === 0 ? (
           <p className="text-sm text-slate-500">No receipts available yet.</p>
         ) : (
           <div className="space-y-2">

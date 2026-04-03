@@ -34,28 +34,36 @@ const text = {
 export default function StudentAttendancePage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const student = await getCurrentStudentRecord();
-      const { token } = getAuthContext();
-      if (!student || !token) {
-        setRows([]);
-        return;
-      }
+      setLoading(true);
+      try {
+        const student = await getCurrentStudentRecord();
+        const { token } = getAuthContext();
+        if (!student || !token) {
+          setRows([]);
+          return;
+        }
 
-      const response = await get('/student/attendance', token);
-      setRows(
-        (response.data || []).map((item) => ({
-          id: item._id,
-          date: item.date?.slice(0, 10),
-          status: t.status[item.status] || item.status
-        }))
-      );
+        const response = await get('/student/attendance', token);
+        setRows(
+          (response.data || []).map((item) => ({
+            id: item._id,
+            date: item.date?.slice(0, 10),
+            status: t.status[item.status] || item.status
+          }))
+        );
+      } catch (_error) {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, [t]);
 
   return (
@@ -66,7 +74,7 @@ export default function StudentAttendancePage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
-      <Table columns={t.columns} rows={rows} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }

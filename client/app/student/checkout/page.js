@@ -26,6 +26,7 @@ const mapVerificationStatus = (status) => {
 };
 
 export default function StudentCheckoutPage() {
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [checkoutHistory, setCheckoutHistory] = useState([]);
   const [profilePendingFees, setProfilePendingFees] = useState(0);
@@ -48,53 +49,58 @@ export default function StudentCheckoutPage() {
   }, []);
 
   const loadCheckoutData = async () => {
-    const student = await getCurrentStudentRecord();
-    const { token } = getAuthContext();
-    if (!student || !token) {
-      setRows([]);
-      setCheckoutHistory([]);
-      setProfilePendingFees(0);
-      return;
+    setLoading(true);
+    try {
+      const student = await getCurrentStudentRecord();
+      const { token } = getAuthContext();
+      if (!student || !token) {
+        setRows([]);
+        setCheckoutHistory([]);
+        setProfilePendingFees(0);
+        return;
+      }
+
+      setProfilePendingFees(Math.max(Number(student.pendingFees || 0), 0));
+
+      const [feeResponse, paymentsResponse] = await Promise.all([
+        get('/student/fees', token),
+        get('/fees/my/payments', token)
+      ]);
+
+      const pendingRows = (feeResponse.data || [])
+        .map((item) => {
+          const pending = Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0);
+          return {
+            id: item._id,
+            dueDate: item.dueDate?.slice(0, 10) || '',
+            amountDueValue: item.amountDue || 0,
+            amountPaidValue: item.amountPaid || 0,
+            pendingAmountValue: pending,
+            amountDue: `INR ${item.amountDue || 0}`,
+            amountPaid: `INR ${item.amountPaid || 0}`,
+            pendingAmount: `INR ${pending}`
+          };
+        })
+        .filter((item) => item.pendingAmountValue > 0)
+        .sort((a, b) => {
+          const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+          const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+          return first - second;
+        });
+
+      const paymentRows = (paymentsResponse.data || []).map((item) => ({
+        id: item._id,
+        paymentDate: (item.paidAt || item.createdAt || '').slice(0, 10) || '-',
+        amount: `INR ${item.amount || 0}`,
+        screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
+        verificationStatus: mapVerificationStatus(item.paymentStatus)
+      }));
+
+      setRows(pendingRows);
+      setCheckoutHistory(paymentRows);
+    } finally {
+      setLoading(false);
     }
-
-    setProfilePendingFees(Math.max(Number(student.pendingFees || 0), 0));
-
-    const [feeResponse, paymentsResponse] = await Promise.all([
-      get('/student/fees', token),
-      get('/fees/my/payments', token)
-    ]);
-
-    const pendingRows = (feeResponse.data || [])
-      .map((item) => {
-        const pending = Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0);
-        return {
-          id: item._id,
-          dueDate: item.dueDate?.slice(0, 10) || '',
-          amountDueValue: item.amountDue || 0,
-          amountPaidValue: item.amountPaid || 0,
-          pendingAmountValue: pending,
-          amountDue: `INR ${item.amountDue || 0}`,
-          amountPaid: `INR ${item.amountPaid || 0}`,
-          pendingAmount: `INR ${pending}`
-        };
-      })
-      .filter((item) => item.pendingAmountValue > 0)
-      .sort((a, b) => {
-        const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-        const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-        return first - second;
-      });
-
-    const paymentRows = (paymentsResponse.data || []).map((item) => ({
-      id: item._id,
-      paymentDate: (item.paidAt || item.createdAt || '').slice(0, 10) || '-',
-      amount: `INR ${item.amount || 0}`,
-      screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
-      verificationStatus: mapVerificationStatus(item.paymentStatus)
-    }));
-
-    setRows(pendingRows);
-    setCheckoutHistory(paymentRows);
   };
 
   useEffect(() => {
@@ -267,7 +273,7 @@ export default function StudentCheckoutPage() {
         )}
       </div>
 
-      <Table columns={checkoutColumns} rows={checkoutHistory} />
+      <Table columns={checkoutColumns} rows={checkoutHistory} loading={loading} />
     </div>
   );
 }

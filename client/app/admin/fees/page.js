@@ -74,6 +74,7 @@ export default function AdminFeesPage() {
   const [rows, setRows] = useState([]);
   const [students, setStudents] = useState([]);
   const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [submittingCash, setSubmittingCash] = useState(false);
@@ -86,34 +87,39 @@ export default function AdminFeesPage() {
   const [amount, setAmount] = useState('');
 
   const loadData = async () => {
-    const token = getToken();
-    const [feesRes, studentsRes, verificationRes] = await Promise.all([
-      get('/fees', token),
-      get('/students', token),
-      get('/fees/pending-verifications', token)
-    ]);
+    setLoadingData(true);
+    try {
+      const token = getToken();
+      const [feesRes, studentsRes, verificationRes] = await Promise.all([
+        get('/fees', token),
+        get('/students', token),
+        get('/fees/pending-verifications', token)
+      ]);
 
-    const feeRows = (feesRes.data || []).map((item) => {
-      const pending = Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0);
-      return {
-        id: item._id,
-        studentId: item.studentId?._id,
-        studentAdmissionNo: item.studentId?.admissionNo || '-',
-        studentName: item.studentId?.userId?.name || item.studentId?._id,
-        amountDueValue: item.amountDue || 0,
-        amountPaidValue: item.amountPaid || 0,
-        pendingAmountValue: pending,
-        month: formatMonth(item.dueDate),
-        amountDue: `INR ${item.amountDue || 0}`,
-        amountPaid: `INR ${item.amountPaid || 0}`,
-        pendingAmount: `INR ${pending}`,
-        dueDate: item.dueDate?.slice(0, 10)
-      };
-    });
+      const feeRows = (feesRes.data || []).map((item) => {
+        const pending = Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0);
+        return {
+          id: item._id,
+          studentId: item.studentId?._id,
+          studentAdmissionNo: item.studentId?.admissionNo || '-',
+          studentName: item.studentId?.userId?.name || item.studentId?._id,
+          amountDueValue: item.amountDue || 0,
+          amountPaidValue: item.amountPaid || 0,
+          pendingAmountValue: pending,
+          month: formatMonth(item.dueDate),
+          amountDue: `INR ${item.amountDue || 0}`,
+          amountPaid: `INR ${item.amountPaid || 0}`,
+          pendingAmount: `INR ${pending}`,
+          dueDate: item.dueDate?.slice(0, 10)
+        };
+      });
 
-    setRows(feeRows);
-    setStudents(studentsRes.data || []);
-    setPendingVerifications(verificationRes.data || []);
+      setRows(feeRows);
+      setStudents(studentsRes.data || []);
+      setPendingVerifications(verificationRes.data || []);
+    } finally {
+      setLoadingData(false);
+    }
   };
 
   useEffect(() => {
@@ -176,7 +182,7 @@ export default function AdminFeesPage() {
       setAmount('');
       await loadData();
     } catch (apiError) {
-      if (apiError.message === PENDING_SCREENSHOT_VERIFICATION_MESSAGE) {
+      if ((apiError.rawMessage || apiError.message) === PENDING_SCREENSHOT_VERIFICATION_MESSAGE) {
         window.alert(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
       }
       setError(apiError.message);
@@ -322,7 +328,7 @@ export default function AdminFeesPage() {
         </button>
       </form>
 
-      <Table columns={columns} rows={rows} />
+      <Table columns={columns} rows={rows} loading={loadingData} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Static QR Verification Queue</h3>
@@ -338,6 +344,7 @@ export default function AdminFeesPage() {
 
         <Table
           columns={verificationColumns}
+          loading={loadingData}
           rows={filteredPendingVerifications.map((item) => ({
             id: item._id,
             studentAdmissionNo: item.studentId?.admissionNo || '-',

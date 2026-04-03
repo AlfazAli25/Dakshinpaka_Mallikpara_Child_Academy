@@ -49,32 +49,40 @@ const toGradeLabel = (percent) => {
 export default function StudentResultsPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const student = await getCurrentStudentRecord();
-      const { token } = getAuthContext();
-      if (!student || !token) {
-        setRows([]);
-        return;
-      }
+      setLoading(true);
+      try {
+        const student = await getCurrentStudentRecord();
+        const { token } = getAuthContext();
+        if (!student || !token) {
+          setRows([]);
+          return;
+        }
 
-      const response = await get('/student/results', token);
-      setRows(
-        (response.data || []).map((item) => ({
-          id: item._id,
-          subject: item.examId?.subjectId?.name || '-',
-          marks: `${item.marksObtained}/${item.examId?.totalMarks || 0}`,
-          grade: toGradeLabel(
-            item.examId?.totalMarks > 0 ? (Number(item.marksObtained || 0) / Number(item.examId.totalMarks)) * 100 : NaN
-          ),
-          remarks: item.remarks || '-'
-        }))
-      );
+        const response = await get('/student/results', token);
+        setRows(
+          (response.data || []).map((item) => ({
+            id: item._id,
+            subject: item.examId?.subjectId?.name || '-',
+            marks: `${item.marksObtained}/${item.examId?.totalMarks || 0}`,
+            grade: toGradeLabel(
+              item.examId?.totalMarks > 0 ? (Number(item.marksObtained || 0) / Number(item.examId.totalMarks)) * 100 : NaN
+            ),
+            remarks: item.remarks || '-'
+          }))
+        );
+      } catch (_error) {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   return (
@@ -85,7 +93,7 @@ export default function StudentResultsPage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
-      <Table columns={t.columns} rows={rows} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }

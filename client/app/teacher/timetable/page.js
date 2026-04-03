@@ -15,50 +15,58 @@ const columns = [
 ];
 
 export default function TeacherTimetablePage() {
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const token = getToken();
-      const teacher = await getCurrentTeacherRecord();
-      if (!token || !teacher?._id) {
+      setLoading(true);
+      try {
+        const token = getToken();
+        const teacher = await getCurrentTeacherRecord();
+        if (!token || !teacher?._id) {
+          setRows([]);
+          return;
+        }
+
+        const classesRes = await get('/classes', token);
+        const classRows = classesRes.data || [];
+
+        const timetableResponses = await Promise.all(
+          classRows.map(async (classItem) => {
+            try {
+              const timetableRes = await get(`/timetables/${classItem._id}`, token);
+              return {
+                className: classItem.name,
+                schedule: timetableRes.data?.schedule || []
+              };
+            } catch (_error) {
+              return { className: classItem.name, schedule: [] };
+            }
+          })
+        );
+
+        const mapped = timetableResponses.flatMap((item) =>
+          item.schedule
+            .filter((entry) => entry.teacherId?._id === teacher._id)
+            .map((entry, index) => ({
+              id: `${item.className}-${entry.day}-${entry.time}-${index}`,
+              className: item.className,
+              day: entry.day,
+              time: entry.time,
+              subject: entry.subjectId?.name || '-'
+            }))
+        );
+
+        setRows(mapped);
+      } catch (_error) {
         setRows([]);
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      const classesRes = await get('/classes', token);
-      const classRows = classesRes.data || [];
-
-      const timetableResponses = await Promise.all(
-        classRows.map(async (classItem) => {
-          try {
-            const timetableRes = await get(`/timetables/${classItem._id}`, token);
-            return {
-              className: classItem.name,
-              schedule: timetableRes.data?.schedule || []
-            };
-          } catch (_error) {
-            return { className: classItem.name, schedule: [] };
-          }
-        })
-      );
-
-      const mapped = timetableResponses.flatMap((item) =>
-        item.schedule
-          .filter((entry) => entry.teacherId?._id === teacher._id)
-          .map((entry, index) => ({
-            id: `${item.className}-${entry.day}-${entry.time}-${index}`,
-            className: item.className,
-            day: entry.day,
-            time: entry.time,
-            subject: entry.subjectId?.name || '-'
-          }))
-      );
-
-      setRows(mapped);
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   return (
@@ -68,7 +76,7 @@ export default function TeacherTimetablePage() {
         title="Timetable"
         description="Review your weekly class schedule and subject periods."
       />
-      <Table columns={columns} rows={rows} />
+      <Table columns={columns} rows={rows} loading={loading} />
     </div>
   );
 }

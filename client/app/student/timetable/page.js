@@ -34,30 +34,38 @@ const text = {
 export default function StudentTimetablePage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
     const load = async () => {
-      const student = await getCurrentStudentRecord();
-      const { token } = getAuthContext();
-      if (!student?.classId?._id || !token) {
-        setRows([]);
-        return;
-      }
+      setLoading(true);
+      try {
+        const student = await getCurrentStudentRecord();
+        const { token } = getAuthContext();
+        if (!student?.classId?._id || !token) {
+          setRows([]);
+          return;
+        }
 
-      const response = await get(`/timetables/${student.classId._id}`, token);
-      const schedule = response.data?.schedule || [];
-      setRows(
-        schedule.map((item, index) => ({
-          id: `${item.day}-${item.time}-${index}`,
-          day: item.day,
-          time: item.time,
-          subject: item.subjectId?.name || '-'
-        }))
-      );
+        const response = await get(`/timetables/${student.classId._id}`, token);
+        const schedule = response.data?.schedule || [];
+        setRows(
+          schedule.map((item, index) => ({
+            id: `${item.day}-${item.time}-${index}`,
+            day: item.day,
+            time: item.time,
+            subject: item.subjectId?.name || '-'
+          }))
+        );
+      } catch (_error) {
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    load().catch(() => setRows([]));
+    load();
   }, []);
 
   return (
@@ -68,7 +76,7 @@ export default function StudentTimetablePage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
-      <Table columns={t.columns} rows={rows} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }
