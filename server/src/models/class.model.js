@@ -23,11 +23,7 @@ classSchema.pre('validate', function preValidateClass(next) {
 classSchema.index(
   { normalizedName: 1, normalizedSection: 1 },
   {
-    unique: true,
-    partialFilterExpression: {
-      normalizedName: { $exists: true, $type: 'string', $ne: '' },
-      normalizedSection: { $exists: true, $type: 'string' }
-    }
+    unique: true
   }
 );
 

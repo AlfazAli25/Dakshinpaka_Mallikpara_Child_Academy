@@ -194,11 +194,7 @@ const ensureClassIndexes = async () => {
 					{ normalizedName: 1, normalizedSection: 1 },
 					{
 						unique: true,
-						name: 'normalizedName_1_normalizedSection_1',
-						partialFilterExpression: {
-							normalizedName: { $exists: true, $type: 'string', $ne: '' },
-							normalizedSection: { $exists: true, $type: 'string' }
-						}
+						name: 'normalizedName_1_normalizedSection_1'
 					}
 				);
 			} catch (error) {
