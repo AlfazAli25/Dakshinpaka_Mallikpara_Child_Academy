@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const Teacher = require('../models/teacher.model');
 const User = require('../models/user.model');
+const ClassModel = require('../models/class.model');
+const Subject = require('../models/subject.model');
 const Payroll = require('../models/payroll.model');
 const Receipt = require('../models/receipt.model');
 const Timetable = require('../models/timetable.model');
@@ -10,20 +12,149 @@ const { isValidEmail } = require('../utils/validation');
 
 const base = createCrudService(Teacher);
 
-const findAll = (filter = {}) => base.findAll(filter, 'userId subjects');
-const findById = (id) => base.findById(id, 'userId subjects');
-const findByUserId = (userId) => Teacher.findOne({ userId }).populate('userId subjects');
+const CONTACT_NUMBER_REGEX = /^\d{7,15}$/;
+
+const normalizeIdArray = (value) => {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return Array.from(
+		new Set(
+			value
+				.map((item) => String(item || '').trim())
+				.filter(Boolean)
+		)
+	);
+};
+
+const ensureValidContactNumber = (contactNumber) => {
+	if (!CONTACT_NUMBER_REGEX.test(contactNumber)) {
+		const error = new Error('Contact number must contain only digits (7 to 15 digits)');
+		error.statusCode = 400;
+		throw error;
+	}
+};
+
+const deriveClassIdsFromSubjects = async (subjectIds = []) => {
+	if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
+		return [];
+	}
+
+	const subjectRows = await Subject.find({ _id: { $in: subjectIds } }).select('classId');
+	const missingClassSubjectIds = subjectRows
+		.filter((item) => !item.classId)
+		.map((item) => item._id)
+		.filter(Boolean);
+
+	const fallbackClassBySubject = new Map();
+	if (missingClassSubjectIds.length > 0) {
+		const classRows = await ClassModel.find({ subjectIds: { $in: missingClassSubjectIds } }).select('_id subjectIds');
+		for (const classRow of classRows) {
+			for (const subjectId of classRow.subjectIds || []) {
+				const key = String(subjectId || '');
+				if (key && !fallbackClassBySubject.has(key)) {
+					fallbackClassBySubject.set(key, classRow._id);
+				}
+			}
+		}
+	}
+
+	return normalizeIdArray(
+		subjectRows.map((item) => item.classId || fallbackClassBySubject.get(String(item._id || '')))
+	);
+};
+
+const ensureValidAssignments = async ({ classIds = [], subjectIds = [] }) => {
+	const normalizedClassIds = normalizeIdArray(classIds);
+	const normalizedSubjectIds = normalizeIdArray(subjectIds);
+
+	if (normalizedClassIds.length === 0 || normalizedSubjectIds.length === 0) {
+		const error = new Error('Select at least one class and one subject for this teacher');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const [classRows, subjectRows] = await Promise.all([
+		ClassModel.find({ _id: { $in: normalizedClassIds } }).select('_id'),
+		Subject.find({ _id: { $in: normalizedSubjectIds } }).select('_id classId')
+	]);
+
+	if (classRows.length !== normalizedClassIds.length) {
+		const error = new Error('One or more selected classes are invalid');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (subjectRows.length !== normalizedSubjectIds.length) {
+		const error = new Error('One or more selected subjects are invalid');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const missingClassSubjectIds = subjectRows
+		.filter((item) => !item.classId)
+		.map((item) => item._id)
+		.filter(Boolean);
+
+	const fallbackClassBySubject = new Map();
+	if (missingClassSubjectIds.length > 0) {
+		const subjectClassRows = await ClassModel.find({ subjectIds: { $in: missingClassSubjectIds } }).select('_id subjectIds');
+		for (const classRow of subjectClassRows) {
+			for (const subjectId of classRow.subjectIds || []) {
+				const key = String(subjectId || '');
+				if (key && !fallbackClassBySubject.has(key)) {
+					fallbackClassBySubject.set(key, classRow._id);
+				}
+			}
+		}
+	}
+
+	const classSet = new Set(normalizedClassIds);
+	const invalidSubject = subjectRows.find((item) => {
+		const resolvedClassId = item.classId || fallbackClassBySubject.get(String(item._id || ''));
+		return !resolvedClassId || !classSet.has(String(resolvedClassId));
+	});
+	if (invalidSubject) {
+		const error = new Error('Selected subjects must belong to selected classes');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	return {
+		classIds: classRows.map((item) => item._id),
+		subjectIds: subjectRows.map((item) => item._id)
+	};
+};
+
+const findAll = (filter = {}) => base.findAll(filter, 'userId classIds subjects');
+const findById = (id) => base.findById(id, 'userId classIds subjects');
+const findByUserId = (userId) => Teacher.findOne({ userId }).populate('userId classIds subjects');
 
 const create = async (payload) => {
-	const { name, email, password, teacherId, subjects, department, qualifications, joiningDate } = payload;
+	const { name, email, password, teacherId, classIds, subjects, contactNumber, department, qualifications, joiningDate } = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
+	const normalizedTeacherId = String(teacherId || '').trim();
+	const normalizedContactNumber = String(contactNumber || '').trim();
 	const normalizedDepartment = String(department || '').trim();
 	const normalizedQualifications = String(qualifications || '').trim();
-	const normalizedSubjects = Array.isArray(subjects) ? subjects.filter(Boolean) : [];
+	const normalizedClassIds = normalizeIdArray(classIds);
+	const normalizedSubjects = normalizeIdArray(subjects);
 	const parsedJoiningDate = new Date(joiningDate);
 
-	if (!name || !email || !password || !teacherId || !normalizedDepartment || !normalizedQualifications || !joiningDate || normalizedSubjects.length === 0) {
-		const error = new Error('All teacher details are required: name, email, password, teacher ID, department, qualifications, joining date, and subjects');
+	if (
+		!name ||
+		!email ||
+		!password ||
+		!normalizedTeacherId ||
+		!normalizedContactNumber ||
+		!normalizedDepartment ||
+		!normalizedQualifications ||
+		!joiningDate
+	) {
+		const error = new Error(
+			'All teacher details are required: name, email, password, teacher ID, contact number, department, qualifications, joining date, classes, and subjects'
+		);
 		error.statusCode = 400;
 		throw error;
 	}
@@ -40,6 +171,13 @@ const create = async (payload) => {
 		throw error;
 	}
 
+	ensureValidContactNumber(normalizedContactNumber);
+
+	const validAssignments = await ensureValidAssignments({
+		classIds: normalizedClassIds,
+		subjectIds: normalizedSubjects
+	});
+
 	const existingEmail = await User.findOne({ email: normalizedEmail });
 	if (existingEmail) {
 		const error = new Error('Email already in use');
@@ -47,7 +185,7 @@ const create = async (payload) => {
 		throw error;
 	}
 
-	const existingTeacherId = await Teacher.findOne({ teacherId: String(teacherId).trim() });
+	const existingTeacherId = await Teacher.findOne({ teacherId: normalizedTeacherId });
 	if (existingTeacherId) {
 		const error = new Error('Teacher ID already in use');
 		error.statusCode = 409;
@@ -65,14 +203,16 @@ const create = async (payload) => {
 	try {
 		const teacher = await Teacher.create({
 			userId: user._id,
-			teacherId: String(teacherId).trim(),
-			subjects: normalizedSubjects,
+			teacherId: normalizedTeacherId,
+			classIds: validAssignments.classIds,
+			subjects: validAssignments.subjectIds,
+			contactNumber: normalizedContactNumber,
 			department: normalizedDepartment,
 			qualifications: normalizedQualifications,
 			joiningDate: parsedJoiningDate
 		});
 
-		return Teacher.findById(teacher._id).populate('userId subjects');
+		return Teacher.findById(teacher._id).populate('userId classIds subjects');
 	} catch (error) {
 		await User.findByIdAndDelete(user._id);
 		throw error;
@@ -87,18 +227,26 @@ const updateById = async (id, payload = {}) => {
 
 	const nextTeacherId =
 		payload.teacherId !== undefined ? String(payload.teacherId || '').trim() : String(teacher.teacherId || '').trim();
+	const nextContactNumber =
+		payload.contactNumber !== undefined
+			? String(payload.contactNumber || '').trim()
+			: String(teacher.contactNumber || '').trim();
 	const nextDepartment =
 		payload.department !== undefined ? String(payload.department || '').trim() : String(teacher.department || '').trim();
 	const nextQualifications =
 		payload.qualifications !== undefined
 			? String(payload.qualifications || '').trim()
 			: String(teacher.qualifications || '').trim();
-	const nextSubjects =
-		payload.subjects !== undefined ? (Array.isArray(payload.subjects) ? payload.subjects.filter(Boolean) : []) : teacher.subjects || [];
+	let nextClassIds = payload.classIds !== undefined ? normalizeIdArray(payload.classIds) : normalizeIdArray(teacher.classIds || []);
+	const nextSubjects = payload.subjects !== undefined ? normalizeIdArray(payload.subjects) : normalizeIdArray(teacher.subjects || []);
 	const nextJoiningDateRaw = payload.joiningDate !== undefined ? payload.joiningDate : teacher.joiningDate;
 	const nextJoiningDate = nextJoiningDateRaw ? new Date(nextJoiningDateRaw) : null;
 
-	if (!nextTeacherId || !nextDepartment || !nextQualifications || !nextJoiningDate || nextSubjects.length === 0) {
+	if (nextClassIds.length === 0 && nextSubjects.length > 0) {
+		nextClassIds = await deriveClassIdsFromSubjects(nextSubjects);
+	}
+
+	if (!nextTeacherId || !nextContactNumber || !nextDepartment || !nextQualifications || !nextJoiningDate) {
 		const error = new Error('Teacher profile must keep all mandatory fields complete');
 		error.statusCode = 400;
 		throw error;
@@ -109,6 +257,13 @@ const updateById = async (id, payload = {}) => {
 		error.statusCode = 400;
 		throw error;
 	}
+
+	ensureValidContactNumber(nextContactNumber);
+
+	const validAssignments = await ensureValidAssignments({
+		classIds: nextClassIds,
+		subjectIds: nextSubjects
+	});
 
 	if (nextTeacherId !== String(teacher.teacherId || '').trim()) {
 		const existingTeacherId = await Teacher.findOne({ teacherId: nextTeacherId, _id: { $ne: teacher._id } });
@@ -161,7 +316,9 @@ const updateById = async (id, payload = {}) => {
 		teacher._id,
 		{
 			teacherId: nextTeacherId,
-			subjects: nextSubjects,
+			classIds: validAssignments.classIds,
+			subjects: validAssignments.subjectIds,
+			contactNumber: nextContactNumber,
 			department: nextDepartment,
 			qualifications: nextQualifications,
 			joiningDate: nextJoiningDate
@@ -173,11 +330,11 @@ const updateById = async (id, payload = {}) => {
 		await User.findByIdAndUpdate(teacher.userId, userUpdates, { new: true, runValidators: true });
 	}
 
-	return Teacher.findById(teacher._id).populate('userId subjects');
+	return Teacher.findById(teacher._id).populate('userId classIds subjects');
 };
 
 const getAdminProfile = async (teacherId) => {
-	const teacher = await Teacher.findById(teacherId).populate('userId subjects');
+	const teacher = await Teacher.findById(teacherId).populate('userId classIds subjects');
 	if (!teacher) {
 		const error = new Error('Teacher not found');
 		error.statusCode = 404;
@@ -223,6 +380,7 @@ const deleteById = async (id) => {
 		Payroll.deleteMany({ teacherId: teacher._id }),
 		Receipt.deleteMany({ teacherId: teacher._id }),
 		Attendance.updateMany({ markedBy: teacher._id }, { $unset: { markedBy: 1 } }),
+		ClassModel.updateMany({ classTeacher: teacher._id }, { $unset: { classTeacher: 1 } }),
 		Timetable.updateMany(
 			{ 'schedule.teacherId': teacher._id },
 			{ $pull: { schedule: { teacherId: teacher._id } } }

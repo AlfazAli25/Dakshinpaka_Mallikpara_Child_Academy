@@ -8,10 +8,14 @@ import { del, get, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CONTACT_REGEX = /^\d{7,15}$/;
 
 const columns = [
   { key: 'teacherId', label: 'Teacher ID' },
   { key: 'name', label: 'Name' },
+  { key: 'contactNumber', label: 'Contact' },
+  { key: 'classes', label: 'Classes' },
+  { key: 'subjectCount', label: 'Subjects' },
   { key: 'department', label: 'Department' },
   { key: 'email', label: 'Email' },
   { key: 'actions', label: 'Actions' }
@@ -22,9 +26,11 @@ const getInitialTeacherForm = () => ({
   email: '',
   password: '',
   teacherId: '',
+  contactNumber: '',
   department: '',
   qualifications: '',
   joiningDate: '',
+  classIds: [],
   subjects: []
 });
 
@@ -37,6 +43,7 @@ const requiredLabel = (label) => (
 export default function AdminTeachersPage() {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(getInitialTeacherForm());
+  const [classOptions, setClassOptions] = useState([]);
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
@@ -46,16 +53,45 @@ export default function AdminTeachersPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const classNameMap = useMemo(
+    () =>
+      classOptions.reduce((acc, item) => {
+        acc[item.id] = item.name;
+        return acc;
+      }, {}),
+    [classOptions]
+  );
+
+  const availableSubjects = useMemo(
+    () => subjectOptions.filter((subject) => form.classIds.includes(subject.classId)),
+    [form.classIds, subjectOptions]
+  );
+
+  const availableSubjectsByClass = useMemo(
+    () =>
+      form.classIds
+        .map((classId) => ({
+          classId,
+          className: classNameMap[classId] || 'Class',
+          subjects: availableSubjects.filter((subject) => subject.classId === classId)
+        }))
+        .filter((item) => item.subjects.length > 0),
+    [availableSubjects, classNameMap, form.classIds]
+  );
+
   const loadTeachers = async () => {
     setLoadingTeachers(true);
     try {
       const response = await get('/teachers', getToken());
       setRows(
-        response.data.map((item) => {
+        (response.data || []).map((item) => {
           const row = {
             id: String(item._id),
             teacherId: item.teacherId,
             name: item.userId?.name,
+            contactNumber: item.contactNumber || '-',
+            classes: (item.classIds || []).map((entry) => entry?.name).filter(Boolean).join(', ') || '-',
+            subjectCount: String((item.subjects || []).length || 0),
             department: item.department,
             email: item.userId?.email
           };
@@ -84,22 +120,53 @@ export default function AdminTeachersPage() {
     }
   };
 
-  const loadSubjects = async () => {
-    const response = await get('/subjects', getToken());
-    const options = (response.data || []).map((item) => ({
+  const loadClassAndSubjectOptions = async () => {
+    const [classResponse, subjectResponse] = await Promise.all([
+      get('/classes', getToken()),
+      get('/subjects', getToken())
+    ]);
+
+    const classes = (classResponse.data || []).map((item) => ({
       id: String(item._id),
-      name: item.name,
-      code: item.code
+      name: item.name || 'Class',
+      section: item.section || ''
     }));
-    setSubjectOptions(options);
+
+    const subjects = (subjectResponse.data || []).map((item) => ({
+      id: String(item._id),
+      classId: String(item.classId?._id || item.classId || ''),
+      name: item.name || '-',
+      code: item.code || ''
+    }));
+
+    setClassOptions(classes);
+    setSubjectOptions(subjects);
   };
 
   useEffect(() => {
-    Promise.all([loadTeachers(), loadSubjects()]).catch((apiError) => setError(apiError.message));
+    Promise.all([loadTeachers(), loadClassAndSubjectOptions()]).catch((apiError) => setError(apiError.message));
   }, []);
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onToggleClass = (classId) => {
+    setForm((prev) => {
+      const exists = prev.classIds.includes(classId);
+      const nextClassIds = exists ? prev.classIds.filter((item) => item !== classId) : [...prev.classIds, classId];
+      const allowedSubjectIds = new Set(
+        subjectOptions
+          .filter((subject) => nextClassIds.includes(subject.classId))
+          .map((subject) => subject.id)
+      );
+
+      return {
+        ...prev,
+        classIds: nextClassIds,
+        subjects: prev.subjects.filter((subjectId) => allowedSubjectIds.has(subjectId))
+      };
+    });
   };
 
   const onToggleSubject = (subjectId) => {
@@ -121,13 +188,25 @@ export default function AdminTeachersPage() {
       return;
     }
 
+    if (!CONTACT_REGEX.test(String(form.contactNumber || '').trim())) {
+      setError('Contact number must contain only digits (7 to 15 digits).');
+      setMessage('');
+      return;
+    }
+
     if (!String(form.department || '').trim() || !String(form.qualifications || '').trim() || !form.joiningDate) {
       setError('Please enter all teacher details before creating the account.');
       setMessage('');
       return;
     }
 
-    if (subjectOptions.length > 0 && form.subjects.length === 0) {
+    if (form.classIds.length === 0) {
+      setError('Please select at least one class for this teacher.');
+      setMessage('');
+      return;
+    }
+
+    if (form.subjects.length === 0) {
       setError('Please select at least one subject for this teacher.');
       setMessage('');
       return;
@@ -145,9 +224,11 @@ export default function AdminTeachersPage() {
           email: String(form.email || '').trim(),
           password: form.password,
           teacherId: String(form.teacherId || '').trim(),
+          contactNumber: String(form.contactNumber || '').trim(),
           department: String(form.department || '').trim(),
           qualifications: String(form.qualifications || '').trim(),
           joiningDate: form.joiningDate,
+          classIds: form.classIds,
           subjects: form.subjects
         },
         getToken()
@@ -201,11 +282,11 @@ export default function AdminTeachersPage() {
       <PageHeader
         eyebrow="Administration"
         title="Teachers"
-        description="View all registered teachers. Click any row to open full profile and salary records."
+        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records."
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Teacher</h3>
-        <p className="mb-4 text-sm text-slate-600">Admin must register each teacher one by one with all profile details.</p>
+        <p className="mb-4 text-sm text-slate-600">Assign classes first, then pick subjects from those classes only.</p>
         {message && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
         {error && <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
@@ -213,6 +294,14 @@ export default function AdminTeachersPage() {
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
           <Input label={requiredLabel('Email')} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />
           <Input label={requiredLabel('Teacher ID')} value={form.teacherId} onChange={onChange('teacherId')} required className="h-11" />
+          <Input
+            label={requiredLabel('Contact Number')}
+            value={form.contactNumber}
+            onChange={onChange('contactNumber')}
+            required
+            className="h-11"
+            placeholder="Digits only"
+          />
           <Input label={requiredLabel('Department')} value={form.department} onChange={onChange('department')} required className="h-11" />
           <Input label={requiredLabel('Qualifications')} value={form.qualifications} onChange={onChange('qualifications')} required className="h-11" />
           <Input label={requiredLabel('Joining Date')} type="date" value={form.joiningDate} onChange={onChange('joiningDate')} required className="h-11" />
@@ -227,23 +316,54 @@ export default function AdminTeachersPage() {
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-800">Subjects <span className="text-red-600">*</span></p>
-          {subjectOptions.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No subjects found. Add subjects first, then select them here.</p>
+          <p className="text-sm font-medium text-slate-800">Classes <span className="text-red-600">*</span></p>
+          {classOptions.length === 0 ? (
+            <p className="mt-1 text-xs text-amber-700">No classes found. Add classes before registering teachers.</p>
           ) : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {subjectOptions.map((subject) => (
-                <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+              {classOptions.map((classOption) => (
+                <label key={classOption.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                   <input
                     type="checkbox"
-                    checked={form.subjects.includes(subject.id)}
-                    onChange={() => onToggleSubject(subject.id)}
+                    checked={form.classIds.includes(classOption.id)}
+                    onChange={() => onToggleClass(classOption.id)}
                     className="h-4 w-4"
                   />
-                  <span>
-                    {subject.name} ({subject.code})
-                  </span>
+                  <span>{classOption.name}</span>
                 </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-sm font-medium text-slate-800">Subjects <span className="text-red-600">*</span></p>
+          {form.classIds.length === 0 ? (
+            <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
+          ) : availableSubjects.length === 0 ? (
+            <p className="mt-1 text-xs text-amber-700">No subjects found under selected classes. Add class-wise subjects first.</p>
+          ) : (
+            <div className="mt-2 space-y-3">
+              {availableSubjectsByClass.map((group) => (
+                <div key={group.classId}>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {group.subjects.map((subject) => (
+                      <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={form.subjects.includes(subject.id)}
+                          onChange={() => onToggleSubject(subject.id)}
+                          className="h-4 w-4"
+                        />
+                        <span>
+                          {subject.name}
+                          {subject.code ? ` (${subject.code})` : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}

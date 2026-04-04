@@ -13,6 +13,7 @@ export default function TeacherDashboardPage() {
   const [stats, setStats] = useState([
     { title: 'Total Exams', value: '0' },
     { title: 'Attendance Records', value: '0' },
+    { title: 'Assigned Classes', value: '0' },
     { title: 'Assigned Subjects', value: '0' }
   ]);
   const [salaryRows, setSalaryRows] = useState([]);
@@ -45,6 +46,7 @@ export default function TeacherDashboardPage() {
           setStats([
             { title: 'Total Exams', value: '0' },
             { title: 'Attendance Records', value: '0' },
+            { title: 'Assigned Classes', value: '0' },
             { title: 'Assigned Subjects', value: '0' }
           ]);
           return;
@@ -76,6 +78,7 @@ export default function TeacherDashboardPage() {
         setStats([
           { title: 'Total Exams', value: String(examsRes.data?.length || 0) },
           { title: 'Attendance Records', value: String(attendanceRes.data?.length || 0) },
+          { title: 'Assigned Classes', value: String(teacher.classIds?.length || 0) },
           { title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
         ]);
       } catch (_error) {
@@ -85,6 +88,7 @@ export default function TeacherDashboardPage() {
         setStats([
           { title: 'Total Exams', value: '0' },
           { title: 'Attendance Records', value: '0' },
+          { title: 'Assigned Classes', value: '0' },
           { title: 'Assigned Subjects', value: '0' }
         ]);
       } finally {
@@ -102,7 +106,7 @@ export default function TeacherDashboardPage() {
         title="Teacher Dashboard"
         description="Review today's classes, attendance work, and exam tasks at a glance."
       />
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         {stats.map((item) => (
           <StatCard key={item.title} title={item.title} value={item.value} loading={loading} />
         ))}
@@ -123,12 +127,18 @@ export default function TeacherDashboardPage() {
           <p className="text-sm text-slate-700">Name: {teacherProfile.userId?.name || '-'}</p>
           <p className="text-sm text-slate-700">Email: {teacherProfile.userId?.email || '-'}</p>
           <p className="text-sm text-slate-700">Teacher ID: {teacherProfile.teacherId || '-'}</p>
+          <p className="text-sm text-slate-700">Contact Number: {teacherProfile.contactNumber || '-'}</p>
           <p className="text-sm text-slate-700">Department: {teacherProfile.department || '-'}</p>
           <p className="text-sm text-slate-700">Qualifications: {teacherProfile.qualifications || '-'}</p>
           <p className="text-sm text-slate-700">
             Joining Date: {teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'}
           </p>
-          <p className="text-sm text-slate-700">Assigned Subjects: {teacherProfile.subjects?.length || 0}</p>
+          <p className="text-sm text-slate-700">
+            Assigned Classes: {(teacherProfile.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}
+          </p>
+          <p className="text-sm text-slate-700">
+            Assigned Subjects: {(teacherProfile.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}
+          </p>
         </InfoCard>
       ) : null}
 

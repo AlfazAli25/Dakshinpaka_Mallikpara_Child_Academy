@@ -29,6 +29,13 @@ export default function TeacherTimetablePage() {
           return;
         }
 
+        const assignedClassSet = new Set(
+          (teacher.classIds || []).map((item) => String(item?._id || item || '')).filter(Boolean)
+        );
+        const assignedSubjectSet = new Set(
+          (teacher.subjects || []).map((item) => String(item?._id || item || '')).filter(Boolean)
+        );
+
         const classesRes = await get('/classes', token);
         const classRows = classesRes.data || [];
 
@@ -37,18 +44,24 @@ export default function TeacherTimetablePage() {
             try {
               const timetableRes = await get(`/timetables/${classItem._id}`, token);
               return {
+                classId: String(classItem._id),
                 className: classItem.name,
                 schedule: timetableRes.data?.schedule || []
               };
             } catch (_error) {
-              return { className: classItem.name, schedule: [] };
+              return { classId: String(classItem._id), className: classItem.name, schedule: [] };
             }
           })
         );
 
         const mapped = timetableResponses.flatMap((item) =>
           item.schedule
-            .filter((entry) => entry.teacherId?._id === teacher._id)
+            .filter((entry) => {
+              const isTeacherMatch = entry.teacherId?._id === teacher._id;
+              const classAllowed = assignedClassSet.size === 0 || assignedClassSet.has(String(item.classId || ''));
+              const subjectAllowed = assignedSubjectSet.size === 0 || assignedSubjectSet.has(String(entry.subjectId?._id || entry.subjectId || ''));
+              return isTeacherMatch && classAllowed && subjectAllowed;
+            })
             .map((entry, index) => ({
               id: `${item.className}-${entry.day}-${entry.time}-${index}`,
               className: item.className,

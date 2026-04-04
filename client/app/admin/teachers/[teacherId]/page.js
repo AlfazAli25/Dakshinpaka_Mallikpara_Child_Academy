@@ -10,6 +10,7 @@ import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const CONTACT_REGEX = /^\d{7,15}$/;
 
 const salaryColumns = [
   { key: 'month', label: 'Month' },
@@ -36,10 +37,12 @@ const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
   email: teacher?.userId?.email || '',
   teacherId: teacher?.teacherId || '',
+  contactNumber: teacher?.contactNumber || '',
   department: teacher?.department || '',
   qualifications: teacher?.qualifications || '',
   joiningDate: teacher?.joiningDate ? String(teacher.joiningDate).slice(0, 10) : '',
-  subjects: (teacher?.subjects || []).map((item) => String(item._id)).filter(Boolean),
+  classIds: (teacher?.classIds || []).map((item) => String(item?._id || item)).filter(Boolean),
+  subjects: (teacher?.subjects || []).map((item) => String(item?._id || item)).filter(Boolean),
   password: ''
 });
 
@@ -51,19 +54,48 @@ export default function TeacherProfilePage() {
   const [message, setMessage] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [classOptions, setClassOptions] = useState([]);
   const [subjectOptions, setSubjectOptions] = useState([]);
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
     teacherId: '',
+    contactNumber: '',
     department: '',
     qualifications: '',
     joiningDate: '',
+    classIds: [],
     subjects: [],
     password: ''
   });
   const [paying, setPaying] = useState(false);
   const [form, setForm] = useState({ month: '', amount: '', paymentMethod: 'BANK_TRANSFER', pendingSalaryCleared: '' });
+
+  const classNameMap = useMemo(
+    () =>
+      classOptions.reduce((acc, item) => {
+        acc[item.id] = item.name;
+        return acc;
+      }, {}),
+    [classOptions]
+  );
+
+  const availableSubjects = useMemo(
+    () => subjectOptions.filter((subject) => editForm.classIds.includes(subject.classId)),
+    [editForm.classIds, subjectOptions]
+  );
+
+  const availableSubjectsByClass = useMemo(
+    () =>
+      editForm.classIds
+        .map((classId) => ({
+          classId,
+          className: classNameMap[classId] || 'Class',
+          subjects: availableSubjects.filter((subject) => subject.classId === classId)
+        }))
+        .filter((item) => item.subjects.length > 0),
+    [availableSubjects, classNameMap, editForm.classIds]
+  );
 
   const loadProfile = async () => {
     if (!teacherId) {
@@ -73,11 +105,23 @@ export default function TeacherProfilePage() {
     setProfile(response.data);
   };
 
-  const loadSubjects = async () => {
-    const response = await get('/subjects', getToken());
-    setSubjectOptions(
-      (response.data || []).map((item) => ({
+  const loadClassAndSubjectOptions = async () => {
+    const [classResponse, subjectResponse] = await Promise.all([
+      get('/classes', getToken()),
+      get('/subjects', getToken())
+    ]);
+
+    setClassOptions(
+      (classResponse.data || []).map((item) => ({
         id: String(item._id),
+        name: item.name || 'Class'
+      }))
+    );
+
+    setSubjectOptions(
+      (subjectResponse.data || []).map((item) => ({
+        id: String(item._id),
+        classId: String(item.classId?._id || item.classId || ''),
         name: item.name,
         code: item.code
       }))
@@ -85,7 +129,7 @@ export default function TeacherProfilePage() {
   };
 
   useEffect(() => {
-    Promise.all([loadProfile(), loadSubjects()]).catch((apiError) => setError(apiError.message));
+    Promise.all([loadProfile(), loadClassAndSubjectOptions()]).catch((apiError) => setError(apiError.message));
   }, [teacherId]);
 
   useEffect(() => {
@@ -100,6 +144,24 @@ export default function TeacherProfilePage() {
 
   const onEditChange = (field) => (event) => {
     setEditForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onToggleEditClass = (classId) => {
+    setEditForm((prev) => {
+      const exists = prev.classIds.includes(classId);
+      const nextClassIds = exists ? prev.classIds.filter((item) => item !== classId) : [...prev.classIds, classId];
+      const allowedSubjectIds = new Set(
+        subjectOptions
+          .filter((subject) => nextClassIds.includes(subject.classId))
+          .map((subject) => subject.id)
+      );
+
+      return {
+        ...prev,
+        classIds: nextClassIds,
+        subjects: prev.subjects.filter((subjectId) => allowedSubjectIds.has(subjectId))
+      };
+    });
   };
 
   const onToggleEditSubject = (subjectId) => {
@@ -123,6 +185,9 @@ export default function TeacherProfilePage() {
     if (!String(editForm.teacherId || '').trim()) {
       missing.push('Teacher ID');
     }
+    if (!String(editForm.contactNumber || '').trim()) {
+      missing.push('Contact Number');
+    }
     if (!String(editForm.department || '').trim()) {
       missing.push('Department');
     }
@@ -131,6 +196,9 @@ export default function TeacherProfilePage() {
     }
     if (!String(editForm.joiningDate || '').trim()) {
       missing.push('Joining Date');
+    }
+    if (editForm.classIds.length === 0) {
+      missing.push('Classes');
     }
     if (editForm.subjects.length === 0) {
       missing.push('Subjects');
@@ -158,6 +226,11 @@ export default function TeacherProfilePage() {
       return;
     }
 
+    if (!CONTACT_REGEX.test(String(editForm.contactNumber || '').trim())) {
+      setError('Contact number must contain only digits (7 to 15 digits).');
+      return;
+    }
+
     if (missingTeacherFields.length > 0) {
       setError(`Please complete all mandatory fields: ${missingTeacherFields.join(', ')}`);
       return;
@@ -177,9 +250,11 @@ export default function TeacherProfilePage() {
         name: String(editForm.name || '').trim(),
         email: String(editForm.email || '').trim(),
         teacherId: String(editForm.teacherId || '').trim(),
+        contactNumber: String(editForm.contactNumber || '').trim(),
         department: String(editForm.department || '').trim(),
         qualifications: String(editForm.qualifications || '').trim(),
         joiningDate: editForm.joiningDate,
+        classIds: editForm.classIds,
         subjects: editForm.subjects
       };
 
@@ -248,12 +323,14 @@ export default function TeacherProfilePage() {
           {!editMode ? (
             <>
               <p className="text-sm text-slate-700">Name: {teacher?.userId?.name || '-'}</p>
-              <p className="text-sm text-slate-700">Subject(s): {(teacher?.subjects || []).map((item) => item.name).filter(Boolean).join(', ') || '-'}</p>
               <p className="text-sm text-slate-700">Email: {teacher?.userId?.email || '-'}</p>
+              <p className="text-sm text-slate-700">Teacher ID: {teacher?.teacherId || '-'}</p>
+              <p className="text-sm text-slate-700">Contact Number: {teacher?.contactNumber || '-'}</p>
               <p className="text-sm text-slate-700">Department: {teacher?.department || '-'}</p>
               <p className="text-sm text-slate-700">Qualifications: {teacher?.qualifications || '-'}</p>
+              <p className="text-sm text-slate-700">Classes: {(teacher?.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}</p>
+              <p className="text-sm text-slate-700">Subjects: {(teacher?.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}</p>
               <p className="text-sm text-slate-700">Joining Date: {teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-'}</p>
-              <p className="text-sm text-slate-700">Teacher ID: {teacher?.teacherId || '-'}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -272,6 +349,14 @@ export default function TeacherProfilePage() {
                 <Input label="Name" value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
                 <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
                 <Input label="Teacher ID" value={editForm.teacherId} onChange={onEditChange('teacherId')} required className="h-10" />
+                <Input
+                  label="Contact Number"
+                  value={editForm.contactNumber}
+                  onChange={onEditChange('contactNumber')}
+                  required
+                  className="h-10"
+                  placeholder="Digits only"
+                />
                 <Input label="Department" value={editForm.department} onChange={onEditChange('department')} required className="h-10" />
                 <Input label="Qualifications" value={editForm.qualifications} onChange={onEditChange('qualifications')} required className="h-10" />
                 <Input label="Joining Date" type="date" value={editForm.joiningDate} onChange={onEditChange('joiningDate')} required className="h-10" />
@@ -285,23 +370,54 @@ export default function TeacherProfilePage() {
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-medium text-slate-800">Subjects</p>
-                {subjectOptions.length === 0 ? (
-                  <p className="mt-1 text-xs text-amber-700">No subjects found. Add subjects first, then select them here.</p>
+                <p className="text-sm font-medium text-slate-800">Classes</p>
+                {classOptions.length === 0 ? (
+                  <p className="mt-1 text-xs text-amber-700">No classes found. Add classes first.</p>
                 ) : (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {subjectOptions.map((subject) => (
-                      <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                    {classOptions.map((classOption) => (
+                      <label key={classOption.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                         <input
                           type="checkbox"
-                          checked={editForm.subjects.includes(subject.id)}
-                          onChange={() => onToggleEditSubject(subject.id)}
+                          checked={editForm.classIds.includes(classOption.id)}
+                          onChange={() => onToggleEditClass(classOption.id)}
                           className="h-4 w-4"
                         />
-                        <span>
-                          {subject.name} ({subject.code})
-                        </span>
+                        <span>{classOption.name}</span>
                       </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-sm font-medium text-slate-800">Subjects</p>
+                {editForm.classIds.length === 0 ? (
+                  <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
+                ) : availableSubjects.length === 0 ? (
+                  <p className="mt-1 text-xs text-amber-700">No subjects found under selected classes.</p>
+                ) : (
+                  <div className="mt-2 space-y-3">
+                    {availableSubjectsByClass.map((group) => (
+                      <div key={group.classId}>
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {group.subjects.map((subject) => (
+                            <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={editForm.subjects.includes(subject.id)}
+                                onChange={() => onToggleEditSubject(subject.id)}
+                                className="h-4 w-4"
+                              />
+                              <span>
+                                {subject.name}
+                                {subject.code ? ` (${subject.code})` : ''}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
