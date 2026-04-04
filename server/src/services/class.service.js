@@ -161,6 +161,11 @@ const ensureClassIndexes = async () => {
 					}
 				);
 			} catch (error) {
+				const duplicateDataDuringIndexBuild = Number(error?.code || 0) === 11000;
+				if (duplicateDataDuringIndexBuild) {
+					return;
+				}
+
 				if (!isIgnorableIndexManagementError(error)) {
 					throw error;
 				}
@@ -177,12 +182,10 @@ const ensureClassIndexes = async () => {
 };
 
 const findAll = async (filter = {}) => {
-	await ensureClassIndexes();
 	return base.findAll(filter, 'classTeacher subjectIds');
 };
 
 const findById = async (id) => {
-	await ensureClassIndexes();
 	return base.findById(id, 'classTeacher subjectIds');
 };
 

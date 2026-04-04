@@ -29,6 +29,7 @@ export default function AdminClassesPage() {
   const [rows, setRows] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
   const [subjectRows, setSubjectRows] = useState([]);
+  const [enrichingRows, setEnrichingRows] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
   const [classForm, setClassForm] = useState(getInitialClassForm());
   const [subjectForm, setSubjectForm] = useState(getInitialSubjectForm());
@@ -42,75 +43,57 @@ export default function AdminClassesPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const buildClassRows = (classes, subjects, teacherCountBySubjectId = {}) => {
+    const subjectsByClass = subjects.reduce((acc, item) => {
+      if (!item.classId) {
+        return acc;
+      }
+
+      const key = String(item.classId);
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+
+      acc[key].push(item);
+      return acc;
+    }, {});
+
+    return classes.map((item) => {
+      const classId = String(item._id);
+      const classSubjects = subjectsByClass[classId] || [];
+
+      return {
+        id: classId,
+        name: item.name || '-',
+        section: item.section || '-',
+        subjectCount: String(classSubjects.length),
+        teacherPerSubject: classSubjects.length === 0
+          ? '-'
+          : (
+            <div className="space-y-1">
+              {classSubjects.map((subject) => {
+                const teacherCount = Number(teacherCountBySubjectId[subject.id] || 0);
+                return (
+                  <p key={subject.id} className="text-xs text-slate-700">
+                    {subject.name}: {teacherCount}
+                  </p>
+                );
+              })}
+            </div>
+          )
+      };
+    });
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [classResponse, subjectResponse, teacherResponse] = await Promise.all([
-        get('/classes', getToken()),
-        get('/subjects', getToken()),
-        get('/teachers', getToken())
-      ]);
-
+      const token = getToken();
+      const classResponse = await get('/classes', token);
       const classes = classResponse.data || [];
-      const teachers = teacherResponse.data || [];
-      const subjects = (subjectResponse.data || []).map((item) => ({
-        id: String(item._id),
-        classId: String(item.classId?._id || item.classId || ''),
-        name: item.name || '-',
-        code: item.code || ''
-      }));
 
-      const teacherAssignmentMap = teachers.reduce((acc, teacher) => {
-        const classIds = (teacher.classIds || []).map((item) => String(item?._id || item || '')).filter(Boolean);
-        const subjectIds = (teacher.subjects || []).map((item) => String(item?._id || item || '')).filter(Boolean);
-
-        classIds.forEach((classId) => {
-          subjectIds.forEach((subjectId) => {
-            const key = `${classId}::${subjectId}`;
-            acc[key] = (acc[key] || 0) + 1;
-          });
-        });
-
-        return acc;
-      }, {});
-
-      const subjectCountByClass = subjects.reduce((acc, item) => {
-        if (!item.classId) {
-          return acc;
-        }
-        acc[item.classId] = (acc[item.classId] || 0) + 1;
-        return acc;
-      }, {});
-
-      setRows(
-        classes.map((item) => ({
-          id: String(item._id),
-          name: item.name || '-',
-          section: item.section || '-',
-          subjectCount: String(subjectCountByClass[String(item._id)] || 0),
-          teacherPerSubject: (() => {
-            const classId = String(item._id);
-            const classSubjects = subjects.filter((subject) => subject.classId === classId);
-            if (classSubjects.length === 0) {
-              return '-';
-            }
-
-            return (
-              <div className="space-y-1">
-                {classSubjects.map((subject) => {
-                  const assignmentKey = `${classId}::${subject.id}`;
-                  const teacherCount = Number(teacherAssignmentMap[assignmentKey] || 0);
-                  return (
-                    <p key={assignmentKey} className="text-xs text-slate-700">
-                      {subject.name}: {teacherCount}
-                    </p>
-                  );
-                })}
-              </div>
-            );
-          })()
-        }))
-      );
+      // Render classes immediately; enrich subject/teacher counts in background.
+      setRows(buildClassRows(classes, []));
 
       setClassOptions(
         classes.map((item) => ({
@@ -118,8 +101,7 @@ export default function AdminClassesPage() {
           label: `${item.name || 'Class'}${item.section ? ` (${item.section})` : ''}`
         }))
       );
-
-      setSubjectRows(subjects);
+      setSubjectRows([]);
 
       const classIdSet = new Set(classes.map((item) => String(item._id)));
       setSelectedClassId((previous) => {
@@ -130,6 +112,41 @@ export default function AdminClassesPage() {
       });
 
       setError('');
+
+      setEnrichingRows(true);
+      const [subjectResult, teacherResult] = await Promise.allSettled([
+        get('/subjects', token),
+        get('/teachers', token)
+      ]);
+
+      const subjects = subjectResult.status === 'fulfilled'
+        ? (subjectResult.value.data || []).map((item) => ({
+          id: String(item._id),
+          classId: String(item.classId?._id || item.classId || ''),
+          name: item.name || '-',
+          code: item.code || ''
+        }))
+        : [];
+
+      const teacherCountBySubjectId = teacherResult.status === 'fulfilled'
+        ? (teacherResult.value.data || []).reduce((acc, teacher) => {
+          (teacher.subjects || [])
+            .map((item) => String(item?._id || item || ''))
+            .filter(Boolean)
+            .forEach((subjectId) => {
+              acc[subjectId] = (acc[subjectId] || 0) + 1;
+            });
+
+          return acc;
+        }, {})
+        : {};
+
+      setSubjectRows(subjects);
+      setRows(buildClassRows(classes, subjects, teacherCountBySubjectId));
+
+      if (subjectResult.status === 'rejected' || teacherResult.status === 'rejected') {
+        setError('Some class insights are delayed. Please refresh in a moment.');
+      }
     } catch (apiError) {
       setRows([]);
       setClassOptions([]);
@@ -138,6 +155,7 @@ export default function AdminClassesPage() {
       setError(apiError.message);
     } finally {
       setLoading(false);
+      setEnrichingRows(false);
     }
   };
 
@@ -335,6 +353,9 @@ export default function AdminClassesPage() {
       </form>
 
       <Table columns={classColumns} rows={rows} loading={loading} />
+      {enrichingRows && !loading && (
+        <p className="text-xs text-slate-500">Refreshing subject and teacher insights...</p>
+      )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class</h3>
