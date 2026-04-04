@@ -4,6 +4,13 @@ const Student = require('../models/student.model');
 const MONTHLY_FEE_AMOUNT = 200;
 const EPSILON = 0.0001;
 const LEDGER_START_DATE = new Date(Date.UTC(2025, 0, 1));
+const ALL_STUDENTS_SYNC_COOLDOWN_MS = Number(process.env.ALL_STUDENTS_FEE_SYNC_COOLDOWN_MS || 45000);
+const ALL_STUDENTS_BATCH_SIZE = Math.min(Math.max(Number(process.env.ALL_STUDENTS_FEE_SYNC_BATCH_SIZE || 8), 1), 25);
+
+const allStudentsSyncState = {
+	inFlightPromise: null,
+	lastCompletedAt: 0
+};
 
 const FEE_STATUS = {
 	PENDING: 'PENDING',
@@ -365,10 +372,41 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 };
 
 const ensureMonthlyFeesForAllStudents = async ({ session, anchorDate = new Date() } = {}) => {
-	const students = await withSession(Student.find({}).select('_id'), session);
-	for (const student of students) {
-		await ensureMonthlyFeesForStudent({ studentId: student._id, session, anchorDate });
+	const runSync = async () => {
+		const students = await withSession(Student.find({}).select('_id').lean(), session);
+
+		for (let index = 0; index < students.length; index += ALL_STUDENTS_BATCH_SIZE) {
+			const batch = students.slice(index, index + ALL_STUDENTS_BATCH_SIZE);
+			await Promise.all(
+				batch.map((student) => ensureMonthlyFeesForStudent({ studentId: student._id, session, anchorDate }))
+			);
+		}
+	};
+
+	if (session) {
+		await runSync();
+		return;
 	}
+
+	const now = Date.now();
+	if (allStudentsSyncState.inFlightPromise) {
+		await allStudentsSyncState.inFlightPromise;
+		return;
+	}
+
+	if (now - allStudentsSyncState.lastCompletedAt < ALL_STUDENTS_SYNC_COOLDOWN_MS) {
+		return;
+	}
+
+	allStudentsSyncState.inFlightPromise = runSync()
+		.then(() => {
+			allStudentsSyncState.lastCompletedAt = Date.now();
+		})
+		.finally(() => {
+			allStudentsSyncState.inFlightPromise = null;
+		});
+
+	await allStudentsSyncState.inFlightPromise;
 };
 
 module.exports = {

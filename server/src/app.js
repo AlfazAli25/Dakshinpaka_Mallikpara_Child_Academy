@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 
 const authRoutes = require('./routes/auth.routes');
 const adminRoutes = require('./routes/admin.routes');
@@ -20,21 +21,46 @@ const notificationRoutes = require('./routes/notification.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const { SCHOOL_NAME } = require('./config/school');
 const { notFound, errorHandler } = require('./middleware/error.middleware');
+const { attachRequestContext } = require('./middleware/request-context.middleware');
+const { requestPerformanceLogger } = require('./middleware/request-performance.middleware');
+const { rateLimitMiddleware } = require('./middleware/rate-limit.middleware');
+const { responseCacheMiddleware, invalidateApiCache } = require('./middleware/response-cache.middleware');
 
 const app = express();
+
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN || '*'
   })
 );
+app.use(attachRequestContext);
+app.use(requestPerformanceLogger);
+app.use(
+  compression({
+    threshold: 1024
+  })
+);
 app.use(
   express.json({
+    limit: '1mb',
     verify: (req, _res, buffer) => {
       req.rawBody = buffer?.toString('utf8') || '';
     }
   })
 );
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use('/api', rateLimitMiddleware);
+app.use('/api', responseCacheMiddleware);
+
+app.use((req, _res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    invalidateApiCache();
+  }
+  next();
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: `${SCHOOL_NAME} API is running` });

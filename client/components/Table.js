@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 const statusClassMap = {
@@ -31,7 +32,7 @@ const getStatusClass = (rawValue) => {
   return statusClassMap[key] || '';
 };
 
-export default function Table({
+function Table({
   columns = [],
   rows = [],
   getRowHref,
@@ -41,6 +42,15 @@ export default function Table({
   maxHeightClass = 'max-h-[312px]'
 }) {
   const router = useRouter();
+
+  const onRowClick = useCallback(
+    (href) => {
+      if (href) {
+        router.push(href);
+      }
+    },
+    [router]
+  );
 
   const tableContainerClass = scrollY
     ? `overflow-x-auto overflow-y-auto ${maxHeightClass}`
@@ -115,11 +125,7 @@ export default function Table({
                     className={`border-t border-slate-100 ${index % 2 === 1 ? 'bg-red-50/25' : ''} ${
                       clickable ? 'cursor-pointer hover:bg-red-50' : ''
                     }`}
-                    onClick={() => {
-                      if (clickable) {
-                        router.push(href);
-                      }
-                    }}
+                    onClick={() => onRowClick(clickable ? href : '')}
                   >
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700">
@@ -136,3 +142,5 @@ export default function Table({
     </div>
   );
 }
+
+export default memo(Table);

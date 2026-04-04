@@ -53,5 +53,6 @@ const paymentSchema = new mongoose.Schema(
 
 paymentSchema.index({ studentId: 1, createdAt: -1 });
 paymentSchema.index({ feeId: 1, paymentStatus: 1, createdAt: -1 });
+paymentSchema.index({ studentId: 1, paymentStatus: 1, paymentMethod: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Payment', paymentSchema);

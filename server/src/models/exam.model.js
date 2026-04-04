@@ -12,5 +12,6 @@ const examSchema = new mongoose.Schema(
 );
 
 examSchema.index({ classId: 1, date: 1 });
+examSchema.index({ classId: 1, subjectId: 1, date: 1 });
 
 module.exports = mongoose.model('Exam', examSchema);

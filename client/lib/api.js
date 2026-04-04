@@ -2,6 +2,8 @@ import { clearSession, getToken, isTokenExpired } from './session';
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
 const REQUEST_TIMEOUT_MS = 15000;
 const GET_CACHE_TTL_MS = 12000;
+const DEFAULT_GET_RETRY_COUNT = 1;
+const DEFAULT_GET_RETRY_DELAY_MS = 300;
 const TECHNICAL_MESSAGE_REGEX =
   /internal server error|server initialization failed|failed to fetch|networkerror|timed out|timeout|econn|mongodb|mongoose|duplicate key|jwt|token malformed|unexpected token|cannot read properties|stack|syntaxerror/i;
 
@@ -96,14 +98,58 @@ const withTimeoutSignal = (timeoutMs) => {
   };
 };
 
+const mergeAbortSignals = (signals = []) => {
+  const activeSignals = signals.filter(Boolean);
+  if (activeSignals.length === 0) {
+    return null;
+  }
+
+  if (activeSignals.length === 1) {
+    return activeSignals[0];
+  }
+
+  const controller = new AbortController();
+  const onAbort = () => {
+    controller.abort();
+  };
+
+  for (const signal of activeSignals) {
+    if (signal.aborted) {
+      controller.abort();
+      break;
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  return controller.signal;
+};
+
 const fetchWithTimeout = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
   const { signal, cleanup } = withTimeoutSignal(timeoutMs);
+  const mergedSignal = mergeAbortSignals([signal, options.signal]);
 
   try {
-    return await fetch(url, { ...options, signal });
+    return await fetch(url, { ...options, signal: mergedSignal });
   } finally {
     cleanup();
   }
+};
+
+const wait = (durationMs) => new Promise((resolve) => setTimeout(resolve, durationMs));
+
+const isRetryableStatusCode = (statusCode) => statusCode === 408 || statusCode === 429 || statusCode >= 500;
+
+const shouldRetryError = (error) => {
+  if (error?.name === 'AbortError') {
+    return false;
+  }
+
+  if (typeof error?.statusCode === 'number') {
+    return isRetryableStatusCode(error.statusCode);
+  }
+
+  return true;
 };
 
 const handleUnauthorized = () => {
@@ -139,8 +185,10 @@ const buildAuthHeaders = (token) => ({
 });
 
 const request = async (path, options = {}) => {
+  const { timeoutMs = REQUEST_TIMEOUT_MS, ...fetchOptions } = options;
+
   try {
-    const response = await fetchWithTimeout(`${BASE_URL}${path}`, options);
+    const response = await fetchWithTimeout(`${BASE_URL}${path}`, fetchOptions, timeoutMs);
     const json = await parseJsonSafely(response);
 
     if (!response.ok) {
@@ -166,9 +214,41 @@ const request = async (path, options = {}) => {
   }
 };
 
+const requestWithRetry = async (
+  path,
+  options,
+  { retryCount = 0, retryDelayMs = DEFAULT_GET_RETRY_DELAY_MS } = {}
+) => {
+  let attempt = 0;
+  while (attempt <= retryCount) {
+    try {
+      return await request(path, options);
+    } catch (error) {
+      if (!shouldRetryError(error) || attempt >= retryCount) {
+        throw error;
+      }
+
+      attempt += 1;
+      await wait(retryDelayMs * attempt);
+    }
+  }
+
+  return request(path, options);
+};
+
 export const get = async (path, token, options = {}) => {
-  const { cacheTtlMs = GET_CACHE_TTL_MS, forceRefresh = false } = options;
+  const {
+    cacheTtlMs = GET_CACHE_TTL_MS,
+    forceRefresh = false,
+    retryCount = DEFAULT_GET_RETRY_COUNT,
+    retryDelayMs = DEFAULT_GET_RETRY_DELAY_MS,
+    timeoutMs = REQUEST_TIMEOUT_MS,
+    signal,
+    useStaleCacheOnError = true
+  } = options;
   const cacheKey = `${token || 'public'}::${path}`;
+  const staleCacheEntry = getCache.get(cacheKey);
+  const canUseInFlightDedupe = !forceRefresh && !signal;
 
   if (!forceRefresh) {
     const cached = getCache.get(cacheKey);
@@ -176,16 +256,25 @@ export const get = async (path, token, options = {}) => {
       return cached.data;
     }
 
-    if (inFlightGetRequests.has(cacheKey)) {
+    if (canUseInFlightDedupe && inFlightGetRequests.has(cacheKey)) {
       return inFlightGetRequests.get(cacheKey);
     }
   }
 
-  const requestPromise = request(path, {
-    method: 'GET',
-    headers: buildHeaders(token),
-    cache: 'no-store'
-  })
+  const requestPromise = requestWithRetry(
+    path,
+    {
+      method: 'GET',
+      headers: buildHeaders(token),
+      cache: 'no-store',
+      timeoutMs,
+      signal
+    },
+    {
+      retryCount,
+      retryDelayMs
+    }
+  )
     .then((data) => {
       if (cacheTtlMs > 0) {
         getCache.set(cacheKey, {
@@ -195,11 +284,23 @@ export const get = async (path, token, options = {}) => {
       }
       return data;
     })
+    .catch((error) => {
+      if (useStaleCacheOnError && staleCacheEntry?.data) {
+        return staleCacheEntry.data;
+      }
+
+      throw error;
+    })
     .finally(() => {
-      inFlightGetRequests.delete(cacheKey);
+      if (canUseInFlightDedupe) {
+        inFlightGetRequests.delete(cacheKey);
+      }
     });
 
-  inFlightGetRequests.set(cacheKey, requestPromise);
+  if (canUseInFlightDedupe) {
+    inFlightGetRequests.set(cacheKey, requestPromise);
+  }
+
   return requestPromise;
 };
 

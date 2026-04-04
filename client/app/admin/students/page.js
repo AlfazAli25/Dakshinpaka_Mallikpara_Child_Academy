@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import Table from '@/components/Table';
+import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
+
+const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -59,12 +61,27 @@ export default function AdminStudentsPage() {
   const [studentSearch, setStudentSearch] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const latestStudentsRequestIdRef = useRef(0);
+  const lastRefreshAtRef = useRef(0);
 
-  const loadStudents = async () => {
+  const openDeleteDialog = useCallback((row) => {
+    setDeleteTarget(row);
+    setTypedStudentId('');
+    setMessage('');
+    setError('');
+  }, []);
+
+  const loadStudents = useCallback(async ({ forceRefresh = false } = {}) => {
+    const requestId = latestStudentsRequestIdRef.current + 1;
+    latestStudentsRequestIdRef.current = requestId;
     setLoadingStudents(true);
     const token = getToken();
     try {
-      const response = await get('/students/admin/all', token);
+      const response = await get('/students/admin/all', token, {
+        forceRefresh,
+        retryCount: 2,
+        retryDelayMs: 250
+      });
       const mapped = (response.data || []).map((item) => ({
         id: String(item._id),
         profileId: item.isLinkedRecord ? String(item._id) : '',
@@ -86,7 +103,7 @@ export default function AdminStudentsPage() {
                 if (!row.userProfileId) {
                   return;
                 }
-                onDeleteStudent(row);
+                openDeleteDialog(row);
               }}
               className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -95,27 +112,31 @@ export default function AdminStudentsPage() {
           )
         }))
       );
-      setError('');
+      if (latestStudentsRequestIdRef.current === requestId) {
+        setError('');
+      }
+    } catch (apiError) {
+      if (latestStudentsRequestIdRef.current === requestId) {
+        setError(apiError.message);
+      }
     } finally {
-      setLoadingStudents(false);
+      if (latestStudentsRequestIdRef.current === requestId) {
+        setLoadingStudents(false);
+      }
     }
-  };
+  }, [openDeleteDialog]);
 
-  const loadClasses = async () => {
-    const response = await get('/classes', getToken());
+  const loadClasses = useCallback(async () => {
+    const response = await get('/classes', getToken(), {
+      retryCount: 1,
+      retryDelayMs: 200
+    });
     const options = (response.data || []).map((item) => ({
       value: item._id,
       label: item.section ? `${item.name} (${item.section})` : item.name
     }));
     setClassOptions(options);
-  };
-
-  const onDeleteStudent = async (row) => {
-    setDeleteTarget(row);
-    setTypedStudentId('');
-    setMessage('');
-    setError('');
-  };
+  }, []);
 
   const onConfirmDeleteStudent = async () => {
     if (!deleteTarget) {
@@ -154,18 +175,28 @@ export default function AdminStudentsPage() {
     if (pathname === '/admin/students') {
       Promise.all([loadStudents(), loadClasses()]).catch((apiError) => setError(apiError.message));
     }
-  }, [pathname]);
+  }, [loadClasses, loadStudents, pathname]);
 
   useEffect(() => {
+    const triggerRefresh = () => {
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < 1200) {
+        return;
+      }
+
+      lastRefreshAtRef.current = now;
+      loadStudents({ forceRefresh: true }).catch((apiError) => setError(apiError.message));
+    };
+
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible' && pathname === '/admin/students') {
-        loadStudents().catch((apiError) => setError(apiError.message));
+        triggerRefresh();
       }
     };
 
     const refreshOnFocus = () => {
       if (pathname === '/admin/students') {
-        loadStudents().catch((apiError) => setError(apiError.message));
+        triggerRefresh();
       }
     };
 
@@ -176,7 +207,7 @@ export default function AdminStudentsPage() {
       window.removeEventListener('focus', refreshOnFocus);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [pathname]);
+  }, [loadStudents, pathname]);
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));

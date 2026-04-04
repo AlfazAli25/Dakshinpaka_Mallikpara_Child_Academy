@@ -2,6 +2,13 @@ const Payroll = require('../models/payroll.model');
 const Teacher = require('../models/teacher.model');
 
 const EPSILON = 0.0001;
+const ALL_TEACHERS_SYNC_COOLDOWN_MS = Number(process.env.ALL_TEACHERS_PAYROLL_SYNC_COOLDOWN_MS || 45000);
+const ALL_TEACHERS_BATCH_SIZE = Math.min(Math.max(Number(process.env.ALL_TEACHERS_PAYROLL_SYNC_BATCH_SIZE || 6), 1), 20);
+
+const allTeachersSyncState = {
+	inFlightPromise: null,
+	lastCompletedAt: 0
+};
 
 const withSession = (query, session) => (session ? query.session(session) : query);
 
@@ -409,10 +416,40 @@ const ensureMonthlyPayrollForTeacher = async ({ teacherId, session, anchorDate =
 };
 
 const ensureMonthlyPayrollForAllTeachers = async ({ session, anchorDate = new Date() } = {}) => {
-	const teachers = await withSession(Teacher.find({}).select('_id'), session);
-	for (const teacher of teachers) {
-		await ensureMonthlyPayrollForTeacher({ teacherId: teacher._id, session, anchorDate });
+	const runSync = async () => {
+		const teachers = await withSession(Teacher.find({}).select('_id').lean(), session);
+		for (let index = 0; index < teachers.length; index += ALL_TEACHERS_BATCH_SIZE) {
+			const batch = teachers.slice(index, index + ALL_TEACHERS_BATCH_SIZE);
+			await Promise.all(
+				batch.map((teacher) => ensureMonthlyPayrollForTeacher({ teacherId: teacher._id, session, anchorDate }))
+			);
+		}
+	};
+
+	if (session) {
+		await runSync();
+		return;
 	}
+
+	const now = Date.now();
+	if (allTeachersSyncState.inFlightPromise) {
+		await allTeachersSyncState.inFlightPromise;
+		return;
+	}
+
+	if (now - allTeachersSyncState.lastCompletedAt < ALL_TEACHERS_SYNC_COOLDOWN_MS) {
+		return;
+	}
+
+	allTeachersSyncState.inFlightPromise = runSync()
+		.then(() => {
+			allTeachersSyncState.lastCompletedAt = Date.now();
+		})
+		.finally(() => {
+			allTeachersSyncState.inFlightPromise = null;
+		});
+
+	await allTeachersSyncState.inFlightPromise;
 };
 
 module.exports = {

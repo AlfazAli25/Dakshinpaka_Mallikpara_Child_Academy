@@ -13,6 +13,12 @@ const { ensureMonthlyPayrollForTeacher, applyManualPendingSalaryOverride } = req
 
 const base = createCrudService(Teacher);
 
+const TEACHER_POPULATE = [
+	{ path: 'userId', select: 'name email role' },
+	{ path: 'classIds', select: 'name section' },
+	{ path: 'subjects', select: 'name code classId' }
+];
+
 const CONTACT_NUMBER_REGEX = /^\d{7,15}$/;
 
 const normalizeIdArray = (value) => {
@@ -188,9 +194,9 @@ const ensureValidAssignments = async ({
 	};
 };
 
-const findAll = (filter = {}) => base.findAll(filter, 'userId classIds subjects');
-const findById = (id) => base.findById(id, 'userId classIds subjects');
-const findByUserId = (userId) => Teacher.findOne({ userId }).populate('userId classIds subjects');
+const findAll = (filter = {}) => base.findAll(filter, TEACHER_POPULATE);
+const findById = (id) => base.findById(id, TEACHER_POPULATE);
+const findByUserId = (userId) => Teacher.findOne({ userId }).populate(TEACHER_POPULATE).lean();
 
 const create = async (payload) => {
 	const {
@@ -311,7 +317,7 @@ const create = async (payload) => {
 			anchorDate: new Date()
 		});
 
-		return Teacher.findById(teacher._id).populate('userId classIds subjects');
+		return Teacher.findById(teacher._id).populate(TEACHER_POPULATE).lean();
 	} catch (error) {
 		await Teacher.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
@@ -469,11 +475,11 @@ const updateById = async (id, payload = {}) => {
 		});
 	}
 
-	return Teacher.findById(teacher._id).populate('userId classIds subjects');
+	return Teacher.findById(teacher._id).populate(TEACHER_POPULATE).lean();
 };
 
 const getAdminProfile = async (teacherId) => {
-	const teacher = await Teacher.findById(teacherId).populate('userId classIds subjects');
+	const teacher = await Teacher.findById(teacherId).populate(TEACHER_POPULATE).lean();
 	if (!teacher) {
 		const error = new Error('Teacher not found');
 		error.statusCode = 404;
@@ -485,8 +491,9 @@ const getAdminProfile = async (teacherId) => {
 	const salaryHistory = await Payroll.find({ teacherId: teacher._id })
 		.populate('processedByAdmin', 'name email')
 		.populate('receiptId')
-		.sort({ month: -1, createdAt: -1 });
-	const receipts = await Receipt.find({ teacherId: teacher._id, receiptType: 'SALARY' }).sort({ createdAt: -1 });
+		.sort({ month: -1, createdAt: -1 })
+		.lean();
+	const receipts = await Receipt.find({ teacherId: teacher._id, receiptType: 'SALARY' }).sort({ createdAt: -1 }).lean();
 
 	const totals = salaryHistory.reduce(
 		(acc, item) => {

@@ -3,12 +3,31 @@ const asyncHandler = require('../middleware/async.middleware');
 const classService = require('../services/class.service');
 const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
+const ClassModel = require('../models/class.model');
 
 const base = createCrudController(classService, 'Class');
 
+const safeFindClasses = async (filter = {}) => {
+	try {
+		return await classService.findAll(filter);
+	} catch (error) {
+		console.error('Class list fallback triggered:', error?.message || error);
+		return ClassModel.find(filter).select('name section classTeacher subjectIds').lean();
+	}
+};
+
+const safeFindClassById = async (id) => {
+	try {
+		return await classService.findById(id);
+	} catch (error) {
+		console.error('Class get fallback triggered:', error?.message || error);
+		return ClassModel.findById(id).select('name section classTeacher subjectIds').lean();
+	}
+};
+
 const list = asyncHandler(async (req, res) => {
 	if (req.user?.role === 'admin') {
-		const data = await classService.findAll(req.query || {});
+		const data = await safeFindClasses(req.query || {});
 		return res.json({ success: true, data });
 	}
 
@@ -19,7 +38,7 @@ const list = asyncHandler(async (req, res) => {
 			return res.json({ success: true, data: [] });
 		}
 
-		const data = await classService.findAll({ _id: { $in: classIds } });
+		const data = await safeFindClasses({ _id: { $in: classIds } });
 		return res.json({ success: true, data });
 	}
 
@@ -29,7 +48,7 @@ const list = asyncHandler(async (req, res) => {
 			return res.json({ success: true, data: [] });
 		}
 
-		const data = await classService.findAll({ _id: student.classId });
+		const data = await safeFindClasses({ _id: student.classId });
 		return res.json({ success: true, data });
 	}
 
@@ -37,7 +56,7 @@ const list = asyncHandler(async (req, res) => {
 });
 
 const get = asyncHandler(async (req, res) => {
-	const item = await classService.findById(req.params.id);
+	const item = await safeFindClassById(req.params.id);
 	if (!item) {
 		return res.status(404).json({ success: false, message: 'Class not found' });
 	}

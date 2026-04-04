@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import Table from '@/components/Table';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import { del, get, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
+
+const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTACT_REGEX = /^\d{7,15}$/;
@@ -82,7 +84,7 @@ export default function AdminTeachersPage() {
     [availableSubjects, classNameMap, form.classIds]
   );
 
-  const loadTeachers = async () => {
+  const loadTeachers = useCallback(async () => {
     setLoadingTeachers(true);
     try {
       const response = await get('/teachers', getToken());
@@ -127,14 +129,16 @@ export default function AdminTeachersPage() {
           };
         })
       );
-    } catch (_error) {
+      setError('');
+    } catch (apiError) {
       setRows([]);
+      setError(apiError.message);
     } finally {
       setLoadingTeachers(false);
     }
-  };
+  }, []);
 
-  const loadClassAndSubjectOptions = async () => {
+  const loadClassAndSubjectOptions = useCallback(async () => {
     const [classResponse, subjectResponse] = await Promise.all([
       get('/classes', getToken()),
       get('/subjects', getToken())
@@ -155,11 +159,11 @@ export default function AdminTeachersPage() {
 
     setClassOptions(classes);
     setSubjectOptions(subjects);
-  };
+  }, []);
 
   useEffect(() => {
     Promise.all([loadTeachers(), loadClassAndSubjectOptions()]).catch((apiError) => setError(apiError.message));
-  }, []);
+  }, [loadClassAndSubjectOptions, loadTeachers]);
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));

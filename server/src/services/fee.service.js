@@ -101,7 +101,13 @@ return getSessionQuery(Payment.findOne(query), session);
 };
 
 const recordFeeReceipt = async ({ studentId, fee, payment, amount, paymentMethod, generatedBy, session }) => {
-const student = await getSessionQuery(Student.findById(studentId).populate('userId classId'), session);
+const student = await getSessionQuery(
+Student.findById(studentId).populate([
+{ path: 'userId', select: 'name email role' },
+{ path: 'classId', select: 'name section' }
+]),
+session
+);
 if (!student) {
 return null;
 }
@@ -635,7 +641,10 @@ error.statusCode = 400;
 throw error;
 }
 
-const student = await Student.findOne({ userId }).populate('userId classId');
+const student = await Student.findOne({ userId }).populate([
+{ path: 'userId', select: 'name email role' },
+{ path: 'classId', select: 'name section' }
+]);
 if (!student) {
 const error = new Error('Student record not found');
 error.statusCode = 404;

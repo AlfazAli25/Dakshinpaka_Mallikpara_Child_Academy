@@ -1,4 +1,6 @@
-export default function StatCard({ title, value, loading = false }) {
+import { memo } from 'react';
+
+function StatCard({ title, value, loading = false }) {
   return (
     <div className="rounded-2xl border border-red-100 bg-white p-5 shadow-sm">
       <p className="text-sm font-medium text-slate-500">{title}</p>
@@ -16,3 +18,5 @@ export default function StatCard({ title, value, loading = false }) {
     </div>
   );
 }
+
+export default memo(StatCard);

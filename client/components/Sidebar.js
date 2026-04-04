@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { memo } from 'react';
 import { usePathname } from 'next/navigation';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
-export default function Sidebar({ title, links, mobileOpen = false, onClose = () => {} }) {
+function Sidebar({ title, links, mobileOpen = false, onClose = () => {} }) {
   const pathname = usePathname();
 
   return (
@@ -68,3 +69,5 @@ export default function Sidebar({ title, links, mobileOpen = false, onClose = ()
     </>
   );
 }
+
+export default memo(Sidebar);

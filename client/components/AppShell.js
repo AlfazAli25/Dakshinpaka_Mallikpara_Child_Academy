@@ -25,8 +25,15 @@ export default function AppShell({ title, links, children }) {
 
     let active = true;
     const loadNotifications = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return;
+      }
+
       try {
-        const response = await get('/notifications/admin', getToken());
+        const response = await get('/notifications/admin', getToken(), {
+          forceRefresh: true,
+          cacheTtlMs: 0
+        });
         if (active) {
           setNotifications(response.data?.notifications || []);
         }
@@ -37,12 +44,20 @@ export default function AppShell({ title, links, children }) {
       }
     };
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadNotifications();
+      }
+    };
+
     loadNotifications();
     const timer = setInterval(loadNotifications, 15000);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       active = false;
       clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [user?.role]);
 

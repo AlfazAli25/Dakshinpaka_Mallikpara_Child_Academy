@@ -14,6 +14,11 @@ const { ensureMonthlyFeesForStudent, applyManualPendingFeesOverride } = require(
 
 const base = createCrudService(Student);
 
+const STUDENT_POPULATE = [
+	{ path: 'userId', select: 'name email role' },
+	{ path: 'classId', select: 'name section' }
+];
+
 const withSession = (query, session) => (session ? query.session(session) : query);
 
 const runWithOptionalTransaction = async (handler) => {
@@ -43,13 +48,19 @@ const runWithOptionalTransaction = async (handler) => {
 	}
 };
 
-const findAll = (filter = {}) => base.findAll(filter, 'userId classId');
-const findById = (id) => base.findById(id, 'userId classId');
-const findByUserId = (userId) => Student.findOne({ userId }).populate('userId classId');
+const findAll = (filter = {}) => base.findAll(filter, STUDENT_POPULATE);
+const findById = (id) => base.findById(id, STUDENT_POPULATE);
+const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_POPULATE).lean();
 
 const findAllForAdmin = async ({ search } = {}) => {
-	const students = await Student.find({}).populate('userId classId').sort({ createdAt: -1 });
-	const studentUsers = await User.find({ role: 'student' }).select('name email role').sort({ createdAt: -1 });
+	const [students, studentUsers] = await Promise.all([
+		Student.find({})
+			.populate({ path: 'userId', select: 'name email role' })
+			.populate({ path: 'classId', select: 'name section' })
+			.sort({ createdAt: -1 })
+			.lean(),
+		User.find({ role: 'student' }).select('name email role').sort({ createdAt: -1 }).lean()
+	]);
 
 	const linkedUserIds = new Set(
 		students
@@ -71,7 +82,7 @@ const findAllForAdmin = async ({ search } = {}) => {
 		}));
 
 	const linkedRows = students.map((item) => ({
-		...item.toObject(),
+		...item,
 		isLinkedRecord: true
 	}));
 
@@ -198,7 +209,7 @@ const create = async (payload) => {
 			await ensureMonthlyFeesForStudent({ studentId: student._id });
 		}
 
-		return Student.findById(student._id).populate('userId classId');
+		return Student.findById(student._id).populate(STUDENT_POPULATE).lean();
 	} catch (error) {
 		await Student.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
@@ -340,12 +351,12 @@ const updateById = async (id, payload = {}) => {
 			await ensureMonthlyFeesForStudent({ studentId: student._id, session });
 		}
 
-		return withSession(Student.findById(student._id).populate('userId classId'), session);
+		return withSession(Student.findById(student._id).populate(STUDENT_POPULATE).lean(), session);
 	});
 };
 
 const getAdminProfile = async (studentId) => {
-	let student = await Student.findById(studentId).populate('userId classId');
+	let student = await Student.findById(studentId).populate(STUDENT_POPULATE).lean();
 	if (!student) {
 		const error = new Error('Student not found');
 		error.statusCode = 404;
@@ -353,17 +364,18 @@ const getAdminProfile = async (studentId) => {
 	}
 
 	await ensureMonthlyFeesForStudent({ studentId: student._id });
-	student = await Student.findById(studentId).populate('userId classId');
+	student = await Student.findById(studentId).populate(STUDENT_POPULATE).lean();
 	if (!student) {
 		const error = new Error('Student not found');
 		error.statusCode = 404;
 		throw error;
 	}
 
-	const fees = await Fee.find({ studentId: student._id }).sort({ dueDate: -1 });
+	const fees = await Fee.find({ studentId: student._id }).sort({ dueDate: -1 }).lean();
 	const payments = await Payment.find({ studentId: student._id })
 		.populate('processedByAdmin', 'name email')
-		.sort({ createdAt: -1 });
+		.sort({ createdAt: -1 })
+		.lean();
 
 	const totals = fees.reduce(
 		(acc, item) => {
@@ -400,7 +412,7 @@ const getAdminProfileByUserId = async (userId) => {
 		throw error;
 	}
 
-	const student = await Student.findOne({ userId: user._id }).populate('userId classId');
+	const student = await Student.findOne({ userId: user._id }).populate(STUDENT_POPULATE).lean();
 	if (!student) {
 		return {
 			student: {

@@ -3,6 +3,54 @@ const timetableService = require('../services/timetable.service');
 const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
 
+const normalizeId = (value) => String(value?._id || value || '');
+
+const getMine = asyncHandler(async (req, res) => {
+  if (req.user?.role !== 'teacher') {
+    return res.status(403).json({ success: false, message: 'Forbidden' });
+  }
+
+  const teacher = await Teacher.findOne({ userId: req.user._id }).select('_id classIds subjects').lean();
+  if (!teacher) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const classIds = Array.isArray(teacher.classIds) ? teacher.classIds : [];
+  const subjectIdSet = new Set((teacher.subjects || []).map((item) => normalizeId(item)).filter(Boolean));
+  const timetables = await timetableService.listByTeacherId({
+    teacherId: teacher._id,
+    classIds
+  });
+
+  const rows = timetables.flatMap((item) =>
+    (item.schedule || [])
+      .filter((entry) => {
+        const isTeacherMatch = normalizeId(entry.teacherId) === normalizeId(teacher._id);
+        if (!isTeacherMatch) {
+          return false;
+        }
+
+        const subjectId = normalizeId(entry.subjectId);
+        return subjectIdSet.size === 0 || subjectIdSet.has(subjectId);
+      })
+      .map((entry, index) => {
+        const classLabel = item.classId?.section
+          ? `${item.classId?.name} (${item.classId?.section})`
+          : item.classId?.name || 'Class';
+
+        return {
+          id: `${normalizeId(item._id)}-${entry.day}-${entry.time}-${index}`,
+          className: classLabel,
+          day: entry.day,
+          time: entry.time,
+          subject: entry.subjectId?.name || '-'
+        };
+      })
+  );
+
+  return res.json({ success: true, data: rows });
+});
+
 const getByClassId = asyncHandler(async (req, res) => {
   if (req.user?.role === 'teacher') {
     const teacher = await Teacher.findOne({ userId: req.user._id }).select('_id classIds');
@@ -59,4 +107,4 @@ const remove = asyncHandler(async (req, res) => {
   return res.json({ success: true, message: 'Timetable deleted' });
 });
 
-module.exports = { getByClassId, createOrUpdate, update, remove };
+module.exports = { getByClassId, getMine, createOrUpdate, update, remove };

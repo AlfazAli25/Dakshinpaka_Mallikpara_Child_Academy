@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
@@ -60,16 +61,65 @@ const text = {
   }
 };
 
+const DEFAULT_STATS = [
+  { title: 'Attendance %', value: '0%' },
+  { title: 'Upcoming Exams', value: '0' },
+  { title: 'Pending Fees', value: 'INR 0' }
+];
+
+const fetchStudentDashboardData = async () => {
+  const student = await getCurrentStudentRecord();
+  const { token } = getAuthContext();
+  if (!student || !token) {
+    return {
+      studentProfile: null,
+      stats: DEFAULT_STATS
+    };
+  }
+
+  const [attendanceRes, examsRes, feesRes] = await Promise.all([
+    get('/student/attendance', token),
+    get(`/exams?classId=${student.classId?._id || ''}`, token),
+    get('/student/fees', token)
+  ]);
+
+  const attendanceRows = attendanceRes.data || [];
+  const present = attendanceRows.filter((item) => item.status === 'Present').length;
+  const attendanceFromRecords = attendanceRows.length ? Math.round((present / attendanceRows.length) * 100) : null;
+  const configuredAttendance = Number(student.attendance || 0);
+  const attendancePercent = `${
+    attendanceFromRecords !== null
+      ? attendanceFromRecords
+      : Number.isFinite(configuredAttendance)
+        ? configuredAttendance
+        : 0
+  }%`;
+  const upcomingExams = (examsRes.data || []).filter((item) => new Date(item.date).getTime() >= Date.now()).length;
+  const pendingFromFees = (feesRes.data || []).reduce(
+    (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
+    0
+  );
+
+  return {
+    studentProfile: student,
+    stats: [
+      { title: 'Attendance %', value: attendancePercent },
+      { title: 'Upcoming Exams', value: String(upcomingExams) },
+      { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
+    ]
+  };
+};
+
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState([
-    { title: 'Attendance %', value: '0%' },
-    { title: 'Upcoming Exams', value: '0' },
-    { title: 'Pending Fees', value: '0' }
-  ]);
-  const [studentProfile, setStudentProfile] = useState(null);
+
+  const { data, isLoading } = useSWR('student-dashboard', fetchStudentDashboardData, {
+    refreshInterval: 60000
+  });
+
+  const studentProfile = data?.studentProfile || null;
+  const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : DEFAULT_STATS), [data]);
 
   const formatDate = (value) => {
     if (!value) {
@@ -84,63 +134,6 @@ export default function StudentDashboardPage() {
     return parsed.toLocaleDateString();
   };
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const student = await getCurrentStudentRecord();
-        const { token } = getAuthContext();
-        if (!student || !token) {
-          setStudentProfile(null);
-          return;
-        }
-
-        setStudentProfile(student);
-
-        const [attendanceRes, examsRes, feesRes] = await Promise.all([
-          get('/student/attendance', token),
-          get(`/exams?classId=${student.classId?._id || ''}`, token),
-          get('/student/fees', token)
-        ]);
-
-        const attendanceRows = attendanceRes.data || [];
-        const present = attendanceRows.filter((item) => item.status === 'Present').length;
-        const attendanceFromRecords = attendanceRows.length ? Math.round((present / attendanceRows.length) * 100) : null;
-        const configuredAttendance = Number(student.attendance || 0);
-        const attendancePercent = `${
-          attendanceFromRecords !== null
-            ? attendanceFromRecords
-            : Number.isFinite(configuredAttendance)
-              ? configuredAttendance
-              : 0
-        }%`;
-        const upcomingExams = (examsRes.data || []).filter((item) => new Date(item.date).getTime() >= Date.now()).length;
-        const pendingFromFees = (feesRes.data || []).reduce(
-          (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
-          0
-        );
-        const pendingFees = pendingFromFees;
-
-        setStats([
-          { title: 'Attendance %', value: attendancePercent },
-          { title: 'Upcoming Exams', value: String(upcomingExams) },
-          { title: 'Pending Fees', value: `INR ${pendingFees}` }
-        ]);
-      } catch (_error) {
-        setStudentProfile(null);
-        setStats([
-          { title: 'Attendance %', value: '0%' },
-          { title: 'Upcoming Exams', value: '0' },
-          { title: 'Pending Fees', value: 'INR 0' }
-        ]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, []);
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -151,11 +144,11 @@ export default function StudentDashboardPage() {
       />
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => (
-          <StatCard key={item.title} title={t.stats[item.title] || item.title} value={item.value} loading={loading} />
+          <StatCard key={item.title} title={t.stats[item.title] || item.title} value={item.value} loading={isLoading} />
         ))}
       </div>
 
-      {loading ? (
+      {isLoading ? (
         <InfoCard title={t.detailsTitle}>
           <div className="space-y-2">
             <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />

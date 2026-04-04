@@ -4,6 +4,7 @@ const controller = require('../controllers/timetable.controller');
 
 const router = express.Router();
 
+router.get('/me', protect, requireRole(['teacher']), controller.getMine);
 router.get('/:classId', protect, controller.getByClassId);
 router.post('/', protect, requireRole(['admin']), controller.createOrUpdate);
 router.put('/:id', protect, requireRole(['admin']), controller.update);

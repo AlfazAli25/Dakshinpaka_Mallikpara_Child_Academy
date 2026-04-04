@@ -1,4 +1,6 @@
-export default function PageHeader({ eyebrow, title, description, rightSlot }) {
+import { memo } from 'react';
+
+function PageHeader({ eyebrow, title, description, rightSlot }) {
   return (
     <div className="mb-6 rounded-2xl border-2 border-red-200 bg-gradient-to-r from-white via-red-50/70 to-white p-5 shadow-sm md:p-6">
       <div className="mb-4 h-2.5 w-28 rounded-full bg-gradient-to-r from-red-800 via-red-600 to-red-300 shadow-sm shadow-red-200" />
@@ -13,3 +15,5 @@ export default function PageHeader({ eyebrow, title, description, rightSlot }) {
     </div>
   );
 }
+
+export default memo(PageHeader);

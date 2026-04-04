@@ -18,4 +18,6 @@ const timetableSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+timetableSchema.index({ 'schedule.teacherId': 1, classId: 1 });
+
 module.exports = mongoose.model('Timetable', timetableSchema);
