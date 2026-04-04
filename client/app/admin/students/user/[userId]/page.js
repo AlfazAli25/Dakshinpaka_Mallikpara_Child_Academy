@@ -11,11 +11,12 @@ import { get, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MONTHLY_FEE_AMOUNT = 200;
 
 const feeColumns = [
   { key: 'month', label: 'Month' },
-  { key: 'amountDue', label: 'Amount Due' },
   { key: 'amountPaid', label: 'Amount Paid' },
+  { key: 'amountPending', label: 'Amount Pending' },
   { key: 'status', label: 'Status' }
 ];
 
@@ -40,12 +41,17 @@ const formatMonth = (dateValue) => {
 
 const toPaymentMode = (paymentMethod) => (String(paymentMethod || '').toUpperCase().includes('CASH') ? 'Via Cash' : 'Via Online');
 
-const normalizeStatus = (status) => {
-  const value = String(status || '').trim().toUpperCase();
-  if (value === 'PARTIALLY_PAID') {
+const deriveStatusFromAmountPaid = (amountPaid) => {
+  const paid = Number(amountPaid || 0);
+  if (!Number.isFinite(paid) || paid <= 0) {
+    return 'PENDING';
+  }
+
+  if (paid < MONTHLY_FEE_AMOUNT) {
     return 'PARTIALLY PAID';
   }
-  return value || 'PENDING';
+
+  return 'PAID';
 };
 
 const genderOptions = [
@@ -250,32 +256,24 @@ export default function StudentUserProfilePage() {
     { value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' },
     ...classOptions
   ];
-  const groupedPayments = Object.values(
-    (profile.payments || []).reduce((acc, item) => {
-      const key = String(item.createdAt || '').slice(0, 10) || '-';
-      const amount = Number(item.amount || 0);
-      const mode = toPaymentMode(item.paymentMethod);
-
-      if (!acc[key]) {
-        acc[key] = {
-          id: key,
-          createdAt: key,
-          amount: 0,
-          viaCash: 0,
-          viaOnline: 0
-        };
-      }
-
-      acc[key].amount += amount;
-      if (mode === 'Via Cash') {
-        acc[key].viaCash += amount;
-      } else {
-        acc[key].viaOnline += amount;
-      }
-
-      return acc;
-    }, {})
-  ).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const paymentRows = useMemo(
+    () =>
+      (profile?.payments || [])
+        .map((item, index) => {
+          const parsed = item.createdAt ? new Date(item.createdAt) : null;
+          const timestamp = parsed && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+          return {
+            id: String(item._id || `${item.createdAt || 'payment'}-${index}`),
+            timestamp,
+            createdAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString() : '-',
+            amount: `INR ${Number(item.amount || 0)}`,
+            paymentMethod: toPaymentMode(item.paymentMethod)
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .map(({ timestamp, ...row }) => row),
+      [profile?.payments]
+  );
 
   return (
     <div className="space-y-5">
@@ -403,14 +401,17 @@ export default function StudentUserProfilePage() {
         <Table
           columns={feeColumns}
           rows={(profile.fees || [])
-            .filter((item) => Number(item.amountDue || 0) > 0 || Number(item.amountPaid || 0) > 0)
             .map((item) => ({
-            id: item._id,
-            month: formatMonth(item.dueDate),
-            amountDue: `INR ${item.amountDue || 0}`,
-            amountPaid: `INR ${item.amountPaid || 0}`,
-            status: normalizeStatus(item.status)
-            }))}
+              id: item._id,
+              month: formatMonth(item.dueDate),
+              amountDueValue: Number(item.amountDue || 0),
+              amountPaidValue: Number(item.amountPaid || 0),
+              pendingAmountValue: Math.max(Number(item.amountDue || 0) - Number(item.amountPaid || 0), 0),
+              amountPaid: `INR ${item.amountPaid || 0}`,
+              amountPending: `INR ${Math.max(Number(item.amountDue || 0) - Number(item.amountPaid || 0), 0)}`,
+              status: deriveStatusFromAmountPaid(item.amountPaid)
+            }))
+            .filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0)}
         />
       </div>
 
@@ -418,17 +419,7 @@ export default function StudentUserProfilePage() {
         <h3 className="mb-2 text-base font-semibold text-slate-900">Payment History</h3>
         <Table
           columns={paymentColumns}
-          rows={groupedPayments.map((item) => ({
-            id: item.id,
-            createdAt: item.createdAt,
-            amount: `INR ${item.amount}`,
-            paymentMethod: [
-              item.viaCash > 0 ? `${item.viaCash} Via Cash` : '',
-              item.viaOnline > 0 ? `${item.viaOnline} Via Online` : ''
-            ]
-              .filter(Boolean)
-              .join(' and ') || '-'
-          }))}
+          rows={paymentRows}
         />
       </div>
     </div>

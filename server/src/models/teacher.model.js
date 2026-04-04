@@ -7,6 +7,8 @@ const teacherSchema = new mongoose.Schema(
     classIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Class' }],
     subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
     contactNumber: { type: String, trim: true },
+    monthlySalary: { type: Number, min: 0, default: 0 },
+    pendingSalary: { type: Number, min: 0, default: 0 },
     department: { type: String, trim: true },
     qualifications: { type: String, trim: true },
     joiningDate: { type: Date }

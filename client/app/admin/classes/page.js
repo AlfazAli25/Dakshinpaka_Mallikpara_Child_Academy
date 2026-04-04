@@ -11,14 +11,13 @@ import { getToken } from '@/lib/session';
 const classColumns = [
   { key: 'name', label: 'Class' },
   { key: 'section', label: 'Section' },
-  { key: 'shift', label: 'Shift' },
-  { key: 'subjectCount', label: 'Subjects' }
+  { key: 'subjectCount', label: 'Subjects' },
+  { key: 'teacherPerSubject', label: 'Teachers By Subject' }
 ];
 
 const getInitialClassForm = () => ({
   name: '',
-  section: '',
-  shift: ''
+  section: ''
 });
 
 const getInitialSubjectForm = () => ({
@@ -46,18 +45,34 @@ export default function AdminClassesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [classResponse, subjectResponse] = await Promise.all([
+      const [classResponse, subjectResponse, teacherResponse] = await Promise.all([
         get('/classes', getToken()),
-        get('/subjects', getToken())
+        get('/subjects', getToken()),
+        get('/teachers', getToken())
       ]);
 
       const classes = classResponse.data || [];
+      const teachers = teacherResponse.data || [];
       const subjects = (subjectResponse.data || []).map((item) => ({
         id: String(item._id),
         classId: String(item.classId?._id || item.classId || ''),
         name: item.name || '-',
         code: item.code || ''
       }));
+
+      const teacherAssignmentMap = teachers.reduce((acc, teacher) => {
+        const classIds = (teacher.classIds || []).map((item) => String(item?._id || item || '')).filter(Boolean);
+        const subjectIds = (teacher.subjects || []).map((item) => String(item?._id || item || '')).filter(Boolean);
+
+        classIds.forEach((classId) => {
+          subjectIds.forEach((subjectId) => {
+            const key = `${classId}::${subjectId}`;
+            acc[key] = (acc[key] || 0) + 1;
+          });
+        });
+
+        return acc;
+      }, {});
 
       const subjectCountByClass = subjects.reduce((acc, item) => {
         if (!item.classId) {
@@ -72,8 +87,28 @@ export default function AdminClassesPage() {
           id: String(item._id),
           name: item.name || '-',
           section: item.section || '-',
-          shift: item.shift || '-',
-          subjectCount: String(subjectCountByClass[String(item._id)] || 0)
+          subjectCount: String(subjectCountByClass[String(item._id)] || 0),
+          teacherPerSubject: (() => {
+            const classId = String(item._id);
+            const classSubjects = subjects.filter((subject) => subject.classId === classId);
+            if (classSubjects.length === 0) {
+              return '-';
+            }
+
+            return (
+              <div className="space-y-1">
+                {classSubjects.map((subject) => {
+                  const assignmentKey = `${classId}::${subject.id}`;
+                  const teacherCount = Number(teacherAssignmentMap[assignmentKey] || 0);
+                  return (
+                    <p key={assignmentKey} className="text-xs text-slate-700">
+                      {subject.name}: {teacherCount}
+                    </p>
+                  );
+                })}
+              </div>
+            );
+          })()
         }))
       );
 
@@ -145,8 +180,7 @@ export default function AdminClassesPage() {
         '/classes',
         {
           name: normalizedName,
-          section: String(classForm.section || '').trim() || undefined,
-          shift: String(classForm.shift || '').trim() || undefined
+          section: String(classForm.section || '').trim() || undefined
         },
         getToken()
       );
@@ -155,8 +189,11 @@ export default function AdminClassesPage() {
       setMessage('Class added successfully.');
       await loadData();
     } catch (apiError) {
-      if (String(apiError.message || '').toLowerCase().includes('duplicate key')) {
-        setError('Class name already exists. Please use a different class name.');
+      if (
+        String(apiError.message || '').toLowerCase().includes('duplicate key') ||
+        String(apiError.message || '').toLowerCase().includes('same name and section')
+      ) {
+        setError('Class with the same name and section already exists. Try a different section.');
       } else {
         setError(apiError.message);
       }
@@ -279,14 +316,13 @@ export default function AdminClassesPage() {
 
       <form onSubmit={onCreateClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Add Class</h3>
-        <p className="mb-4 text-sm text-slate-600">Create classes first. Subjects can then be added per class in the section below.</p>
+        <p className="mb-4 text-sm text-slate-600">Create classes first. Same class name is allowed across different sections.</p>
         {message && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
         {error && <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <Input label="Class Name *" value={classForm.name} onChange={onClassFormChange('name')} required className="h-11" />
           <Input label="Section" value={classForm.section} onChange={onClassFormChange('section')} className="h-11" placeholder="A / B" />
-          <Input label="Shift" value={classForm.shift} onChange={onClassFormChange('shift')} className="h-11" placeholder="Morning / Day" />
         </div>
 
         <button

@@ -37,6 +37,12 @@ const getMonthDateFromKey = (monthKey) => {
 	return new Date(Date.UTC(year, month - 1, 1));
 };
 
+const getStudentLedgerStartMonth = (student) => {
+	const floorMonth = getMonthStartDate(LEDGER_START_DATE);
+	const studentCreatedMonth = getMonthStartDate(student?.createdAt || floorMonth);
+	return studentCreatedMonth > floorMonth ? studentCreatedMonth : floorMonth;
+};
+
 const toAmount = (value) => {
 	const numeric = Number(value || 0);
 	if (!Number.isFinite(numeric)) {
@@ -153,12 +159,13 @@ const ensureMonthlyFeesForStudent = async ({ studentId, session, anchorDate = ne
 		return [];
 	}
 
-	const studentStartMonth = getMonthStartDate(LEDGER_START_DATE);
+	const studentStartMonth = getStudentLedgerStartMonth(student);
 	const targetMonth = getMonthStartDate(anchorDate);
 	let existingRows = await withSession(
 		Fee.find({ studentId: student._id }).sort({ dueDate: 1, createdAt: 1 }),
 		session
 	);
+	const hadExistingRows = existingRows.length > 0;
 
 	for (const fee of existingRows) {
 		await normalizeFeeRow({ fee, session });
@@ -203,16 +210,24 @@ const ensureMonthlyFeesForStudent = async ({ studentId, session, anchorDate = ne
 		}
 	}
 
+	const latestExistingMonthTime = existingRows.reduce((latest, fee) => {
+		const feeMonthDate = getMonthDateFromKey(fee.monthKey) || getMonthStartDate(fee.dueDate || fee.createdAt || anchorDate);
+		return Math.max(latest, feeMonthDate.getTime());
+	}, 0);
+
 	const monthsToCreate = listMonthStartsInRange({ fromDate: studentStartMonth, toDate: targetMonth })
 		.filter((monthDate) => !monthKeySet.has(getMonthKey(monthDate)))
-		.map((monthDate) => ({
-			studentId: student._id,
-			dueDate: monthDate,
-			monthKey: getMonthKey(monthDate),
-			amountDue: MONTHLY_FEE_AMOUNT,
-			amountPaid: MONTHLY_FEE_AMOUNT,
-			status: FEE_STATUS.PAID
-		}));
+		.map((monthDate) => {
+			const shouldAddAsPending = hadExistingRows && monthDate.getTime() > latestExistingMonthTime;
+			return {
+				studentId: student._id,
+				dueDate: monthDate,
+				monthKey: getMonthKey(monthDate),
+				amountDue: MONTHLY_FEE_AMOUNT,
+				amountPaid: shouldAddAsPending ? 0 : MONTHLY_FEE_AMOUNT,
+				status: shouldAddAsPending ? FEE_STATUS.PENDING : FEE_STATUS.PAID
+			};
+		});
 
 	if (monthsToCreate.length > 0) {
 		try {
@@ -246,6 +261,11 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		return [];
 	}
 
+	const student = await withSession(Student.findById(studentId).select('_id pendingFees createdAt'), session);
+	if (!student) {
+		return [];
+	}
+
 	const normalizedTargetPending = toAmount(targetPendingFees);
 	if (!Number.isFinite(normalizedTargetPending) || normalizedTargetPending < 0) {
 		const error = new Error('Pending fees must be 0 or greater');
@@ -261,13 +281,13 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		const rightTime = new Date(right.dueDate || right.createdAt || 0).getTime();
 		return leftTime - rightTime;
 	});
-	const targetStartMonth = getMonthStartDate(LEDGER_START_DATE);
+	const targetStartMonth = getStudentLedgerStartMonth(student);
 	const targetEndMonth = getMonthStartDate(anchorDate);
 	const distributionMonths = listMonthStartsInRange({ fromDate: targetStartMonth, toDate: targetEndMonth });
 	const maxSupportedPendingAmount = toAmount(distributionMonths.length * MONTHLY_FEE_AMOUNT);
 
 	if (normalizedTargetPending > maxSupportedPendingAmount + EPSILON) {
-		const error = new Error('Pending fees exceed supported range from January 2025 to current month');
+		const error = new Error('Pending fees exceed supported range from student registration month to current month');
 		error.statusCode = 400;
 		throw error;
 	}
@@ -335,7 +355,6 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 
 	const refreshedFees = await withSession(Fee.find({ studentId }).sort({ dueDate: 1, createdAt: 1 }), session);
 	const finalPending = toAmount(refreshedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
-	const student = await withSession(Student.findById(studentId).select('_id pendingFees'), session);
 
 	if (student && !areAmountsEqual(student.pendingFees || 0, finalPending)) {
 		student.pendingFees = finalPending;

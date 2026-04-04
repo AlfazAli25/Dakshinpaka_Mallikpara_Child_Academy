@@ -16,7 +16,6 @@ const columns = [
   { key: 'contactNumber', label: 'Contact' },
   { key: 'classes', label: 'Classes' },
   { key: 'subjectCount', label: 'Subjects' },
-  { key: 'department', label: 'Department' },
   { key: 'email', label: 'Email' },
   { key: 'actions', label: 'Actions' }
 ];
@@ -26,6 +25,8 @@ const getInitialTeacherForm = () => ({
   email: '',
   password: '',
   contactNumber: '',
+  monthlySalary: '',
+  pendingSalary: '0',
   classIds: [],
   subjects: []
 });
@@ -41,6 +42,7 @@ export default function AdminTeachersPage() {
   const [form, setForm] = useState(getInitialTeacherForm());
   const [classOptions, setClassOptions] = useState([]);
   const [subjectOptions, setSubjectOptions] = useState([]);
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingTeachers, setLoadingTeachers] = useState(true);
   const [deletingId, setDeletingId] = useState('');
@@ -58,9 +60,14 @@ export default function AdminTeachersPage() {
     [classOptions]
   );
 
+  const assignedSubjectIdSet = useMemo(() => new Set(assignedSubjectIds), [assignedSubjectIds]);
+
   const availableSubjects = useMemo(
-    () => subjectOptions.filter((subject) => form.classIds.includes(subject.classId)),
-    [form.classIds, subjectOptions]
+    () =>
+      subjectOptions.filter(
+        (subject) => form.classIds.includes(subject.classId)
+      ),
+    [assignedSubjectIdSet, form.classIds, subjectOptions]
   );
 
   const availableSubjectsByClass = useMemo(
@@ -79,8 +86,20 @@ export default function AdminTeachersPage() {
     setLoadingTeachers(true);
     try {
       const response = await get('/teachers', getToken());
+      const teacherRows = response.data || [];
+      setAssignedSubjectIds(
+        Array.from(
+          new Set(
+            teacherRows.flatMap((item) =>
+              (item.subjects || [])
+                .map((entry) => String(entry?._id || entry || '').trim())
+                .filter(Boolean)
+            )
+          )
+        )
+      );
       setRows(
-        (response.data || []).map((item) => {
+        teacherRows.map((item) => {
           const row = {
             id: String(item._id),
             teacherId: item.teacherId,
@@ -88,7 +107,6 @@ export default function AdminTeachersPage() {
             contactNumber: item.contactNumber || '-',
             classes: (item.classIds || []).map((entry) => entry?.name).filter(Boolean).join(', ') || '-',
             subjectCount: String((item.subjects || []).length || 0),
-            department: item.department,
             email: item.userId?.email
           };
 
@@ -153,7 +171,7 @@ export default function AdminTeachersPage() {
       const nextClassIds = exists ? prev.classIds.filter((item) => item !== classId) : [...prev.classIds, classId];
       const allowedSubjectIds = new Set(
         subjectOptions
-          .filter((subject) => nextClassIds.includes(subject.classId))
+          .filter((subject) => nextClassIds.includes(subject.classId) && !assignedSubjectIdSet.has(subject.id))
           .map((subject) => subject.id)
       );
 
@@ -168,6 +186,10 @@ export default function AdminTeachersPage() {
   const onToggleSubject = (subjectId) => {
     setForm((prev) => {
       const exists = prev.subjects.includes(subjectId);
+      if (!exists && assignedSubjectIdSet.has(subjectId)) {
+        return prev;
+      }
+
       return {
         ...prev,
         subjects: exists ? prev.subjects.filter((item) => item !== subjectId) : [...prev.subjects, subjectId]
@@ -186,6 +208,23 @@ export default function AdminTeachersPage() {
 
     if (!CONTACT_REGEX.test(String(form.contactNumber || '').trim())) {
       setError('Contact number must contain only digits (7 to 15 digits).');
+      setMessage('');
+      return;
+    }
+
+    const monthlySalaryValue = Number(form.monthlySalary);
+    if (!Number.isFinite(monthlySalaryValue) || monthlySalaryValue <= 0) {
+      setError('Monthly salary must be greater than zero.');
+      setMessage('');
+      return;
+    }
+
+    const pendingSalaryValue =
+      form.pendingSalary === '' || form.pendingSalary === null || form.pendingSalary === undefined
+        ? 0
+        : Number(form.pendingSalary);
+    if (!Number.isFinite(pendingSalaryValue) || pendingSalaryValue < 0) {
+      setError('Pending salary must be 0 or greater.');
       setMessage('');
       return;
     }
@@ -214,6 +253,8 @@ export default function AdminTeachersPage() {
           email: String(form.email || '').trim(),
           password: form.password,
           contactNumber: String(form.contactNumber || '').trim(),
+          monthlySalary: monthlySalaryValue,
+          pendingSalary: pendingSalaryValue,
           classIds: form.classIds,
           subjects: form.subjects
         },
@@ -295,6 +336,22 @@ export default function AdminTeachersPage() {
             required
             className="h-11"
           />
+          <Input
+            label={requiredLabel('Monthly Salary')}
+            type="number"
+            value={form.monthlySalary}
+            onChange={onChange('monthlySalary')}
+            required
+            className="h-11"
+          />
+          <Input
+            label="Pending Salary"
+            type="number"
+            value={form.pendingSalary}
+            onChange={onChange('pendingSalary')}
+            className="h-11"
+            placeholder="0"
+          />
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -323,24 +380,33 @@ export default function AdminTeachersPage() {
           {form.classIds.length === 0 ? (
             <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
           ) : availableSubjects.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No subjects found under selected classes. Add class-wise subjects first.</p>
+            <p className="mt-1 text-xs text-amber-700">No available subjects under selected classes. They may already be assigned to other teachers.</p>
           ) : (
             <div className="mt-2 space-y-3">
+              <p className="text-xs text-slate-500">Subjects tagged as "Already assigned" are reserved and cannot be selected.</p>
               {availableSubjectsByClass.map((group) => (
                 <div key={group.classId}>
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {group.subjects.map((subject) => (
-                      <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <label key={subject.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${assignedSubjectIdSet.has(subject.id) ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-700'}`}>
                         <input
                           type="checkbox"
                           checked={form.subjects.includes(subject.id)}
                           onChange={() => onToggleSubject(subject.id)}
+                          disabled={assignedSubjectIdSet.has(subject.id)}
                           className="h-4 w-4"
                         />
-                        <span>
-                          {subject.name}
-                          {subject.code ? ` (${subject.code})` : ''}
+                        <span className="flex items-center gap-2">
+                          <span>
+                            {subject.name}
+                            {subject.code ? ` (${subject.code})` : ''}
+                          </span>
+                          {assignedSubjectIdSet.has(subject.id) && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                              Already assigned
+                            </span>
+                          )}
                         </span>
                       </label>
                     ))}

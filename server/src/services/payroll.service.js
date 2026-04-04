@@ -3,19 +3,43 @@ const Teacher = require('../models/teacher.model');
 const createCrudService = require('./crud.service');
 const { createSalaryReceipt } = require('./receipt.service');
 const { createActionLog } = require('./action-log.service');
+const {
+	ensureMonthlyPayrollForTeacher,
+	ensureMonthlyPayrollForAllTeachers,
+	normalizeMonthKey,
+	getMonthDateFromKey,
+	getMonthKey
+} = require('./monthly-payroll-ledger.service');
 
 const base = createCrudService(Payroll);
 
-const findAll = (filter = {}) => base.findAll(filter, 'staffId teacherId processedByAdmin receiptId');
+const roundAmount = (value) => {
+	const numeric = Number(value || 0);
+	if (!Number.isFinite(numeric)) {
+		return 0;
+	}
+
+	return Number(numeric.toFixed(2));
+};
+
+const findAll = async (filter = {}) => {
+	if (filter?.teacherId) {
+		await ensureMonthlyPayrollForTeacher({ teacherId: filter.teacherId });
+	} else {
+		await ensureMonthlyPayrollForAllTeachers();
+	}
+
+	return base.findAll(filter, 'staffId teacherId processedByAdmin receiptId');
+};
 const findById = (id) => base.findById(id, 'staffId teacherId processedByAdmin receiptId');
 
 const normalizeMonth = (month) => {
-	if (month && String(month).trim()) {
-		return String(month).trim();
+	const normalizedMonth = normalizeMonthKey(month);
+	if (normalizedMonth) {
+		return normalizedMonth;
 	}
 
-	const now = new Date();
-	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+	return getMonthKey(new Date());
 };
 
 const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod, adminUserId, pendingSalaryCleared }) => {
@@ -34,11 +58,19 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	}
 
 	const payrollMonth = normalizeMonth(month);
-	let payroll = await Payroll.findOne({ teacherId: teacher._id, month: payrollMonth });
+	await ensureMonthlyPayrollForTeacher({
+		teacherId: teacher._id,
+		anchorDate: getMonthDateFromKey(payrollMonth) || new Date(),
+		monthlyAmount: teacher.monthlySalary
+	});
 
-	if (payroll?.status === 'Paid') {
-		const error = new Error('Salary for this teacher and month is already marked as paid');
-		error.statusCode = 409;
+	let payroll = await Payroll.findOne({ teacherId: teacher._id, month: payrollMonth });
+	const normalizedPendingSalaryCleared =
+		pendingSalaryCleared !== undefined ? Number(pendingSalaryCleared) : normalizedAmount;
+
+	if (!Number.isFinite(normalizedPendingSalaryCleared) || normalizedPendingSalaryCleared < 0) {
+		const error = new Error('Pending salary cleared must be 0 or more');
+		error.statusCode = 400;
 		throw error;
 	}
 
@@ -46,22 +78,31 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 		payroll = await Payroll.create({
 			teacherId: teacher._id,
 			month: payrollMonth,
-			amount: normalizedAmount,
+			amount: 0,
 			status: 'Pending'
 		});
 	}
 
-	payroll.amount = normalizedAmount;
+	const isFirstPaymentForPendingMonth = payroll.status !== 'Paid' && !payroll.paidOn;
+	if (isFirstPaymentForPendingMonth) {
+		payroll.amount = roundAmount(normalizedAmount);
+		payroll.pendingSalaryCleared = roundAmount(normalizedPendingSalaryCleared);
+	} else {
+		payroll.amount = roundAmount(Number(payroll.amount || 0) + normalizedAmount);
+		payroll.pendingSalaryCleared = roundAmount(
+			Number(payroll.pendingSalaryCleared || 0) + normalizedPendingSalaryCleared
+		);
+	}
+
 	payroll.status = 'Paid';
 	payroll.paidOn = new Date();
-	payroll.paymentMethod = paymentMethod || 'BANK_TRANSFER';
+	payroll.paymentMethod = paymentMethod || payroll.paymentMethod || 'BANK_TRANSFER';
 	payroll.processedByAdmin = adminUserId;
-	payroll.pendingSalaryCleared = Math.max(Number(pendingSalaryCleared || normalizedAmount), 0);
 
 	const receipt = await createSalaryReceipt({
 		teacher,
 		payroll,
-		amount: normalizedAmount,
+		amount: payroll.amount,
 		paymentMethod: payroll.paymentMethod,
 		generatedBy: adminUserId,
 		pendingSalaryCleared: payroll.pendingSalaryCleared
@@ -69,6 +110,12 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 
 	payroll.receiptId = receipt._id;
 	await payroll.save();
+
+	teacher.pendingSalary = Math.max(
+		roundAmount(Number(teacher.pendingSalary || 0) - normalizedPendingSalaryCleared),
+		0
+	);
+	await teacher.save();
 
 	await createActionLog({
 		actorId: adminUserId,
@@ -79,6 +126,7 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 			teacherId: String(teacher._id),
 			month: payrollMonth,
 			amount: normalizedAmount,
+			totalPaidForMonth: payroll.amount,
 			receiptNumber: receipt.receiptNumber
 		}
 	});
@@ -86,8 +134,10 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	return Payroll.findById(payroll._id).populate('teacherId processedByAdmin receiptId');
 };
 
-const getTeacherSalaryHistoryForAdmin = async ({ teacherId }) =>
-	Payroll.find({ teacherId }).populate('teacherId processedByAdmin receiptId').sort({ createdAt: -1 });
+const getTeacherSalaryHistoryForAdmin = async ({ teacherId }) => {
+	await ensureMonthlyPayrollForTeacher({ teacherId });
+	return Payroll.find({ teacherId }).populate('teacherId processedByAdmin receiptId').sort({ month: -1, createdAt: -1 });
+};
 
 const getTeacherSalaryHistoryByUser = async ({ userId }) => {
 	const teacher = await Teacher.findOne({ userId });
@@ -97,7 +147,11 @@ const getTeacherSalaryHistoryByUser = async ({ userId }) => {
 		throw error;
 	}
 
-	return Payroll.find({ teacherId: teacher._id }).populate('teacherId processedByAdmin receiptId').sort({ createdAt: -1 });
+	await ensureMonthlyPayrollForTeacher({ teacherId: teacher._id });
+
+	return Payroll.find({ teacherId: teacher._id })
+		.populate('teacherId processedByAdmin receiptId')
+		.sort({ month: -1, createdAt: -1 });
 };
 
 module.exports = {

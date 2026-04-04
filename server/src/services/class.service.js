@@ -8,26 +8,138 @@ const Teacher = require('../models/teacher.model');
 
 const base = createCrudService(ClassModel);
 
-const findAll = (filter = {}) => base.findAll(filter, 'classTeacher subjectIds');
-const findById = (id) => base.findById(id, 'classTeacher subjectIds');
+let ensureClassIndexPromise = null;
+
+const isClassDuplicateError = (error) => {
+	const code = Number(error?.code || 0);
+	if (code !== 11000) {
+		return false;
+	}
+
+	const keyPattern = error?.keyPattern || {};
+	return Boolean(
+		keyPattern.normalizedName ||
+		keyPattern.normalizedSection ||
+		keyPattern.name
+	);
+};
+
+const buildClassDuplicateError = () => {
+	const conflict = new Error('Class with the same name and section already exists');
+	conflict.statusCode = 409;
+	return conflict;
+};
+
+const ensureClassIndexes = async () => {
+	if (ensureClassIndexPromise) {
+		return ensureClassIndexPromise;
+	}
+
+	ensureClassIndexPromise = (async () => {
+		const needsNormalizationRows = await ClassModel.find({
+			$or: [{ normalizedName: { $exists: false } }, { normalizedSection: { $exists: false } }]
+		}).select('_id name section');
+
+		if (needsNormalizationRows.length > 0) {
+			await Promise.all(
+				needsNormalizationRows.map((item) => {
+					const nextName = String(item.name || '').trim();
+					const nextSection = String(item.section || '').trim();
+					return ClassModel.updateOne(
+						{ _id: item._id },
+						{
+							$set: {
+								name: nextName,
+								section: nextSection,
+								normalizedName: nextName.toLowerCase(),
+								normalizedSection: nextSection.toLowerCase()
+							}
+						}
+					);
+				})
+			);
+		}
+
+		// Shift has been deprecated for classes; clear any legacy values.
+		await ClassModel.collection.updateMany(
+			{ shift: { $exists: true } },
+			{ $unset: { shift: '' } }
+		);
+
+		const indexes = await ClassModel.collection.indexes();
+		const legacyNameUniqueIndex = indexes.find(
+			(item) => item?.unique && item?.key && Object.keys(item.key).length === 1 && item.key.name === 1
+		);
+
+		if (legacyNameUniqueIndex?.name) {
+			await ClassModel.collection.dropIndex(legacyNameUniqueIndex.name);
+		}
+
+		const hasCompositeIndex = indexes.some(
+			(item) => item?.unique && item?.key?.normalizedName === 1 && item?.key?.normalizedSection === 1
+		);
+
+		if (!hasCompositeIndex) {
+			await ClassModel.collection.createIndex(
+				{ normalizedName: 1, normalizedSection: 1 },
+				{
+					unique: true,
+					name: 'normalizedName_1_normalizedSection_1',
+					partialFilterExpression: {
+						normalizedName: { $exists: true, $type: 'string', $ne: '' },
+						normalizedSection: { $exists: true, $type: 'string' }
+					}
+				}
+			);
+		}
+	})();
+
+	try {
+		await ensureClassIndexPromise;
+	} catch (error) {
+		ensureClassIndexPromise = null;
+		throw error;
+	}
+};
+
+const findAll = async (filter = {}) => {
+	await ensureClassIndexes();
+	return base.findAll(filter, 'classTeacher subjectIds');
+};
+
+const findById = async (id) => {
+	await ensureClassIndexes();
+	return base.findById(id, 'classTeacher subjectIds');
+};
 
 const create = async (payload = {}) => {
+	await ensureClassIndexes();
+
 	const normalizedName = String(payload.name || '').trim();
+	const normalizedSection = String(payload.section || '').trim();
 	if (!normalizedName) {
 		const error = new Error('Class name is required');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	return ClassModel.create({
-		name: normalizedName,
-		section: String(payload.section || '').trim() || undefined,
-		shift: String(payload.shift || '').trim() || undefined,
-		classTeacher: payload.classTeacher || undefined
-	});
+	try {
+		return await ClassModel.create({
+			name: normalizedName,
+			section: normalizedSection || undefined,
+			classTeacher: payload.classTeacher || undefined
+		});
+	} catch (error) {
+		if (isClassDuplicateError(error)) {
+			throw buildClassDuplicateError();
+		}
+		throw error;
+	}
 };
 
 const updateById = async (id, payload = {}) => {
+	await ensureClassIndexes();
+
 	const classRecord = await ClassModel.findById(id);
 	if (!classRecord) {
 		return null;
@@ -40,16 +152,22 @@ const updateById = async (id, payload = {}) => {
 		throw error;
 	}
 
-	await ClassModel.findByIdAndUpdate(
-		id,
-		{
-			name: nextName,
-			section: payload.section !== undefined ? String(payload.section || '').trim() : classRecord.section,
-			shift: payload.shift !== undefined ? String(payload.shift || '').trim() : classRecord.shift,
-			classTeacher: payload.classTeacher !== undefined ? payload.classTeacher : classRecord.classTeacher
-		},
-		{ new: true, runValidators: true }
-	);
+	try {
+		await ClassModel.findByIdAndUpdate(
+			id,
+			{
+				name: nextName,
+				section: payload.section !== undefined ? String(payload.section || '').trim() : classRecord.section,
+				classTeacher: payload.classTeacher !== undefined ? payload.classTeacher : classRecord.classTeacher
+			},
+			{ new: true, runValidators: true }
+		);
+	} catch (error) {
+		if (isClassDuplicateError(error)) {
+			throw buildClassDuplicateError();
+		}
+		throw error;
+	}
 
 	return findById(id);
 };

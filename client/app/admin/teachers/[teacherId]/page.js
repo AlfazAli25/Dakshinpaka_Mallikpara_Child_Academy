@@ -21,18 +21,6 @@ const salaryColumns = [
   { key: 'receiptNumber', label: 'Receipt Number' }
 ];
 
-const downloadTextFile = (filename, lines) => {
-  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(href);
-};
-
 const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
   email: teacher?.userId?.email || '',
@@ -52,6 +40,7 @@ export default function TeacherProfilePage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [classOptions, setClassOptions] = useState([]);
   const [subjectOptions, setSubjectOptions] = useState([]);
+  const [otherAssignedSubjectIds, setOtherAssignedSubjectIds] = useState([]);
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -72,9 +61,17 @@ export default function TeacherProfilePage() {
     [classOptions]
   );
 
+  const otherAssignedSubjectIdSet = useMemo(
+    () => new Set(otherAssignedSubjectIds),
+    [otherAssignedSubjectIds]
+  );
+
   const availableSubjects = useMemo(
-    () => subjectOptions.filter((subject) => editForm.classIds.includes(subject.classId)),
-    [editForm.classIds, subjectOptions]
+    () =>
+      subjectOptions.filter(
+        (subject) => editForm.classIds.includes(subject.classId)
+      ),
+    [editForm.classIds, editForm.subjects, otherAssignedSubjectIdSet, subjectOptions]
   );
 
   const availableSubjectsByClass = useMemo(
@@ -98,9 +95,10 @@ export default function TeacherProfilePage() {
   };
 
   const loadClassAndSubjectOptions = async () => {
-    const [classResponse, subjectResponse] = await Promise.all([
+    const [classResponse, subjectResponse, teacherResponse] = await Promise.all([
       get('/classes', getToken()),
-      get('/subjects', getToken())
+      get('/subjects', getToken()),
+      get('/teachers', getToken())
     ]);
 
     setClassOptions(
@@ -118,6 +116,20 @@ export default function TeacherProfilePage() {
         code: item.code
       }))
     );
+
+    const currentTeacherId = String(teacherId || '');
+    const assignedByOthers = Array.from(
+      new Set(
+        (teacherResponse.data || [])
+          .filter((item) => String(item?._id || '') !== currentTeacherId)
+          .flatMap((item) =>
+            (item.subjects || [])
+              .map((entry) => String(entry?._id || entry || '').trim())
+              .filter(Boolean)
+          )
+      )
+    );
+    setOtherAssignedSubjectIds(assignedByOthers);
   };
 
   useEffect(() => {
@@ -144,7 +156,11 @@ export default function TeacherProfilePage() {
       const nextClassIds = exists ? prev.classIds.filter((item) => item !== classId) : [...prev.classIds, classId];
       const allowedSubjectIds = new Set(
         subjectOptions
-          .filter((subject) => nextClassIds.includes(subject.classId))
+          .filter(
+            (subject) =>
+              nextClassIds.includes(subject.classId) &&
+              (!otherAssignedSubjectIdSet.has(subject.id) || prev.subjects.includes(subject.id))
+          )
           .map((subject) => subject.id)
       );
 
@@ -159,6 +175,10 @@ export default function TeacherProfilePage() {
   const onToggleEditSubject = (subjectId) => {
     setEditForm((prev) => {
       const exists = prev.subjects.includes(subjectId);
+      if (!exists && otherAssignedSubjectIdSet.has(subjectId)) {
+        return prev;
+      }
+
       return {
         ...prev,
         subjects: exists ? prev.subjects.filter((item) => item !== subjectId) : [...prev.subjects, subjectId]
@@ -367,24 +387,33 @@ export default function TeacherProfilePage() {
                 {editForm.classIds.length === 0 ? (
                   <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
                 ) : availableSubjects.length === 0 ? (
-                  <p className="mt-1 text-xs text-amber-700">No subjects found under selected classes.</p>
+                  <p className="mt-1 text-xs text-amber-700">No available subjects under selected classes. They may already be assigned to other teachers.</p>
                 ) : (
                   <div className="mt-2 space-y-3">
+                    <p className="text-xs text-slate-500">Subjects tagged as "Already assigned" are reserved for another teacher and cannot be selected.</p>
                     {availableSubjectsByClass.map((group) => (
                       <div key={group.classId}>
                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {group.subjects.map((subject) => (
-                            <label key={subject.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                            <label key={subject.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${otherAssignedSubjectIdSet.has(subject.id) && !editForm.subjects.includes(subject.id) ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-700'}`}>
                               <input
                                 type="checkbox"
                                 checked={editForm.subjects.includes(subject.id)}
                                 onChange={() => onToggleEditSubject(subject.id)}
+                                disabled={otherAssignedSubjectIdSet.has(subject.id) && !editForm.subjects.includes(subject.id)}
                                 className="h-4 w-4"
                               />
-                              <span>
-                                {subject.name}
-                                {subject.code ? ` (${subject.code})` : ''}
+                              <span className="flex items-center gap-2">
+                                <span>
+                                  {subject.name}
+                                  {subject.code ? ` (${subject.code})` : ''}
+                                </span>
+                                {otherAssignedSubjectIdSet.has(subject.id) && !editForm.subjects.includes(subject.id) && (
+                                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                    Already assigned
+                                  </span>
+                                )}
                               </span>
                             </label>
                           ))}
@@ -481,27 +510,10 @@ export default function TeacherProfilePage() {
           <h3 className="text-lg font-semibold text-slate-900">Salary Receipts</h3>
           <div className="mt-3 space-y-2">
             {profile.receipts.map((receipt) => (
-              <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+              <div key={receipt._id} className="rounded-lg border border-slate-200 px-3 py-2">
                 <p className="text-sm text-slate-700">
                   {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString()}
                 </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadTextFile(`${receipt.receiptNumber}.txt`, [
-                      `Receipt Number: ${receipt.receiptNumber}`,
-                      `Teacher Name: ${receipt.teacherName || '-'}`,
-                      `Salary Amount: INR ${receipt.amount}`,
-                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString()}`,
-                      `Payment Method: ${receipt.paymentMethod}`,
-                      `Pending Salary Cleared: INR ${receipt.pendingSalaryCleared || 0}`,
-                      `Status: ${receipt.status}`
-                    ])
-                  }
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  Download
-                </button>
               </div>
             ))}
           </div>

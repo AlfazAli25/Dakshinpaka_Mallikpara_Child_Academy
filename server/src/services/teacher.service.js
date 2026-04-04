@@ -9,6 +9,7 @@ const Timetable = require('../models/timetable.model');
 const Attendance = require('../models/attendance.model');
 const createCrudService = require('./crud.service');
 const { isValidEmail } = require('../utils/validation');
+const { ensureMonthlyPayrollForTeacher, applyManualPendingSalaryOverride } = require('./monthly-payroll-ledger.service');
 
 const base = createCrudService(Teacher);
 
@@ -85,7 +86,12 @@ const deriveClassIdsFromSubjects = async (subjectIds = []) => {
 	);
 };
 
-const ensureValidAssignments = async ({ classIds = [], subjectIds = [] }) => {
+const ensureValidAssignments = async ({
+	classIds = [],
+	subjectIds = [],
+	excludeTeacherId = null,
+	conflictCheckSubjectIds
+}) => {
 	const normalizedClassIds = normalizeIdArray(classIds);
 	const normalizedSubjectIds = normalizeIdArray(subjectIds);
 
@@ -97,7 +103,7 @@ const ensureValidAssignments = async ({ classIds = [], subjectIds = [] }) => {
 
 	const [classRows, subjectRows] = await Promise.all([
 		ClassModel.find({ _id: { $in: normalizedClassIds } }).select('_id'),
-		Subject.find({ _id: { $in: normalizedSubjectIds } }).select('_id classId')
+		Subject.find({ _id: { $in: normalizedSubjectIds } }).select('_id classId name')
 	]);
 
 	if (classRows.length !== normalizedClassIds.length) {
@@ -141,6 +147,41 @@ const ensureValidAssignments = async ({ classIds = [], subjectIds = [] }) => {
 		throw error;
 	}
 
+	const normalizedConflictCheckSubjectIds = Array.isArray(conflictCheckSubjectIds)
+		? normalizeIdArray(conflictCheckSubjectIds)
+		: normalizedSubjectIds;
+
+	if (normalizedConflictCheckSubjectIds.length > 0) {
+		const conflictingTeachers = await Teacher.find({
+			...(excludeTeacherId ? { _id: { $ne: excludeTeacherId } } : {}),
+			subjects: { $in: normalizedConflictCheckSubjectIds }
+		}).select('teacherId subjects');
+
+		if (conflictingTeachers.length > 0) {
+			const requestedSubjectSet = new Set(normalizedConflictCheckSubjectIds);
+			const occupiedSubjectIds = new Set();
+
+			for (const teacherRow of conflictingTeachers) {
+				for (const subjectId of teacherRow.subjects || []) {
+					const key = String(subjectId || '');
+					if (requestedSubjectSet.has(key)) {
+						occupiedSubjectIds.add(key);
+					}
+				}
+			}
+
+			const occupiedSubjectNames = subjectRows
+				.filter((item) => occupiedSubjectIds.has(String(item._id || '')))
+				.map((item) => String(item.name || '').trim())
+				.filter(Boolean);
+
+			const messageSuffix = occupiedSubjectNames.length > 0 ? `: ${occupiedSubjectNames.join(', ')}` : '';
+			const error = new Error(`Selected subjects are already assigned to another teacher${messageSuffix}`);
+			error.statusCode = 409;
+			throw error;
+		}
+	}
+
 	return {
 		classIds: classRows.map((item) => item._id),
 		subjectIds: subjectRows.map((item) => item._id)
@@ -152,10 +193,26 @@ const findById = (id) => base.findById(id, 'userId classIds subjects');
 const findByUserId = (userId) => Teacher.findOne({ userId }).populate('userId classIds subjects');
 
 const create = async (payload) => {
-	const { name, email, password, teacherId, classIds, subjects, contactNumber, department, qualifications, joiningDate } = payload;
+	const {
+		name,
+		email,
+		password,
+		teacherId,
+		classIds,
+		subjects,
+		contactNumber,
+		monthlySalary,
+		pendingSalary,
+		department,
+		qualifications,
+		joiningDate
+	} = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
 	const requestedTeacherId = String(teacherId || '').trim();
 	const normalizedContactNumber = String(contactNumber || '').trim();
+	const normalizedMonthlySalary = Number(monthlySalary);
+	const normalizedPendingSalary =
+		pendingSalary === undefined || pendingSalary === null || String(pendingSalary).trim() === '' ? 0 : Number(pendingSalary);
 	const normalizedDepartment = withFallbackText(department, 'Not Assigned');
 	const normalizedQualifications = withFallbackText(qualifications, 'Not Provided');
 	const normalizedClassIds = normalizeIdArray(classIds);
@@ -167,12 +224,25 @@ const create = async (payload) => {
 		!email ||
 		!password ||
 		!normalizedContactNumber ||
+		!Number.isFinite(normalizedMonthlySalary) ||
 		normalizedClassIds.length === 0 ||
 		normalizedSubjects.length === 0
 	) {
 		const error = new Error(
-			'All teacher details are required: name, email, password, contact number, classes, and subjects'
+			'All teacher details are required: name, email, password, contact number, monthly salary, classes, and subjects'
 		);
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (!Number.isFinite(normalizedMonthlySalary) || normalizedMonthlySalary <= 0) {
+		const error = new Error('Monthly salary must be greater than zero');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (!Number.isFinite(normalizedPendingSalary) || normalizedPendingSalary < 0) {
+		const error = new Error('Pending salary must be 0 or greater');
 		error.statusCode = 400;
 		throw error;
 	}
@@ -227,13 +297,23 @@ const create = async (payload) => {
 			classIds: validAssignments.classIds,
 			subjects: validAssignments.subjectIds,
 			contactNumber: normalizedContactNumber,
+			monthlySalary: normalizedMonthlySalary,
+			pendingSalary: normalizedPendingSalary,
 			department: normalizedDepartment,
 			qualifications: normalizedQualifications,
 			joiningDate: parsedJoiningDate
 		});
 
+		await applyManualPendingSalaryOverride({
+			teacherId: teacher._id,
+			targetPendingSalary: normalizedPendingSalary,
+			monthlyAmount: normalizedMonthlySalary,
+			anchorDate: new Date()
+		});
+
 		return Teacher.findById(teacher._id).populate('userId classIds subjects');
 	} catch (error) {
+		await Teacher.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
 		throw error;
 	}
@@ -257,8 +337,13 @@ const updateById = async (id, payload = {}) => {
 		payload.qualifications !== undefined
 			? String(payload.qualifications || '').trim()
 			: String(teacher.qualifications || '').trim();
+	const monthlySalaryProvided = payload.monthlySalary !== undefined;
+	const pendingSalaryProvided = payload.pendingSalary !== undefined;
+	const nextMonthlySalary = monthlySalaryProvided ? Number(payload.monthlySalary) : Number(teacher.monthlySalary || 0);
+	const nextPendingSalary = pendingSalaryProvided ? Number(payload.pendingSalary) : Number(teacher.pendingSalary || 0);
 	let nextClassIds = payload.classIds !== undefined ? normalizeIdArray(payload.classIds) : normalizeIdArray(teacher.classIds || []);
 	const nextSubjects = payload.subjects !== undefined ? normalizeIdArray(payload.subjects) : normalizeIdArray(teacher.subjects || []);
+	const currentSubjectSet = new Set(normalizeIdArray(teacher.subjects || []));
 	const nextJoiningDateRaw = payload.joiningDate !== undefined ? payload.joiningDate : teacher.joiningDate;
 	const nextJoiningDate = nextJoiningDateRaw ? new Date(nextJoiningDateRaw) : null;
 
@@ -278,11 +363,25 @@ const updateById = async (id, payload = {}) => {
 		throw error;
 	}
 
+	if (monthlySalaryProvided && (!Number.isFinite(nextMonthlySalary) || nextMonthlySalary <= 0)) {
+		const error = new Error('Monthly salary must be greater than zero');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (pendingSalaryProvided && (!Number.isFinite(nextPendingSalary) || nextPendingSalary < 0)) {
+		const error = new Error('Pending salary must be 0 or greater');
+		error.statusCode = 400;
+		throw error;
+	}
+
 	ensureValidContactNumber(nextContactNumber);
 
 	const validAssignments = await ensureValidAssignments({
 		classIds: nextClassIds,
-		subjectIds: nextSubjects
+		subjectIds: nextSubjects,
+		excludeTeacherId: teacher._id,
+		conflictCheckSubjectIds: nextSubjects.filter((subjectId) => !currentSubjectSet.has(subjectId))
 	});
 
 	if (nextTeacherId !== String(teacher.teacherId || '').trim()) {
@@ -332,22 +431,42 @@ const updateById = async (id, payload = {}) => {
 		userUpdates.passwordHash = await bcrypt.hash(String(payload.password), 10);
 	}
 
-	await Teacher.findByIdAndUpdate(
-		teacher._id,
-		{
-			teacherId: nextTeacherId,
-			classIds: validAssignments.classIds,
-			subjects: validAssignments.subjectIds,
-			contactNumber: nextContactNumber,
-			department: nextDepartment,
-			qualifications: nextQualifications,
-			joiningDate: nextJoiningDate
-		},
-		{ new: true, runValidators: true }
-	);
+	const teacherUpdates = {
+		teacherId: nextTeacherId,
+		classIds: validAssignments.classIds,
+		subjects: validAssignments.subjectIds,
+		contactNumber: nextContactNumber,
+		department: nextDepartment,
+		qualifications: nextQualifications,
+		joiningDate: nextJoiningDate
+	};
+
+	if (monthlySalaryProvided) {
+		teacherUpdates.monthlySalary = nextMonthlySalary;
+	}
+
+	if (pendingSalaryProvided) {
+		teacherUpdates.pendingSalary = nextPendingSalary;
+	}
+
+	await Teacher.findByIdAndUpdate(teacher._id, teacherUpdates, { new: true, runValidators: true });
 
 	if (teacher.userId && Object.keys(userUpdates).length > 0) {
 		await User.findByIdAndUpdate(teacher.userId, userUpdates, { new: true, runValidators: true });
+	}
+
+	if (pendingSalaryProvided) {
+		await applyManualPendingSalaryOverride({
+			teacherId: teacher._id,
+			targetPendingSalary: nextPendingSalary,
+			monthlyAmount: monthlySalaryProvided ? nextMonthlySalary : undefined,
+			anchorDate: new Date()
+		});
+	} else {
+		await ensureMonthlyPayrollForTeacher({
+			teacherId: teacher._id,
+			monthlyAmount: monthlySalaryProvided ? nextMonthlySalary : undefined
+		});
 	}
 
 	return Teacher.findById(teacher._id).populate('userId classIds subjects');
@@ -361,10 +480,12 @@ const getAdminProfile = async (teacherId) => {
 		throw error;
 	}
 
+	await ensureMonthlyPayrollForTeacher({ teacherId: teacher._id });
+
 	const salaryHistory = await Payroll.find({ teacherId: teacher._id })
 		.populate('processedByAdmin', 'name email')
 		.populate('receiptId')
-		.sort({ createdAt: -1 });
+		.sort({ month: -1, createdAt: -1 });
 	const receipts = await Receipt.find({ teacherId: teacher._id, receiptType: 'SALARY' }).sort({ createdAt: -1 });
 
 	const totals = salaryHistory.reduce(

@@ -34,6 +34,16 @@ const createFeeReceipt = async ({ student, fee, payment, amount, paymentMethod, 
 const createSalaryReceipt = async ({ teacher, payroll, amount, paymentMethod, generatedBy, pendingSalaryCleared, session }) => {
   const existing = payroll?.receiptId ? await Receipt.findById(payroll.receiptId).session(session || null) : null;
   if (existing) {
+    existing.amount = amount;
+    existing.paymentMethod = paymentMethod;
+    existing.paymentDate = payroll?.paidOn || new Date();
+    existing.pendingSalaryCleared = pendingSalaryCleared;
+    existing.transactionReference = payroll?._id ? `PAYROLL-${payroll._id}` : existing.transactionReference;
+    existing.status = 'PAID';
+    if (generatedBy) {
+      existing.generatedBy = generatedBy;
+    }
+    await existing.save({ session });
     return existing;
   }
 
