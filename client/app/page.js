@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
+import { get } from '@/lib/api';
 import { clearSession, getUser } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
@@ -104,9 +105,21 @@ export default function HomePage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
   const [currentUser, setCurrentUser] = useState(null);
+  const [allowAdminRegistration, setAllowAdminRegistration] = useState(false);
 
   useEffect(() => {
     setCurrentUser(getUser());
+
+    const loadRegistrationStatus = async () => {
+      try {
+        const response = await get('/auth/register-status');
+        setAllowAdminRegistration(Boolean(response?.data?.allowAdminRegistration));
+      } catch (_error) {
+        setAllowAdminRegistration(false);
+      }
+    };
+
+    loadRegistrationStatus();
   }, []);
 
   const panelRoute = useMemo(() => {
@@ -156,12 +169,14 @@ export default function HomePage() {
             )}
             {!currentUser && (
               <>
-                <Link
-                  href="/register"
-                  className="rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20 md:px-4"
-                >
-                  {t.register}
-                </Link>
+                {allowAdminRegistration && (
+                  <Link
+                    href="/register"
+                    className="rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20 md:px-4"
+                  >
+                    {t.register}
+                  </Link>
+                )}
                 <Link
                   href="/login"
                   className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-50 md:px-4"

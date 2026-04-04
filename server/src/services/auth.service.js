@@ -171,4 +171,21 @@ const verifyOtpAndResetPassword = async ({ identifier, otp, newPassword }) => {
   return { message: 'Password reset successful. Please login with your new password' };
 };
 
-module.exports = { register, login, requestForgotPasswordOtp, verifyOtpAndResetPassword, findUserByIdentifier };
+const getRegistrationStatus = async () => {
+  const adminCount = await User.countDocuments({ role: 'admin' });
+  const allowAdminRegistration = adminCount === 0;
+
+  return {
+    adminExists: !allowAdminRegistration,
+    allowAdminRegistration
+  };
+};
+
+module.exports = {
+  register,
+  login,
+  requestForgotPasswordOtp,
+  verifyOtpAndResetPassword,
+  findUserByIdentifier,
+  getRegistrationStatus
+};

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
-import { post } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import { clearSession, getUser } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
@@ -64,10 +64,42 @@ export default function RegisterPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState(true);
 
   useEffect(() => {
-    setCurrentUser(getUser());
-    router.prefetch('/login');
+    let active = true;
+
+    const loadRegistrationStatus = async () => {
+      try {
+        const response = await get('/auth/register-status');
+        const allowAdminRegistration = Boolean(response?.data?.allowAdminRegistration);
+
+        if (!active) {
+          return;
+        }
+
+        setRegistrationAllowed(allowAdminRegistration);
+        if (!allowAdminRegistration) {
+          router.replace('/login');
+          return;
+        }
+
+        setCurrentUser(getUser());
+        router.prefetch('/login');
+      } catch (_error) {
+        if (!active) {
+          return;
+        }
+        setRegistrationAllowed(false);
+        router.replace('/login');
+      }
+    };
+
+    loadRegistrationStatus();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const panelRoute = useMemo(() => {
@@ -106,6 +138,10 @@ export default function RegisterPage() {
     setCurrentUser(null);
     router.push('/');
   };
+
+  if (!registrationAllowed) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-red-100 px-4 py-8 md:px-8 md:py-12">

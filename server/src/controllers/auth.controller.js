@@ -21,4 +21,9 @@ const verifyOtpAndResetPassword = asyncHandler(async (req, res) => {
   res.json({ success: true, data: result });
 });
 
-module.exports = { register, login, requestForgotPasswordOtp, verifyOtpAndResetPassword };
+const getRegistrationStatus = asyncHandler(async (_req, res) => {
+  const result = await authService.getRegistrationStatus();
+  res.json({ success: true, data: result });
+});
+
+module.exports = { register, login, requestForgotPasswordOtp, verifyOtpAndResetPassword, getRegistrationStatus };

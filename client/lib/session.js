@@ -18,7 +18,38 @@ export const getToken = () => {
 export const getUser = () => {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('sms_user');
-  return raw ? JSON.parse(raw) : null;
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch (_error) {
+      localStorage.removeItem('sms_user');
+    }
+  }
+
+  const token = getToken();
+  const payload = decodeTokenPayload(token);
+  if (!payload?.role) {
+    return null;
+  }
+
+  const restoredUser = {
+    id: payload.id || payload._id || '',
+    name: payload.name || '',
+    email: payload.email || '',
+    role: payload.role
+  };
+
+  try {
+    localStorage.setItem('sms_user', JSON.stringify(restoredUser));
+  } catch (_error) {
+    // no-op
+  }
+
+  return restoredUser;
 };
 
 const decodeTokenPayload = (token = '') => {

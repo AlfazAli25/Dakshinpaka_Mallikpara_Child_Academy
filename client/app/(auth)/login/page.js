@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Input from '@/components/Input';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
-import { post } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import { clearSession, getUser, saveSession } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
@@ -89,13 +89,25 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [allowAdminRegistration, setAllowAdminRegistration] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     setRegistered(params.get('registered') === '1');
     setCurrentUser(getUser());
-    router.prefetch('/register');
+
+    const loadRegistrationStatus = async () => {
+      try {
+        const response = await get('/auth/register-status');
+        setAllowAdminRegistration(Boolean(response?.data?.allowAdminRegistration));
+      } catch (_error) {
+        setAllowAdminRegistration(false);
+      }
+    };
+
+    loadRegistrationStatus();
+
     router.prefetch('/admin/dashboard');
     router.prefetch('/teacher/dashboard');
     router.prefetch('/student/dashboard');
@@ -269,12 +281,14 @@ export default function LoginPage() {
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-5 text-center text-sm text-gray-600">
-                    {t.needAccount}{' '}
-                    <Link href="/register" className="font-semibold text-red-700 hover:text-red-800">
-                      {t.register}
-                    </Link>
-                  </p>
+                  allowAdminRegistration && (
+                    <p className="mt-5 text-center text-sm text-gray-600">
+                      {t.needAccount}{' '}
+                      <Link href="/register" className="font-semibold text-red-700 hover:text-red-800">
+                        {t.register}
+                      </Link>
+                    </p>
+                  )
                 )}
               </>
             ) : (

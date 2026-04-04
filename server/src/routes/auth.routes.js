@@ -6,6 +6,8 @@ const { allowOnlyInitialAdminRegistration } = require('../middleware/register.mi
 
 const router = express.Router();
 
+router.get('/register-status', authController.getRegistrationStatus);
+
 router.post(
   '/register',
   allowOnlyInitialAdminRegistration,
