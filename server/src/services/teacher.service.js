@@ -36,6 +36,26 @@ const ensureValidContactNumber = (contactNumber) => {
 	}
 };
 
+const withFallbackText = (value, fallback) => {
+	const normalized = String(value || '').trim();
+	return normalized || fallback;
+};
+
+const generateTeacherId = async () => {
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const suffix = `${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+		const candidate = `TCH-${suffix}`;
+		const existing = await Teacher.findOne({ teacherId: candidate }).select('_id');
+		if (!existing) {
+			return candidate;
+		}
+	}
+
+	const error = new Error('Unable to generate a unique Teacher ID. Please try again.');
+	error.statusCode = 500;
+	throw error;
+};
+
 const deriveClassIdsFromSubjects = async (subjectIds = []) => {
 	if (!Array.isArray(subjectIds) || subjectIds.length === 0) {
 		return [];
@@ -134,26 +154,24 @@ const findByUserId = (userId) => Teacher.findOne({ userId }).populate('userId cl
 const create = async (payload) => {
 	const { name, email, password, teacherId, classIds, subjects, contactNumber, department, qualifications, joiningDate } = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
-	const normalizedTeacherId = String(teacherId || '').trim();
+	const requestedTeacherId = String(teacherId || '').trim();
 	const normalizedContactNumber = String(contactNumber || '').trim();
-	const normalizedDepartment = String(department || '').trim();
-	const normalizedQualifications = String(qualifications || '').trim();
+	const normalizedDepartment = withFallbackText(department, 'Not Assigned');
+	const normalizedQualifications = withFallbackText(qualifications, 'Not Provided');
 	const normalizedClassIds = normalizeIdArray(classIds);
 	const normalizedSubjects = normalizeIdArray(subjects);
-	const parsedJoiningDate = new Date(joiningDate);
+	const parsedJoiningDate = joiningDate ? new Date(joiningDate) : new Date();
 
 	if (
 		!name ||
 		!email ||
 		!password ||
-		!normalizedTeacherId ||
 		!normalizedContactNumber ||
-		!normalizedDepartment ||
-		!normalizedQualifications ||
-		!joiningDate
+		normalizedClassIds.length === 0 ||
+		normalizedSubjects.length === 0
 	) {
 		const error = new Error(
-			'All teacher details are required: name, email, password, teacher ID, contact number, department, qualifications, joining date, classes, and subjects'
+			'All teacher details are required: name, email, password, contact number, classes, and subjects'
 		);
 		error.statusCode = 400;
 		throw error;
@@ -177,6 +195,8 @@ const create = async (payload) => {
 		classIds: normalizedClassIds,
 		subjectIds: normalizedSubjects
 	});
+
+	const normalizedTeacherId = requestedTeacherId || (await generateTeacherId());
 
 	const existingEmail = await User.findOne({ email: normalizedEmail });
 	if (existingEmail) {

@@ -36,11 +36,7 @@ const downloadTextFile = (filename, lines) => {
 const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
   email: teacher?.userId?.email || '',
-  teacherId: teacher?.teacherId || '',
   contactNumber: teacher?.contactNumber || '',
-  department: teacher?.department || '',
-  qualifications: teacher?.qualifications || '',
-  joiningDate: teacher?.joiningDate ? String(teacher.joiningDate).slice(0, 10) : '',
   classIds: (teacher?.classIds || []).map((item) => String(item?._id || item)).filter(Boolean),
   subjects: (teacher?.subjects || []).map((item) => String(item?._id || item)).filter(Boolean),
   password: ''
@@ -59,11 +55,7 @@ export default function TeacherProfilePage() {
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
-    teacherId: '',
     contactNumber: '',
-    department: '',
-    qualifications: '',
-    joiningDate: '',
     classIds: [],
     subjects: [],
     password: ''
@@ -182,20 +174,8 @@ export default function TeacherProfilePage() {
     if (!String(editForm.email || '').trim()) {
       missing.push('Email');
     }
-    if (!String(editForm.teacherId || '').trim()) {
-      missing.push('Teacher ID');
-    }
     if (!String(editForm.contactNumber || '').trim()) {
       missing.push('Contact Number');
-    }
-    if (!String(editForm.department || '').trim()) {
-      missing.push('Department');
-    }
-    if (!String(editForm.qualifications || '').trim()) {
-      missing.push('Qualifications');
-    }
-    if (!String(editForm.joiningDate || '').trim()) {
-      missing.push('Joining Date');
     }
     if (editForm.classIds.length === 0) {
       missing.push('Classes');
@@ -249,11 +229,7 @@ export default function TeacherProfilePage() {
       const payload = {
         name: String(editForm.name || '').trim(),
         email: String(editForm.email || '').trim(),
-        teacherId: String(editForm.teacherId || '').trim(),
         contactNumber: String(editForm.contactNumber || '').trim(),
-        department: String(editForm.department || '').trim(),
-        qualifications: String(editForm.qualifications || '').trim(),
-        joiningDate: editForm.joiningDate,
         classIds: editForm.classIds,
         subjects: editForm.subjects
       };
@@ -348,7 +324,6 @@ export default function TeacherProfilePage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <Input label="Name" value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
                 <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
-                <Input label="Teacher ID" value={editForm.teacherId} onChange={onEditChange('teacherId')} required className="h-10" />
                 <Input
                   label="Contact Number"
                   value={editForm.contactNumber}
@@ -357,9 +332,6 @@ export default function TeacherProfilePage() {
                   className="h-10"
                   placeholder="Digits only"
                 />
-                <Input label="Department" value={editForm.department} onChange={onEditChange('department')} required className="h-10" />
-                <Input label="Qualifications" value={editForm.qualifications} onChange={onEditChange('qualifications')} required className="h-10" />
-                <Input label="Joining Date" type="date" value={editForm.joiningDate} onChange={onEditChange('joiningDate')} required className="h-10" />
                 <Input
                   label="Set New Password (optional)"
                   type="password"

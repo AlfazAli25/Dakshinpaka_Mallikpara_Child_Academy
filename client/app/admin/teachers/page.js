@@ -25,11 +25,7 @@ const getInitialTeacherForm = () => ({
   name: '',
   email: '',
   password: '',
-  teacherId: '',
   contactNumber: '',
-  department: '',
-  qualifications: '',
-  joiningDate: '',
   classIds: [],
   subjects: []
 });
@@ -194,12 +190,6 @@ export default function AdminTeachersPage() {
       return;
     }
 
-    if (!String(form.department || '').trim() || !String(form.qualifications || '').trim() || !form.joiningDate) {
-      setError('Please enter all teacher details before creating the account.');
-      setMessage('');
-      return;
-    }
-
     if (form.classIds.length === 0) {
       setError('Please select at least one class for this teacher.');
       setMessage('');
@@ -223,11 +213,7 @@ export default function AdminTeachersPage() {
           name: String(form.name || '').trim(),
           email: String(form.email || '').trim(),
           password: form.password,
-          teacherId: String(form.teacherId || '').trim(),
           contactNumber: String(form.contactNumber || '').trim(),
-          department: String(form.department || '').trim(),
-          qualifications: String(form.qualifications || '').trim(),
-          joiningDate: form.joiningDate,
           classIds: form.classIds,
           subjects: form.subjects
         },
@@ -282,7 +268,7 @@ export default function AdminTeachersPage() {
       <PageHeader
         eyebrow="Administration"
         title="Teachers"
-        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records."
+        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records. Teacher ID is generated automatically."
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Teacher</h3>
@@ -293,7 +279,6 @@ export default function AdminTeachersPage() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
           <Input label={requiredLabel('Email')} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />
-          <Input label={requiredLabel('Teacher ID')} value={form.teacherId} onChange={onChange('teacherId')} required className="h-11" />
           <Input
             label={requiredLabel('Contact Number')}
             value={form.contactNumber}
@@ -302,9 +287,6 @@ export default function AdminTeachersPage() {
             className="h-11"
             placeholder="Digits only"
           />
-          <Input label={requiredLabel('Department')} value={form.department} onChange={onChange('department')} required className="h-11" />
-          <Input label={requiredLabel('Qualifications')} value={form.qualifications} onChange={onChange('qualifications')} required className="h-11" />
-          <Input label={requiredLabel('Joining Date')} type="date" value={form.joiningDate} onChange={onChange('joiningDate')} required className="h-11" />
           <Input
             label={requiredLabel('Password')}
             type="password"
