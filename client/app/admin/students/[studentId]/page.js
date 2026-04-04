@@ -7,6 +7,7 @@ import InfoCard from '@/components/InfoCard';
 import Table from '@/components/Table';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
+import DetailsGrid from '@/components/DetailsGrid';
 import { get, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
@@ -271,6 +272,19 @@ export default function StudentProfilePage() {
     { value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' },
     ...classOptions
   ];
+  const studentDetailItems = [
+    { label: 'Name', value: student?.userId?.name || '-' },
+    { label: 'Class', value: student?.classId?.name || '-' },
+    { label: 'Section', value: student?.classId?.section || '-' },
+    { label: 'Gender', value: student?.gender || '-' },
+    { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString() : '-' },
+    { label: 'Guardian Contact', value: student?.guardianContact || '-' },
+    { label: 'Email', value: student?.userId?.email || '-' },
+    { label: 'Admission No', value: student?.admissionNo || '-' },
+    { label: 'Address', value: student?.address || '-' },
+    { label: 'Pending Fees', value: `INR ${student?.pendingFees || 0}`, highlight: true },
+    { label: 'Attendance', value: `${student?.attendance || 0}%` }
+  ];
 
   return (
     <div className="space-y-5">
@@ -287,17 +301,7 @@ export default function StudentProfilePage() {
         <InfoCard title="Student Details">
           {!editMode ? (
             <>
-              <p className="text-sm text-slate-700">Name: {student?.userId?.name || '-'}</p>
-              <p className="text-sm text-slate-700">Class: {student?.classId?.name || '-'}</p>
-              <p className="text-sm text-slate-700">Section: {student?.classId?.section || '-'}</p>
-              <p className="text-sm text-slate-700">Gender: {student?.gender || '-'}</p>
-              <p className="text-sm text-slate-700">Date of Birth: {student?.dob ? new Date(student.dob).toLocaleDateString() : '-'}</p>
-              <p className="text-sm text-slate-700">Guardian Contact: {student?.guardianContact || '-'}</p>
-              <p className="text-sm text-slate-700">Email: {student?.userId?.email || '-'}</p>
-              <p className="text-sm text-slate-700">Admission No: {student?.admissionNo || '-'}</p>
-              <p className="text-sm text-slate-700">Address: {student?.address || '-'}</p>
-              <p className="text-sm text-slate-700">Pending Fees: INR {student?.pendingFees || 0}</p>
-              <p className="text-sm text-slate-700">Attendance: {student?.attendance || 0}%</p>
+              <DetailsGrid items={studentDetailItems} />
               <button
                 type="button"
                 onClick={() => {
@@ -305,7 +309,7 @@ export default function StudentProfilePage() {
                   setError('');
                   setMessage('');
                 }}
-                className="mt-3 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                className="mt-4 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 Edit Student Details
               </button>
@@ -391,6 +395,8 @@ export default function StudentProfilePage() {
         <h3 className="mb-2 text-base font-semibold text-slate-900">Fee Records</h3>
         <Table
           columns={feeColumns}
+          scrollY
+          maxHeightClass="max-h-[360px]"
           rows={(profile.fees || [])
             .map((item) => ({
               id: item._id,
@@ -410,6 +416,8 @@ export default function StudentProfilePage() {
         <h3 className="mb-2 text-base font-semibold text-slate-900">Payment History</h3>
         <Table
           columns={paymentColumns}
+          scrollY
+          maxHeightClass="max-h-[320px]"
           rows={paymentRows}
         />
       </div>

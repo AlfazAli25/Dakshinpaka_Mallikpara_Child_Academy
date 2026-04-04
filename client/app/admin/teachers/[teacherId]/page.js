@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import Table from '@/components/Table';
+import DetailsGrid from '@/components/DetailsGrid';
 import { get, post, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
@@ -302,6 +303,23 @@ export default function TeacherProfilePage() {
   }
 
   const teacher = profile.teacher;
+  const teacherDetailItems = [
+    { label: 'Name', value: teacher?.userId?.name || '-' },
+    { label: 'Email', value: teacher?.userId?.email || '-' },
+    { label: 'Teacher ID', value: teacher?.teacherId || '-' },
+    { label: 'Contact Number', value: teacher?.contactNumber || '-' },
+    { label: 'Department', value: teacher?.department || '-' },
+    { label: 'Qualifications', value: teacher?.qualifications || '-' },
+    { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-' },
+    {
+      label: 'Classes',
+      value: (teacher?.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+    },
+    {
+      label: 'Subjects',
+      value: (teacher?.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+    }
+  ];
 
   return (
     <div className="space-y-5">
@@ -318,15 +336,7 @@ export default function TeacherProfilePage() {
         <InfoCard title="Teacher Details">
           {!editMode ? (
             <>
-              <p className="text-sm text-slate-700">Name: {teacher?.userId?.name || '-'}</p>
-              <p className="text-sm text-slate-700">Email: {teacher?.userId?.email || '-'}</p>
-              <p className="text-sm text-slate-700">Teacher ID: {teacher?.teacherId || '-'}</p>
-              <p className="text-sm text-slate-700">Contact Number: {teacher?.contactNumber || '-'}</p>
-              <p className="text-sm text-slate-700">Department: {teacher?.department || '-'}</p>
-              <p className="text-sm text-slate-700">Qualifications: {teacher?.qualifications || '-'}</p>
-              <p className="text-sm text-slate-700">Classes: {(teacher?.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}</p>
-              <p className="text-sm text-slate-700">Subjects: {(teacher?.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}</p>
-              <p className="text-sm text-slate-700">Joining Date: {teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-'}</p>
+              <DetailsGrid items={teacherDetailItems} />
               <button
                 type="button"
                 onClick={() => {
@@ -334,7 +344,7 @@ export default function TeacherProfilePage() {
                   setError('');
                   setMessage('');
                 }}
-                className="mt-3 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                className="mt-4 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 Edit Teacher Details
               </button>
@@ -493,6 +503,8 @@ export default function TeacherProfilePage() {
         <h3 className="mb-2 text-base font-semibold text-slate-900">Salary History</h3>
         <Table
           columns={salaryColumns}
+          scrollY
+          maxHeightClass="max-h-[340px]"
           rows={(profile.salaryHistory || []).map((item) => ({
             id: item._id,
             month: item.month,
@@ -508,7 +520,7 @@ export default function TeacherProfilePage() {
       {(profile.receipts || []).length > 0 && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-lg font-semibold text-slate-900">Salary Receipts</h3>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
             {profile.receipts.map((receipt) => (
               <div key={receipt._id} className="rounded-lg border border-slate-200 px-3 py-2">
                 <p className="text-sm text-slate-700">

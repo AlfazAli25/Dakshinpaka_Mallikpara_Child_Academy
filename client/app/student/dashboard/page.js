@@ -6,6 +6,7 @@ import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
 import InfoCard from '@/components/InfoCard';
+import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
@@ -160,17 +161,21 @@ export default function StudentDashboardPage() {
         </InfoCard>
       ) : studentProfile ? (
         <InfoCard title={t.detailsTitle}>
-          <p className="text-sm text-slate-700">{t.fields.name}: {studentProfile.userId?.name || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.class}: {studentProfile.classId?.name || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.section}: {studentProfile.classId?.section || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.gender}: {studentProfile.gender || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.dob}: {formatDate(studentProfile.dob)}</p>
-          <p className="text-sm text-slate-700">{t.fields.guardianContact}: {studentProfile.guardianContact || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.email}: {studentProfile.userId?.email || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.admissionNo}: {studentProfile.admissionNo || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.address}: {studentProfile.address || '-'}</p>
-          <p className="text-sm text-slate-700">{t.fields.pendingFees}: INR {studentProfile.pendingFees || 0}</p>
-          <p className="text-sm text-slate-700">{t.fields.attendance}: {studentProfile.attendance || 0}%</p>
+          <DetailsGrid
+            items={[
+              { label: t.fields.name, value: studentProfile.userId?.name || '-' },
+              { label: t.fields.class, value: studentProfile.classId?.name || '-' },
+              { label: t.fields.section, value: studentProfile.classId?.section || '-' },
+              { label: t.fields.gender, value: studentProfile.gender || '-' },
+              { label: t.fields.dob, value: formatDate(studentProfile.dob) },
+              { label: t.fields.guardianContact, value: studentProfile.guardianContact || '-' },
+              { label: t.fields.email, value: studentProfile.userId?.email || '-' },
+              { label: t.fields.admissionNo, value: studentProfile.admissionNo || '-' },
+              { label: t.fields.address, value: studentProfile.address || '-' },
+              { label: t.fields.pendingFees, value: `INR ${studentProfile.pendingFees || 0}`, highlight: true },
+              { label: t.fields.attendance, value: `${studentProfile.attendance || 0}%` }
+            ]}
+          />
         </InfoCard>
       ) : null}
     </div>

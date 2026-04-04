@@ -39,7 +39,8 @@ function Table({
   loading = false,
   skeletonRowCount = 6,
   scrollY = false,
-  maxHeightClass = 'max-h-[312px]'
+  maxHeightClass = 'max-h-[312px]',
+  autoScrollThreshold = 10
 }) {
   const router = useRouter();
 
@@ -52,7 +53,10 @@ function Table({
     [router]
   );
 
-  const tableContainerClass = scrollY
+  const shouldAutoScroll = !scrollY && autoScrollThreshold > 0 && rows.length > autoScrollThreshold;
+  const enableVerticalScroll = scrollY || shouldAutoScroll;
+
+  const tableContainerClass = enableVerticalScroll
     ? `overflow-x-auto overflow-y-auto ${maxHeightClass}`
     : 'overflow-x-auto';
 
@@ -75,7 +79,7 @@ function Table({
     <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
       <div className={tableContainerClass}>
         <table className="min-w-full text-sm">
-          <thead className={`bg-red-700 text-left ${scrollY ? 'sticky top-0 z-10' : ''}`}>
+          <thead className={`bg-red-700 text-left ${enableVerticalScroll ? 'sticky top-0 z-10' : ''}`}>
             <tr>
               {columns.map((col) => (
                 <th key={col.key} className="px-4 py-3 font-semibold text-red-50">

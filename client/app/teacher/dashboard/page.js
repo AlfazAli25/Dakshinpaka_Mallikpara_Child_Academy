@@ -5,6 +5,7 @@ import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
+import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
@@ -124,21 +125,28 @@ export default function TeacherDashboardPage() {
         </InfoCard>
       ) : teacherProfile ? (
         <InfoCard title="Teacher Details">
-          <p className="text-sm text-slate-700">Name: {teacherProfile.userId?.name || '-'}</p>
-          <p className="text-sm text-slate-700">Email: {teacherProfile.userId?.email || '-'}</p>
-          <p className="text-sm text-slate-700">Teacher ID: {teacherProfile.teacherId || '-'}</p>
-          <p className="text-sm text-slate-700">Contact Number: {teacherProfile.contactNumber || '-'}</p>
-          <p className="text-sm text-slate-700">Department: {teacherProfile.department || '-'}</p>
-          <p className="text-sm text-slate-700">Qualifications: {teacherProfile.qualifications || '-'}</p>
-          <p className="text-sm text-slate-700">
-            Joining Date: {teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'}
-          </p>
-          <p className="text-sm text-slate-700">
-            Assigned Classes: {(teacherProfile.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}
-          </p>
-          <p className="text-sm text-slate-700">
-            Assigned Subjects: {(teacherProfile.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'}
-          </p>
+          <DetailsGrid
+            items={[
+              { label: 'Name', value: teacherProfile.userId?.name || '-' },
+              { label: 'Email', value: teacherProfile.userId?.email || '-' },
+              { label: 'Teacher ID', value: teacherProfile.teacherId || '-' },
+              { label: 'Contact Number', value: teacherProfile.contactNumber || '-' },
+              { label: 'Department', value: teacherProfile.department || '-' },
+              { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
+              {
+                label: 'Joining Date',
+                value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'
+              },
+              {
+                label: 'Assigned Classes',
+                value: (teacherProfile.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+              },
+              {
+                label: 'Assigned Subjects',
+                value: (teacherProfile.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+              }
+            ]}
+          />
         </InfoCard>
       ) : null}
 
@@ -155,6 +163,8 @@ export default function TeacherDashboardPage() {
           ]}
           rows={salaryRows}
           loading={loading}
+          scrollY
+          maxHeightClass="max-h-[340px]"
         />
       </div>
 
@@ -169,7 +179,7 @@ export default function TeacherDashboardPage() {
         ) : receipts.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">No salary receipts available yet.</p>
         ) : (
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
             {receipts.map((receipt) => (
               <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                 <p className="text-sm text-slate-700">
