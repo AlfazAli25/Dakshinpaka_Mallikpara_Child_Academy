@@ -239,19 +239,6 @@ export default function StudentProfilePage() {
     }
   };
 
-  if (error && !profile) {
-    return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  }
-
-  if (!profile) {
-    return <p className="text-sm text-slate-500">Loading student profile...</p>;
-  }
-
-  const student = profile.student;
-  const classSelectOptions = [
-    { value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' },
-    ...classOptions
-  ];
   const paymentRows = useMemo(
     () =>
       (profile?.payments || [])
@@ -268,8 +255,22 @@ export default function StudentProfilePage() {
         })
         .sort((a, b) => b.timestamp - a.timestamp)
         .map(({ timestamp, ...row }) => row),
-      [profile?.payments]
+    [profile?.payments]
   );
+
+  if (error && !profile) {
+    return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
+  }
+
+  if (!profile) {
+    return <p className="text-sm text-slate-500">Loading student profile...</p>;
+  }
+
+  const student = profile.student;
+  const classSelectOptions = [
+    { value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' },
+    ...classOptions
+  ];
 
   return (
     <div className="space-y-5">
