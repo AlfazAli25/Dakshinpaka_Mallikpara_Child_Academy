@@ -112,6 +112,30 @@ const listMonthStartsInRange = ({ fromDate, toDate }) => {
 	return months;
 };
 
+const listTrailingMonthStarts = ({ monthCount, anchorDate = new Date() }) => {
+	const normalizedMonthCount = Number(monthCount || 0);
+	if (!Number.isInteger(normalizedMonthCount) || normalizedMonthCount <= 0) {
+		return [];
+	}
+
+	const targetMonth = getMonthStartDate(anchorDate);
+	const oldestMonth = addMonths(targetMonth, -(normalizedMonthCount - 1));
+	return listMonthStartsInRange({ fromDate: oldestMonth, toDate: targetMonth });
+};
+
+const splitIntoMonthlyChunks = (amount) => {
+	let remaining = toAmount(Math.max(amount, 0));
+	const chunks = [];
+
+	while (remaining > EPSILON) {
+		const chunk = toAmount(Math.min(MONTHLY_FEE_AMOUNT, remaining));
+		chunks.push(chunk);
+		remaining = toAmount(remaining - chunk);
+	}
+
+	return chunks;
+};
+
 const ensureMonthlyFeesForStudent = async ({ studentId, session, anchorDate = new Date() }) => {
 	if (!studentId) {
 		return [];
@@ -197,53 +221,63 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		return leftTime - rightTime;
 	});
 
-	const currentPending = toAmount(sortedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
-	const delta = toAmount(normalizedTargetPending - currentPending);
+	const totalPaid = toAmount(sortedFees.reduce((sum, fee) => sum + Math.max(toAmount(fee.amountPaid), 0), 0));
+	const totalDueToDistribute = toAmount(totalPaid + normalizedTargetPending);
+	const monthlyDueChunks = splitIntoMonthlyChunks(totalDueToDistribute);
+	const distributionMonths = listTrailingMonthStarts({ monthCount: monthlyDueChunks.length, anchorDate });
+	const targetMonthKeys = new Set(distributionMonths.map((monthDate) => getMonthKey(monthDate)));
+	const feeByMonthKey = new Map(sortedFees.map((fee) => [fee.monthKey, fee]));
 
-	if (!areAmountsEqual(delta, 0)) {
-		if (delta > 0) {
-			const latestFee = sortedFees[sortedFees.length - 1];
-			if (!latestFee) {
-				const error = new Error('Unable to reconcile pending fees because no fee ledger rows exist');
-				error.statusCode = 500;
-				throw error;
-			}
+	let remainingPaid = totalPaid;
 
-			latestFee.amountDue = toAmount(Number(latestFee.amountDue || 0) + delta);
-			latestFee.status = deriveFeeStatus({
-				amountDue: latestFee.amountDue,
-				amountPaid: latestFee.amountPaid
+	for (let index = 0; index < distributionMonths.length; index += 1) {
+		const monthDate = distributionMonths[index];
+		const monthKey = getMonthKey(monthDate);
+		const amountDue = toAmount(monthlyDueChunks[index] || 0);
+		const amountPaid = toAmount(Math.min(amountDue, remainingPaid));
+		remainingPaid = toAmount(Math.max(remainingPaid - amountPaid, 0));
+		const status = deriveFeeStatus({ amountDue, amountPaid });
+
+		let fee = feeByMonthKey.get(monthKey);
+		if (!fee) {
+			fee = new Fee({
+				studentId,
+				monthKey,
+				dueDate: monthDate,
+				amountDue,
+				amountPaid,
+				status,
+				paymentDate: amountPaid > 0 ? new Date() : undefined,
+				paymentMethod: amountPaid > 0 ? 'AUTO_REALLOCATION' : undefined
 			});
-			await latestFee.save({ session });
-		} else {
-			let reductionRemaining = Math.abs(delta);
-
-			for (const fee of sortedFees) {
-				if (reductionRemaining <= EPSILON) {
-					break;
-				}
-
-				const feePending = calculateFeePendingAmount(fee);
-				if (feePending <= EPSILON) {
-					continue;
-				}
-
-				const reduction = Math.min(feePending, reductionRemaining);
-				fee.amountDue = toAmount(Math.max(Number(fee.amountDue || 0) - reduction, Number(fee.amountPaid || 0)));
-				fee.status = deriveFeeStatus({
-					amountDue: fee.amountDue,
-					amountPaid: fee.amountPaid
-				});
-				await fee.save({ session });
-				reductionRemaining = toAmount(reductionRemaining - reduction);
-			}
-
-			if (reductionRemaining > EPSILON) {
-				const error = new Error('Unable to reconcile pending fees with current payment history');
-				error.statusCode = 400;
-				throw error;
-			}
+			await fee.save({ session });
+			feeByMonthKey.set(monthKey, fee);
+			continue;
 		}
+
+		fee.dueDate = monthDate;
+		fee.amountDue = amountDue;
+		fee.amountPaid = amountPaid;
+		fee.status = status;
+		if (amountPaid <= 0) {
+			fee.paymentDate = undefined;
+			fee.paymentMethod = undefined;
+		}
+		await fee.save({ session });
+	}
+
+	for (const fee of sortedFees) {
+		if (targetMonthKeys.has(fee.monthKey)) {
+			continue;
+		}
+
+		fee.dueDate = getMonthDateFromKey(fee.monthKey) || getMonthStartDate(fee.dueDate || anchorDate);
+		fee.amountDue = 0;
+		fee.amountPaid = 0;
+		fee.status = FEE_STATUS.PAID;
+		fee.paymentDate = undefined;
+		fee.paymentMethod = undefined;
+		await fee.save({ session });
 	}
 
 	const refreshedFees = await withSession(Fee.find({ studentId }).sort({ dueDate: 1, createdAt: 1 }), session);

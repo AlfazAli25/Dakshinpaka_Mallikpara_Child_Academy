@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const Student = require('../models/student.model');
 const User = require('../models/user.model');
@@ -12,6 +13,35 @@ const { isValidEmail } = require('../utils/validation');
 const { ensureMonthlyFeesForStudent, applyManualPendingFeesOverride } = require('./monthly-fee-ledger.service');
 
 const base = createCrudService(Student);
+
+const withSession = (query, session) => (session ? query.session(session) : query);
+
+const runWithOptionalTransaction = async (handler) => {
+	const session = await mongoose.startSession();
+	try {
+		let result;
+		try {
+			await session.withTransaction(async () => {
+				result = await handler(session);
+			});
+			return result;
+		} catch (error) {
+			const message = String(error?.message || '');
+			const transactionUnsupported =
+				message.includes('Transaction numbers are only allowed') ||
+				message.includes('replica set') ||
+				message.includes('NoSuchTransaction');
+
+			if (!transactionUnsupported) {
+				throw error;
+			}
+
+			return handler(null);
+		}
+	} finally {
+		await session.endSession();
+	}
+};
 
 const findAll = (filter = {}) => base.findAll(filter, 'userId classId');
 const findById = (id) => base.findById(id, 'userId classId');
@@ -277,35 +307,41 @@ const updateById = async (id, payload = {}) => {
 		userUpdates.passwordHash = await bcrypt.hash(String(payload.password), 10);
 	}
 
-	await Student.findByIdAndUpdate(
-		student._id,
-		{
-			admissionNo: nextAdmissionNo,
-			classId: nextClassId,
-			gender: nextGender,
-			dob: nextDob,
-			guardianContact: nextGuardianContact,
-			address: nextAddress,
-			pendingFees: nextPendingFees,
-			attendance: nextAttendance
-		},
-		{ new: true, runValidators: true }
-	);
+	return runWithOptionalTransaction(async (session) => {
+		await withSession(
+			Student.findByIdAndUpdate(
+				student._id,
+				{
+					admissionNo: nextAdmissionNo,
+					classId: nextClassId,
+					gender: nextGender,
+					dob: nextDob,
+					guardianContact: nextGuardianContact,
+					address: nextAddress,
+					pendingFees: nextPendingFees,
+					attendance: nextAttendance
+				},
+				{ new: true, runValidators: true }
+			),
+			session
+		);
 
-	if (student.userId && Object.keys(userUpdates).length > 0) {
-		await User.findByIdAndUpdate(student.userId, userUpdates, { new: true, runValidators: true });
-	}
+		if (student.userId && Object.keys(userUpdates).length > 0) {
+			await withSession(User.findByIdAndUpdate(student.userId, userUpdates, { new: true, runValidators: true }), session);
+		}
 
-	if (pendingFeesProvided) {
-		await applyManualPendingFeesOverride({
-			studentId: student._id,
-			targetPendingFees: nextPendingFees
-		});
-	} else {
-		await ensureMonthlyFeesForStudent({ studentId: student._id });
-	}
+		if (pendingFeesProvided) {
+			await applyManualPendingFeesOverride({
+				studentId: student._id,
+				targetPendingFees: nextPendingFees,
+				session
+			});
+		} else {
+			await ensureMonthlyFeesForStudent({ studentId: student._id, session });
+		}
 
-	return Student.findById(student._id).populate('userId classId');
+		return withSession(Student.findById(student._id).populate('userId classId'), session);
+	});
 };
 
 const getAdminProfile = async (studentId) => {
