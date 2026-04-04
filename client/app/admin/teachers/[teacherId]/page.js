@@ -9,6 +9,7 @@ import DetailsGrid from '@/components/DetailsGrid';
 import { get, post, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
+import { useToast } from '@/lib/toast-context';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTACT_REGEX = /^\d{7,15}$/;
@@ -34,6 +35,7 @@ const getTeacherFormFromProfile = (teacher) => ({
 export default function TeacherProfilePage() {
   const params = useParams();
   const teacherId = params?.teacherId;
+  const toast = useToast();
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -52,6 +54,18 @@ export default function TeacherProfilePage() {
   });
   const [paying, setPaying] = useState(false);
   const [form, setForm] = useState({ month: '', amount: '', paymentMethod: 'BANK_TRANSFER', pendingSalaryCleared: '' });
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message);
+    }
+  }, [message, toast]);
 
   const classNameMap = useMemo(
     () =>
@@ -294,12 +308,8 @@ export default function TeacherProfilePage() {
     }
   };
 
-  if (error && !profile) {
-    return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  }
-
   if (!profile) {
-    return <p className="text-sm text-slate-500">Loading teacher profile...</p>;
+    return <p className="text-sm text-slate-500">{error ? 'Unable to load teacher profile right now.' : 'Loading teacher profile...'}</p>;
   }
 
   const teacher = profile.teacher;
@@ -326,9 +336,6 @@ export default function TeacherProfilePage() {
         title={teacher?.userId?.name || 'Teacher Profile'}
         description="Full teacher details, salary status, and salary history."
       />
-
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {message && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard title="Teacher Details">

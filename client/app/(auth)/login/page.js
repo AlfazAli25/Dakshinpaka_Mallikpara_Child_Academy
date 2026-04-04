@@ -9,6 +9,7 @@ import { useLanguage } from '@/lib/language-context';
 import { get, post } from '@/lib/api';
 import { clearSession, getUser, saveSession } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
+import { useToast } from '@/lib/toast-context';
 
 const roleRoutes = {
   admin: '/admin/dashboard',
@@ -76,6 +77,7 @@ const text = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const toast = useToast();
   const { language } = useLanguage();
   const t = text[language] || text.en;
   const [currentUser, setCurrentUser] = useState(null);
@@ -112,6 +114,30 @@ export default function LoginPage() {
     router.prefetch('/teacher/dashboard');
     router.prefetch('/student/dashboard');
   }, [router]);
+
+  useEffect(() => {
+    if (registered) {
+      toast.success(t.regSuccess);
+    }
+  }, [registered, t.regSuccess, toast]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (forgotMessage) {
+      toast.success(forgotMessage);
+    }
+  }, [forgotMessage, toast]);
+
+  useEffect(() => {
+    if (forgotError) {
+      toast.error(forgotError);
+    }
+  }, [forgotError, toast]);
 
   const panelRoute = useMemo(() => {
     const role = currentUser?.role;
@@ -224,12 +250,6 @@ export default function LoginPage() {
             <h2 className="mt-2 text-3xl font-bold text-gray-900">{forgotMode ? t.forgotTitle : t.loginTitle}</h2>
             <p className="mt-2 text-sm text-gray-500">{forgotMode ? t.forgotDesc : t.loginDesc}</p>
 
-            {registered && (
-              <p className="mb-3 mt-4 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-                {t.regSuccess}
-              </p>
-            )}
-
             {!forgotMode ? (
               <>
                 <div className="mt-6 space-y-1">
@@ -243,8 +263,6 @@ export default function LoginPage() {
                     className="h-11"
                   />
                 </div>
-
-                {error && <p className="mb-3 mt-1 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
                 <button
                   type="submit"
@@ -315,9 +333,6 @@ export default function LoginPage() {
                     </>
                   )}
                 </div>
-
-                {forgotMessage && <p className="mb-3 mt-1 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{forgotMessage}</p>}
-                {forgotError && <p className="mb-3 mt-1 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{forgotError}</p>}
 
                 <button
                   type="submit"

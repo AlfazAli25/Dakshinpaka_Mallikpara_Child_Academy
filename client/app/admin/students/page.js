@@ -8,6 +8,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
+import { useToast } from '@/lib/toast-context';
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
@@ -50,6 +51,7 @@ const requiredLabel = (label) => (
 
 export default function AdminStudentsPage() {
   const pathname = usePathname();
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(getInitialStudentForm());
   const [classOptions, setClassOptions] = useState([]);
@@ -63,6 +65,18 @@ export default function AdminStudentsPage() {
   const [error, setError] = useState('');
   const latestStudentsRequestIdRef = useRef(0);
   const lastRefreshAtRef = useRef(0);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message);
+    }
+  }, [message, toast]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
 
   const openDeleteDialog = useCallback((row) => {
     setDeleteTarget(row);
@@ -306,8 +320,6 @@ export default function AdminStudentsPage() {
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Student</h3>
         <p className="mb-4 text-sm text-slate-600">Admin must register each student one by one with all profile details.</p>
-        {message && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
-        {error && <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
         <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />

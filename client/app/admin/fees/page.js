@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import { get, getBlob, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
+import { useToast } from '@/lib/toast-context';
 
 const verificationColumns = [
   { key: 'studentAdmissionNo', label: 'Student ID' },
@@ -71,6 +72,7 @@ const filterVerificationRows = (items, searchText) => {
 };
 
 export default function AdminFeesPage() {
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [students, setStudents] = useState([]);
   const [pendingVerifications, setPendingVerifications] = useState([]);
@@ -84,6 +86,18 @@ export default function AdminFeesPage() {
   const [verificationSearch, setVerificationSearch] = useState('');
   const [transactionReference, setTransactionReference] = useState('');
   const [amount, setAmount] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message);
+    }
+  }, [message, toast]);
 
   const loadData = async () => {
     setLoadingData(true);
@@ -197,7 +211,8 @@ export default function AdminFeesPage() {
       await loadData();
     } catch (apiError) {
       if ((apiError.rawMessage || apiError.message) === PENDING_SCREENSHOT_VERIFICATION_MESSAGE) {
-        window.alert(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
+        toast.info(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
+        return;
       }
       setError(apiError.message);
     } finally {
@@ -235,8 +250,6 @@ export default function AdminFeesPage() {
         title="Fees"
         description="Process cash and in-person online payments, and review student screenshot submissions."
       />
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {message && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
 
       <form onSubmit={onProcessPayment} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Process Payments</h3>

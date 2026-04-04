@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import useSWR from 'swr';
 import PageHeader from '@/components/PageHeader';
 import { get } from '@/lib/api';
 import { getToken } from '@/lib/session';
+import { useToast } from '@/lib/toast-context';
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
@@ -31,11 +32,18 @@ const fetchTeacherTimetable = async () => {
 };
 
 export default function TeacherTimetablePage() {
+  const toast = useToast();
   const { data, isLoading, error } = useSWR('teacher-timetable', fetchTeacherTimetable, {
     refreshInterval: 60000
   });
 
   const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
+
+  useEffect(() => {
+    if (error) {
+      toast.error('Unable to load timetable right now.');
+    }
+  }, [error, toast]);
 
   return (
     <div className="space-y-5">
@@ -44,7 +52,6 @@ export default function TeacherTimetablePage() {
         title="Timetable"
         description="Review your weekly class schedule and subject periods."
       />
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">Unable to load timetable right now.</p>}
       <Table columns={columns} rows={rows} loading={isLoading} />
     </div>
   );

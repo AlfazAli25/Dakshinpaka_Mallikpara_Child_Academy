@@ -7,6 +7,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, post, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
+import { useToast } from '@/lib/toast-context';
 
 const classColumns = [
   { key: 'name', label: 'Class' },
@@ -48,6 +49,7 @@ const getClassDisplayLabel = (classItem) => {
 };
 
 export default function AdminClassesPage() {
+  const toast = useToast();
   const [rows, setRows] = useState([]);
   const [classesData, setClassesData] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
@@ -69,8 +71,6 @@ export default function AdminClassesPage() {
   const [submittingSubject, setSubmittingSubject] = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
   const [deletingSubjectId, setDeletingSubjectId] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
 
   const buildClassRows = (classes, subjects, teacherCountBySubjectId = {}) => {
     const subjectsByClass = subjects.reduce((acc, item) => {
@@ -142,8 +142,6 @@ export default function AdminClassesPage() {
         return classes[0]?._id ? String(classes[0]._id) : '';
       });
 
-      setError('');
-
       setEnrichingRows(true);
       const [subjectResult, teacherResult] = await Promise.allSettled([
         get('/subjects', token),
@@ -176,7 +174,7 @@ export default function AdminClassesPage() {
       setRows(buildClassRows(classes, subjects, teacherCountBySubjectId));
 
       if (subjectResult.status === 'rejected' || teacherResult.status === 'rejected') {
-        setError('Some class insights are delayed. Please refresh in a moment.');
+        toast.info('Some class insights are delayed. Please refresh in a moment.');
       }
     } catch (apiError) {
       setRows([]);
@@ -184,7 +182,7 @@ export default function AdminClassesPage() {
       setClassOptions([]);
       setSubjectRows([]);
       setSelectedClassId('');
-      setError(apiError.message);
+      toast.error(apiError.message);
     } finally {
       setLoading(false);
       setEnrichingRows(false);
@@ -234,8 +232,6 @@ export default function AdminClassesPage() {
       name: classItem?.name || '',
       section: classItem?.section || ''
     });
-    setMessage('');
-    setError('');
   };
 
   const onCancelEditClass = () => {
@@ -246,14 +242,11 @@ export default function AdminClassesPage() {
   const onSaveClass = async (classId) => {
     const normalizedName = String(editClassForm.name || '').trim();
     if (!normalizedName) {
-      setError('Class name is required.');
-      setMessage('');
+      toast.error('Class name is required.');
       return;
     }
 
     setSavingClass(true);
-    setMessage('');
-    setError('');
 
     try {
       await put(
@@ -265,14 +258,14 @@ export default function AdminClassesPage() {
         getToken()
       );
 
-      setMessage('Class updated successfully.');
+      toast.success('Class updated successfully.');
       onCancelEditClass();
       await loadData();
     } catch (apiError) {
       if (isClassDuplicateResponse(apiError)) {
-        setError('Class with the same name and section already exists. Try a different section.');
+        toast.error('Class with the same name and section already exists. Try a different section.');
       } else {
-        setError(apiError.message);
+        toast.error(apiError.message);
       }
     } finally {
       setSavingClass(false);
@@ -282,8 +275,6 @@ export default function AdminClassesPage() {
   const onDeleteClass = (classItem) => {
     setDeleteClassTarget(classItem);
     setTypedClassLabel('');
-    setMessage('');
-    setError('');
   };
 
   const onConfirmDeleteClass = async () => {
@@ -293,18 +284,16 @@ export default function AdminClassesPage() {
 
     const expectedClassLabel = getClassDisplayLabel(deleteClassTarget);
     if (typedClassLabel.trim().toLowerCase() !== expectedClassLabel.toLowerCase()) {
-      setError('Deletion cancelled. Class name and section did not match.');
+      toast.error('Deletion cancelled. Class name and section did not match.');
       return;
     }
 
     const classId = String(deleteClassTarget._id);
     setDeletingClassId(classId);
-    setMessage('');
-    setError('');
 
     try {
       await del(`/classes/${classId}`, getToken());
-      setMessage('Class deleted successfully.');
+      toast.success('Class deleted successfully.');
       if (editClassId === classId) {
         onCancelEditClass();
       }
@@ -312,7 +301,7 @@ export default function AdminClassesPage() {
       setTypedClassLabel('');
       await loadData();
     } catch (apiError) {
-      setError(apiError.message);
+      toast.error(apiError.message);
     } finally {
       setDeletingClassId('');
     }
@@ -322,14 +311,11 @@ export default function AdminClassesPage() {
     event.preventDefault();
     const normalizedName = String(classForm.name || '').trim();
     if (!normalizedName) {
-      setError('Class name is required.');
-      setMessage('');
+      toast.error('Class name is required.');
       return;
     }
 
     setSubmittingClass(true);
-    setMessage('');
-    setError('');
 
     try {
       await post(
@@ -342,13 +328,13 @@ export default function AdminClassesPage() {
       );
 
       setClassForm(getInitialClassForm());
-      setMessage('Class added successfully.');
+      toast.success('Class added successfully.');
       await loadData();
     } catch (apiError) {
       if (isClassDuplicateResponse(apiError)) {
-        setError('Class with the same name and section already exists. Try a different section.');
+        toast.error('Class with the same name and section already exists. Try a different section.');
       } else {
-        setError(apiError.message);
+        toast.error(apiError.message);
       }
     } finally {
       setSubmittingClass(false);
@@ -358,21 +344,17 @@ export default function AdminClassesPage() {
   const onCreateSubject = async (event) => {
     event.preventDefault();
     if (!selectedClassId) {
-      setError('Create at least one class before adding subjects.');
-      setMessage('');
+      toast.error('Create at least one class before adding subjects.');
       return;
     }
 
     const normalizedName = String(subjectForm.name || '').trim();
     if (!normalizedName) {
-      setError('Subject name is required.');
-      setMessage('');
+      toast.error('Subject name is required.');
       return;
     }
 
     setSubmittingSubject(true);
-    setMessage('');
-    setError('');
 
     try {
       await post(
@@ -385,10 +367,10 @@ export default function AdminClassesPage() {
         getToken()
       );
       setSubjectForm(getInitialSubjectForm());
-      setMessage('Subject added successfully.');
+      toast.success('Subject added successfully.');
       await loadData();
     } catch (apiError) {
-      setError(apiError.message);
+      toast.error(apiError.message);
     } finally {
       setSubmittingSubject(false);
     }
@@ -400,8 +382,6 @@ export default function AdminClassesPage() {
       name: subject.name || '',
       code: subject.code || ''
     });
-    setMessage('');
-    setError('');
   };
 
   const onCancelEditSubject = () => {
@@ -412,13 +392,11 @@ export default function AdminClassesPage() {
   const onSaveSubject = async (subjectId) => {
     const normalizedName = String(editSubjectForm.name || '').trim();
     if (!normalizedName) {
-      setError('Subject name is required.');
+      toast.error('Subject name is required.');
       return;
     }
 
     setSavingSubject(true);
-    setMessage('');
-    setError('');
 
     try {
       await put(
@@ -429,12 +407,12 @@ export default function AdminClassesPage() {
         },
         getToken()
       );
-      setMessage('Subject updated successfully.');
+      toast.success('Subject updated successfully.');
       setEditSubjectId('');
       setEditSubjectForm(getInitialSubjectForm());
       await loadData();
     } catch (apiError) {
-      setError(apiError.message);
+      toast.error(apiError.message);
     } finally {
       setSavingSubject(false);
     }
@@ -442,18 +420,16 @@ export default function AdminClassesPage() {
 
   const onDeleteSubject = async (subjectId) => {
     setDeletingSubjectId(subjectId);
-    setMessage('');
-    setError('');
 
     try {
       await del(`/subjects/${subjectId}`, getToken());
-      setMessage('Subject deleted successfully.');
+      toast.success('Subject deleted successfully.');
       if (editSubjectId === subjectId) {
         onCancelEditSubject();
       }
       await loadData();
     } catch (apiError) {
-      setError(apiError.message);
+      toast.error(apiError.message);
     } finally {
       setDeletingSubjectId('');
     }
@@ -470,8 +446,6 @@ export default function AdminClassesPage() {
       <form onSubmit={onCreateClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Add Class</h3>
         <p className="mb-4 text-sm text-slate-600">Create classes first. Same class name is allowed across different sections.</p>
-        {message && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
-        {error && <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
         <div className="grid gap-3 md:grid-cols-2">
           <Input label="Class Name *" value={classForm.name} onChange={onClassFormChange('name')} required className="h-11" />

@@ -6,6 +6,7 @@ import Table from '@/components/Table';
 import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
+import { useToast } from '@/lib/toast-context';
 
 const checkoutColumns = [
   { key: 'paymentDate', label: 'Payment Date' },
@@ -26,6 +27,7 @@ const mapVerificationStatus = (status) => {
 };
 
 export default function StudentCheckoutPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [checkoutHistory, setCheckoutHistory] = useState([]);
@@ -38,6 +40,18 @@ export default function StudentCheckoutPage() {
   const [transactionReference, setTransactionReference] = useState('');
   const [queryAmount, setQueryAmount] = useState(0);
   const [paymentAmount, setPaymentAmount] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message);
+    }
+  }, [message, toast]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -191,9 +205,6 @@ export default function StudentCheckoutPage() {
         title="Checkout"
         description="Choose payment mode and submit online screenshot for verification when paying via QR."
       />
-
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {message && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
 
       <div className="card-hover rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-600">Total Payable</p>

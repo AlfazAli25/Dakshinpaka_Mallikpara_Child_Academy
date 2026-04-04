@@ -10,6 +10,7 @@ import Select from '@/components/Select';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get, put } from '@/lib/api';
 import { getToken } from '@/lib/session';
+import { useToast } from '@/lib/toast-context';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONTHLY_FEE_AMOUNT = 200;
@@ -79,6 +80,7 @@ const getStudentFormFromProfile = (student) => ({
 export default function StudentProfilePage() {
   const params = useParams();
   const studentId = params?.studentId;
+  const toast = useToast();
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -98,6 +100,18 @@ export default function StudentProfilePage() {
     attendance: '',
     password: ''
   });
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (message) {
+      toast.success(message);
+    }
+  }, [message, toast]);
 
   const loadProfile = async () => {
     if (!studentId) {
@@ -259,12 +273,8 @@ export default function StudentProfilePage() {
     [profile?.payments]
   );
 
-  if (error && !profile) {
-    return <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  }
-
   if (!profile) {
-    return <p className="text-sm text-slate-500">Loading student profile...</p>;
+    return <p className="text-sm text-slate-500">{error ? 'Unable to load student profile right now.' : 'Loading student profile...'}</p>;
   }
 
   const student = profile.student;
@@ -293,9 +303,6 @@ export default function StudentProfilePage() {
         title={student?.userId?.name || 'Student Profile'}
         description="Full student details, fee status, and payment history."
       />
-
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {message && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
 
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard title="Student Details">

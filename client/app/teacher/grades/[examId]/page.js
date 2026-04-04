@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import { get } from '@/lib/api';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
+import { useToast } from '@/lib/toast-context';
 
 const gradeColumns = [
   { key: 'student', label: 'Student' },
@@ -18,10 +19,17 @@ const gradeColumns = [
 export default function TeacherGradesPage() {
   const params = useParams();
   const examId = params?.examId;
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [exam, setExam] = useState(null);
   const [rows, setRows] = useState([]);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+    }
+  }, [error, toast]);
 
   useEffect(() => {
     const load = async () => {
@@ -67,8 +75,6 @@ export default function TeacherGradesPage() {
         title="Grade Entry"
         description="Review marks and remarks for the selected exam."
       />
-
-      {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
 
       <InfoCard title="Exam Details">
         <p className="text-sm text-slate-700">Exam ID: {exam?._id || examId || '-'}</p>
