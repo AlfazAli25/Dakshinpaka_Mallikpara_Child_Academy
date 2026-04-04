@@ -41,6 +41,12 @@ const isClassDuplicateResponse = (apiError) => {
   );
 };
 
+const getClassDisplayLabel = (classItem) => {
+  const normalizedName = String(classItem?.name || '').trim() || 'Class';
+  const normalizedSection = String(classItem?.section || '').trim();
+  return normalizedSection ? `${normalizedName} (${normalizedSection})` : normalizedName;
+};
+
 export default function AdminClassesPage() {
   const [rows, setRows] = useState([]);
   const [classesData, setClassesData] = useState([]);
@@ -58,6 +64,8 @@ export default function AdminClassesPage() {
   const [submittingClass, setSubmittingClass] = useState(false);
   const [savingClass, setSavingClass] = useState(false);
   const [deletingClassId, setDeletingClassId] = useState('');
+  const [deleteClassTarget, setDeleteClassTarget] = useState(null);
+  const [typedClassLabel, setTypedClassLabel] = useState('');
   const [submittingSubject, setSubmittingSubject] = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
   const [deletingSubjectId, setDeletingSubjectId] = useState('');
@@ -271,17 +279,25 @@ export default function AdminClassesPage() {
     }
   };
 
-  const onDeleteClass = async (classId) => {
-    const classItem = classesData.find((item) => String(item._id) === String(classId));
-    const classLabel = `${classItem?.name || 'class'}${classItem?.section ? ` (${classItem.section})` : ''}`;
+  const onDeleteClass = (classItem) => {
+    setDeleteClassTarget(classItem);
+    setTypedClassLabel('');
+    setMessage('');
+    setError('');
+  };
 
-    if (typeof window !== 'undefined') {
-      const confirmed = window.confirm(`Delete ${classLabel}? This cannot be undone.`);
-      if (!confirmed) {
-        return;
-      }
+  const onConfirmDeleteClass = async () => {
+    if (!deleteClassTarget?._id) {
+      return;
     }
 
+    const expectedClassLabel = getClassDisplayLabel(deleteClassTarget);
+    if (typedClassLabel.trim().toLowerCase() !== expectedClassLabel.toLowerCase()) {
+      setError('Deletion cancelled. Class name and section did not match.');
+      return;
+    }
+
+    const classId = String(deleteClassTarget._id);
     setDeletingClassId(classId);
     setMessage('');
     setError('');
@@ -292,6 +308,8 @@ export default function AdminClassesPage() {
       if (editClassId === classId) {
         onCancelEditClass();
       }
+      setDeleteClassTarget(null);
+      setTypedClassLabel('');
       await loadData();
     } catch (apiError) {
       setError(apiError.message);
@@ -538,7 +556,7 @@ export default function AdminClassesPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteClass(classId)}
+                          onClick={() => onDeleteClass(classItem)}
                           disabled={deletingClassId === classId}
                           className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -666,6 +684,51 @@ export default function AdminClassesPage() {
           </>
         )}
       </div>
+
+      {deleteClassTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-900">Confirm Class Deletion</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Type class label{' '}
+              <span className="font-semibold text-slate-900">{getClassDisplayLabel(deleteClassTarget)}</span>{' '}
+              to permanently delete this class.
+            </p>
+
+            <input
+              type="text"
+              value={typedClassLabel}
+              onChange={(event) => setTypedClassLabel(event.target.value)}
+              placeholder="Enter class label"
+              className="mt-3 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteClassTarget(null);
+                  setTypedClassLabel('');
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmDeleteClass}
+                disabled={
+                  deletingClassId === String(deleteClassTarget._id) ||
+                  typedClassLabel.trim().toLowerCase() !== getClassDisplayLabel(deleteClassTarget).toLowerCase()
+                }
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingClassId === String(deleteClassTarget._id) ? 'Deleting...' : 'Delete Class'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
