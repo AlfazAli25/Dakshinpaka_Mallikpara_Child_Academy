@@ -5,6 +5,7 @@ import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import { get, getBlob, post } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -369,7 +370,7 @@ export default function AdminFeesPage() {
             id: item._id,
             studentAdmissionNo: item.studentId?.admissionNo || '-',
             studentName: item.studentId?.userId?.name || '-',
-            className: item.studentId?.classId?.name || '-',
+            className: formatClassLabel(item.studentId?.classId),
             amount: `INR ${item.amount || 0}`,
             submittedAt: new Date(item.createdAt).toLocaleString(),
             status: 'Pending'

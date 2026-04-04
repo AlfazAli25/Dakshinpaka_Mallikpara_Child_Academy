@@ -6,6 +6,7 @@ import InfoCard from '@/components/InfoCard';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import { get } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -79,7 +80,7 @@ export default function TeacherGradesPage() {
       <InfoCard title="Exam Details">
         <p className="text-sm text-slate-700">Exam ID: {exam?._id || examId || '-'}</p>
         <p className="text-sm text-slate-700">Subject: {exam?.subjectId?.name || '-'}</p>
-        <p className="text-sm text-slate-700">Class: {exam?.classId?.name || '-'}</p>
+        <p className="text-sm text-slate-700">Class: {formatClassLabel(exam?.classId)}</p>
         <p className="text-sm text-slate-700">Date: {exam?.date ? String(exam.date).slice(0, 10) : '-'}</p>
         <p className="text-sm text-slate-700">Total Marks: {exam?.totalMarks || 0}</p>
       </InfoCard>

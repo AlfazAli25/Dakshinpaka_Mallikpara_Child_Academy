@@ -7,6 +7,7 @@ import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, post } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -102,7 +103,7 @@ export default function AdminStudentsPage() {
         userProfileId: item.userId?._id ? String(item.userId._id) : '',
         admissionNo: item.admissionNo || '-',
         name: item.userId?.name || '-',
-        className: item.classId?.name || '-',
+        className: formatClassLabel(item.classId),
         guardianContact: item.guardianContact || '-',
         isLinkedRecord: Boolean(item.isLinkedRecord)
       }));

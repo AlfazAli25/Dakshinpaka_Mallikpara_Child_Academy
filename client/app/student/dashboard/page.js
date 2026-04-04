@@ -8,6 +8,7 @@ import LanguageToggle from '@/components/LanguageToggle';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 
@@ -164,7 +165,7 @@ export default function StudentDashboardPage() {
           <DetailsGrid
             items={[
               { label: t.fields.name, value: studentProfile.userId?.name || '-' },
-              { label: t.fields.class, value: studentProfile.classId?.name || '-' },
+              { label: t.fields.class, value: formatClassLabel(studentProfile.classId) },
               { label: t.fields.section, value: studentProfile.classId?.section || '-' },
               { label: t.fields.gender, value: studentProfile.gender || '-' },
               { label: t.fields.dob, value: formatDate(studentProfile.dob) },

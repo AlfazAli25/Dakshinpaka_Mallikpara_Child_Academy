@@ -7,6 +7,7 @@ import InfoCard from '@/components/InfoCard';
 import Table from '@/components/Table';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get, post, put } from '@/lib/api';
+import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
 import { useToast } from '@/lib/toast-context';
@@ -70,7 +71,7 @@ export default function TeacherProfilePage() {
   const classNameMap = useMemo(
     () =>
       classOptions.reduce((acc, item) => {
-        acc[item.id] = item.name;
+        acc[item.id] = formatClassLabel(item, 'Class');
         return acc;
       }, {}),
     [classOptions]
@@ -119,7 +120,8 @@ export default function TeacherProfilePage() {
     setClassOptions(
       (classResponse.data || []).map((item) => ({
         id: String(item._id),
-        name: item.name || 'Class'
+        name: item.name || 'Class',
+        section: item.section || ''
       }))
     );
 
@@ -321,7 +323,7 @@ export default function TeacherProfilePage() {
     { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-' },
     {
       label: 'Classes',
-      value: (teacher?.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+      value: formatClassLabelList(teacher?.classIds || [])
     },
     {
       label: 'Subjects',
@@ -390,7 +392,7 @@ export default function TeacherProfilePage() {
                           onChange={() => onToggleEditClass(classOption.id)}
                           className="h-4 w-4"
                         />
-                        <span>{classOption.name}</span>
+                        <span>{formatClassLabel(classOption, 'Class')}</span>
                       </label>
                     ))}
                   </div>

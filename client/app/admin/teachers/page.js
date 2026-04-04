@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import { del, get, post } from '@/lib/api';
+import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -70,7 +71,7 @@ export default function AdminTeachersPage() {
   const classNameMap = useMemo(
     () =>
       classOptions.reduce((acc, item) => {
-        acc[item.id] = item.name;
+        acc[item.id] = formatClassLabel(item, 'Class');
         return acc;
       }, {}),
     [classOptions]
@@ -121,7 +122,7 @@ export default function AdminTeachersPage() {
             teacherId: item.teacherId,
             name: item.userId?.name,
             contactNumber: item.contactNumber || '-',
-            classes: (item.classIds || []).map((entry) => entry?.name).filter(Boolean).join(', ') || '-',
+            classes: formatClassLabelList(item.classIds || []),
             subjectCount: String((item.subjects || []).length || 0),
             email: item.userId?.email
           };
@@ -384,7 +385,7 @@ export default function AdminTeachersPage() {
                     onChange={() => onToggleClass(classOption.id)}
                     className="h-4 w-4"
                   />
-                  <span>{classOption.name}</span>
+                  <span>{formatClassLabel(classOption, 'Class')}</span>
                 </label>
               ))}
             </div>

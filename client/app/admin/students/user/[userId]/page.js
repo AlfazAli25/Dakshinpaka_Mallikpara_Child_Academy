@@ -9,6 +9,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get, put } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -288,7 +289,7 @@ export default function StudentUserProfilePage() {
   ];
   const studentDetailItems = [
     { label: 'Name', value: student?.userId?.name || '-' },
-    { label: 'Class', value: student?.classId?.name || '-' },
+    { label: 'Class', value: formatClassLabel(student?.classId) },
     { label: 'Section', value: student?.classId?.section || '-' },
     { label: 'Gender', value: student?.gender || '-' },
     { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString() : '-' },

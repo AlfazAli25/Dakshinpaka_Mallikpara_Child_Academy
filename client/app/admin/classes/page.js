@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, post, put } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -42,11 +43,16 @@ const isClassDuplicateResponse = (apiError) => {
   );
 };
 
-const getClassDisplayLabel = (classItem) => {
-  const normalizedName = String(classItem?.name || '').trim() || 'Class';
-  const normalizedSection = String(classItem?.section || '').trim();
-  return normalizedSection ? `${normalizedName} (${normalizedSection})` : normalizedName;
-};
+const normalizeConfirmationLabel = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\(\s*/g, '(')
+    .replace(/\s*\)\s*/g, ')');
+
+const isConfirmationLabelMatch = (typedValue, expectedValue) =>
+  normalizeConfirmationLabel(typedValue) === normalizeConfirmationLabel(expectedValue);
 
 export default function AdminClassesPage() {
   const toast = useToast();
@@ -72,7 +78,7 @@ export default function AdminClassesPage() {
   const [savingSubject, setSavingSubject] = useState(false);
   const [deletingSubjectId, setDeletingSubjectId] = useState('');
 
-  const buildClassRows = (classes, subjects, teacherCountBySubjectId = {}) => {
+  const buildClassRows = (classes, subjects, teacherNamesBySubjectId = {}) => {
     const subjectsByClass = subjects.reduce((acc, item) => {
       if (!item.classId) {
         return acc;
@@ -93,7 +99,7 @@ export default function AdminClassesPage() {
 
       return {
         id: classId,
-        name: item.name || '-',
+        name: formatClassLabel(item),
         section: item.section || '-',
         subjectCount: String(classSubjects.length),
         teacherPerSubject: classSubjects.length === 0
@@ -101,10 +107,10 @@ export default function AdminClassesPage() {
           : (
             <div className="space-y-1">
               {classSubjects.map((subject) => {
-                const teacherCount = Number(teacherCountBySubjectId[subject.id] || 0);
+                const assignedTeacherNames = teacherNamesBySubjectId[subject.id] || [];
                 return (
                   <p key={subject.id} className="text-xs text-slate-700">
-                    {subject.name}: {teacherCount}
+                    {subject.name}: {assignedTeacherNames.length > 0 ? assignedTeacherNames.join(', ') : 'Not Assigned'}
                   </p>
                 );
               })}
@@ -129,7 +135,7 @@ export default function AdminClassesPage() {
       setClassOptions(
         classes.map((item) => ({
           value: String(item._id),
-          label: `${item.name || 'Class'}${item.section ? ` (${item.section})` : ''}`
+          label: formatClassLabel(item, 'Class')
         }))
       );
       setSubjectRows([]);
@@ -157,13 +163,20 @@ export default function AdminClassesPage() {
         }))
         : [];
 
-      const teacherCountBySubjectId = teacherResult.status === 'fulfilled'
+      const teacherNamesBySubjectId = teacherResult.status === 'fulfilled'
         ? (teacherResult.value.data || []).reduce((acc, teacher) => {
+          const teacherLabel = String(teacher?.userId?.name || teacher?.teacherId || '').trim();
           (teacher.subjects || [])
             .map((item) => String(item?._id || item || ''))
             .filter(Boolean)
             .forEach((subjectId) => {
-              acc[subjectId] = (acc[subjectId] || 0) + 1;
+              if (!acc[subjectId]) {
+                acc[subjectId] = [];
+              }
+
+              if (teacherLabel && !acc[subjectId].includes(teacherLabel)) {
+                acc[subjectId].push(teacherLabel);
+              }
             });
 
           return acc;
@@ -171,7 +184,7 @@ export default function AdminClassesPage() {
         : {};
 
       setSubjectRows(subjects);
-      setRows(buildClassRows(classes, subjects, teacherCountBySubjectId));
+      setRows(buildClassRows(classes, subjects, teacherNamesBySubjectId));
 
       if (subjectResult.status === 'rejected' || teacherResult.status === 'rejected') {
         toast.info('Some class insights are delayed. Please refresh in a moment.');
@@ -282,8 +295,8 @@ export default function AdminClassesPage() {
       return;
     }
 
-    const expectedClassLabel = getClassDisplayLabel(deleteClassTarget);
-    if (typedClassLabel.trim().toLowerCase() !== expectedClassLabel.toLowerCase()) {
+    const expectedClassLabel = formatClassLabel(deleteClassTarget, 'Class');
+    if (!isConfirmationLabelMatch(typedClassLabel, expectedClassLabel)) {
       toast.error('Deletion cancelled. Class name and section did not match.');
       return;
     }
@@ -514,8 +527,7 @@ export default function AdminClassesPage() {
                   ) : (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{classItem.name}</span>
-                        {classItem.section ? ` (${classItem.section})` : ''}
+                        <span className="font-semibold text-slate-900">{formatClassLabel(classItem, 'Class')}</span>
                         <span className="ml-2 text-xs text-slate-500">
                           {subjectCountByClassId[classId] || 0} subjects
                         </span>
@@ -665,7 +677,7 @@ export default function AdminClassesPage() {
             <h3 className="text-lg font-semibold text-slate-900">Confirm Class Deletion</h3>
             <p className="mt-2 text-sm text-slate-600">
               Type class label{' '}
-              <span className="font-semibold text-slate-900">{getClassDisplayLabel(deleteClassTarget)}</span>{' '}
+              <span className="font-semibold text-slate-900">{formatClassLabel(deleteClassTarget, 'Class')}</span>{' '}
               to permanently delete this class.
             </p>
 
@@ -693,7 +705,7 @@ export default function AdminClassesPage() {
                 onClick={onConfirmDeleteClass}
                 disabled={
                   deletingClassId === String(deleteClassTarget._id) ||
-                  typedClassLabel.trim().toLowerCase() !== getClassDisplayLabel(deleteClassTarget).toLowerCase()
+                  !isConfirmationLabelMatch(typedClassLabel, formatClassLabel(deleteClassTarget, 'Class'))
                 }
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >

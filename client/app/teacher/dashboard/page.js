@@ -7,6 +7,7 @@ import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
+import { formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
 export default function TeacherDashboardPage() {
@@ -139,7 +140,7 @@ export default function TeacherDashboardPage() {
               },
               {
                 label: 'Assigned Classes',
-                value: (teacherProfile.classIds || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+                value: formatClassLabelList(teacherProfile.classIds || [])
               },
               {
                 label: 'Assigned Subjects',

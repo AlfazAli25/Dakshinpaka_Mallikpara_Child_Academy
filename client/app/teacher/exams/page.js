@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import { get } from '@/lib/api';
+import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
 const columns = [
@@ -33,7 +34,7 @@ export default function TeacherExamsPage() {
           (response.data || []).map((item) => ({
             id: item._id,
             subject: item.subjectId?.name || '-',
-            className: item.classId?.name || '-',
+            className: formatClassLabel(item.classId),
             date: item.date?.slice(0, 10),
             marks: item.totalMarks || 0
           }))
