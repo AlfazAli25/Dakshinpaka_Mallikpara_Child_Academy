@@ -2,6 +2,7 @@ const Fee = require('../models/fee.model');
 const Student = require('../models/student.model');
 
 const MONTHLY_FEE_AMOUNT = 200;
+const EPSILON = 0.0001;
 
 const FEE_STATUS = {
 	PENDING: 'PENDING',
@@ -35,36 +36,49 @@ const getMonthDateFromKey = (monthKey) => {
 	return new Date(Date.UTC(year, month - 1, 1));
 };
 
+const toAmount = (value) => {
+	const numeric = Number(value || 0);
+	if (!Number.isFinite(numeric)) {
+		return 0;
+	}
+
+	return Math.round(numeric * 100) / 100;
+};
+
+const areAmountsEqual = (left, right) => Math.abs(toAmount(left) - toAmount(right)) <= EPSILON;
+
 const calculateFeePendingAmount = (fee) => {
-	const amountDue = Math.max(Number(fee?.amountDue || 0), 0);
-	const amountPaid = Math.max(Number(fee?.amountPaid || 0), 0);
-	return Math.max(amountDue - amountPaid, 0);
+	const amountDue = Math.max(toAmount(fee?.amountDue), 0);
+	const amountPaid = Math.max(toAmount(fee?.amountPaid), 0);
+	return toAmount(Math.max(amountDue - amountPaid, 0));
 };
 
 const deriveFeeStatus = ({ amountDue, amountPaid }) => {
-	const pendingAmount = Math.max(Number(amountDue || 0) - Number(amountPaid || 0), 0);
-	if (pendingAmount === 0) {
+	const normalizedAmountDue = Math.max(toAmount(amountDue), 0);
+	const normalizedAmountPaid = Math.max(toAmount(amountPaid), 0);
+	const pendingAmount = toAmount(Math.max(normalizedAmountDue - normalizedAmountPaid, 0));
+	if (areAmountsEqual(pendingAmount, 0)) {
 		return FEE_STATUS.PAID;
 	}
 
-	return Number(amountPaid || 0) > 0 ? FEE_STATUS.PARTIALLY_PAID : FEE_STATUS.PENDING;
+	return normalizedAmountPaid > 0 ? FEE_STATUS.PARTIALLY_PAID : FEE_STATUS.PENDING;
 };
 
 const normalizeFeeRow = async ({ fee, session }) => {
 	const normalizedMonthKey = fee.monthKey || getMonthKey(fee.dueDate || fee.createdAt || new Date());
 	const normalizedDueDate = getMonthDateFromKey(normalizedMonthKey) || getMonthStartDate(fee.dueDate || fee.createdAt || new Date());
 	const normalizedAmountDue = Number.isFinite(Number(fee.amountDue)) && Number(fee.amountDue) >= 0
-		? Number(fee.amountDue)
+		? toAmount(fee.amountDue)
 		: MONTHLY_FEE_AMOUNT;
-	const normalizedAmountPaid = Math.max(Math.min(Number(fee.amountPaid || 0), normalizedAmountDue), 0);
+	const normalizedAmountPaid = toAmount(Math.max(Math.min(Number(fee.amountPaid || 0), normalizedAmountDue), 0));
 	const normalizedStatus = deriveFeeStatus({ amountDue: normalizedAmountDue, amountPaid: normalizedAmountPaid });
 
 	const shouldUpdate =
 		fee.monthKey !== normalizedMonthKey ||
 		!fee.dueDate ||
 		new Date(fee.dueDate).toISOString() !== normalizedDueDate.toISOString() ||
-		Number(fee.amountDue || 0) !== normalizedAmountDue ||
-		Number(fee.amountPaid || 0) !== normalizedAmountPaid ||
+		!areAmountsEqual(fee.amountDue || 0, normalizedAmountDue) ||
+		!areAmountsEqual(fee.amountPaid || 0, normalizedAmountPaid) ||
 		!FEE_STATUS_VALUES.includes(fee.status) ||
 		fee.status !== normalizedStatus;
 
@@ -154,14 +168,94 @@ const ensureMonthlyFeesForStudent = async ({ studentId, session, anchorDate = ne
 		Fee.find({ studentId: student._id }).select('amountDue amountPaid'),
 		session
 	);
-	const ledgerPending = freshFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0);
+	const ledgerPending = toAmount(freshFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
 
-	if (Number(student.pendingFees || 0) !== ledgerPending) {
+	if (!areAmountsEqual(student.pendingFees || 0, ledgerPending)) {
 		student.pendingFees = ledgerPending;
 		await student.save({ session });
 	}
 
 	return withSession(Fee.find({ studentId: student._id }).sort({ dueDate: 1, createdAt: 1 }), session);
+};
+
+const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, session, anchorDate = new Date() }) => {
+	if (!studentId) {
+		return [];
+	}
+
+	const normalizedTargetPending = toAmount(targetPendingFees);
+	if (!Number.isFinite(normalizedTargetPending) || normalizedTargetPending < 0) {
+		const error = new Error('Pending fees must be 0 or greater');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const fees = await ensureMonthlyFeesForStudent({ studentId, session, anchorDate });
+	const sortedFees = [...fees].sort((left, right) => {
+		const leftTime = new Date(left.dueDate || left.createdAt || 0).getTime();
+		const rightTime = new Date(right.dueDate || right.createdAt || 0).getTime();
+		return leftTime - rightTime;
+	});
+
+	const currentPending = toAmount(sortedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
+	const delta = toAmount(normalizedTargetPending - currentPending);
+
+	if (!areAmountsEqual(delta, 0)) {
+		if (delta > 0) {
+			const latestFee = sortedFees[sortedFees.length - 1];
+			if (!latestFee) {
+				const error = new Error('Unable to reconcile pending fees because no fee ledger rows exist');
+				error.statusCode = 500;
+				throw error;
+			}
+
+			latestFee.amountDue = toAmount(Number(latestFee.amountDue || 0) + delta);
+			latestFee.status = deriveFeeStatus({
+				amountDue: latestFee.amountDue,
+				amountPaid: latestFee.amountPaid
+			});
+			await latestFee.save({ session });
+		} else {
+			let reductionRemaining = Math.abs(delta);
+
+			for (const fee of sortedFees) {
+				if (reductionRemaining <= EPSILON) {
+					break;
+				}
+
+				const feePending = calculateFeePendingAmount(fee);
+				if (feePending <= EPSILON) {
+					continue;
+				}
+
+				const reduction = Math.min(feePending, reductionRemaining);
+				fee.amountDue = toAmount(Math.max(Number(fee.amountDue || 0) - reduction, Number(fee.amountPaid || 0)));
+				fee.status = deriveFeeStatus({
+					amountDue: fee.amountDue,
+					amountPaid: fee.amountPaid
+				});
+				await fee.save({ session });
+				reductionRemaining = toAmount(reductionRemaining - reduction);
+			}
+
+			if (reductionRemaining > EPSILON) {
+				const error = new Error('Unable to reconcile pending fees with current payment history');
+				error.statusCode = 400;
+				throw error;
+			}
+		}
+	}
+
+	const refreshedFees = await withSession(Fee.find({ studentId }).sort({ dueDate: 1, createdAt: 1 }), session);
+	const finalPending = toAmount(refreshedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
+	const student = await withSession(Student.findById(studentId).select('_id pendingFees'), session);
+
+	if (student && !areAmountsEqual(student.pendingFees || 0, finalPending)) {
+		student.pendingFees = finalPending;
+		await student.save({ session });
+	}
+
+	return refreshedFees;
 };
 
 const ensureMonthlyFeesForAllStudents = async ({ session, anchorDate = new Date() } = {}) => {
@@ -180,5 +274,6 @@ module.exports = {
 	calculateFeePendingAmount,
 	deriveFeeStatus,
 	ensureMonthlyFeesForStudent,
+	applyManualPendingFeesOverride,
 	ensureMonthlyFeesForAllStudents
 };

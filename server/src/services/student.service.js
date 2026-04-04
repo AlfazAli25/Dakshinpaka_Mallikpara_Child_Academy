@@ -9,7 +9,7 @@ const Attendance = require('../models/attendance.model');
 const Grade = require('../models/grade.model');
 const createCrudService = require('./crud.service');
 const { isValidEmail } = require('../utils/validation');
-const { ensureMonthlyFeesForStudent } = require('./monthly-fee-ledger.service');
+const { ensureMonthlyFeesForStudent, applyManualPendingFeesOverride } = require('./monthly-fee-ledger.service');
 
 const base = createCrudService(Student);
 
@@ -68,6 +68,8 @@ const create = async (payload) => {
 	const normalizedGender = String(gender || '').toUpperCase().trim();
 	const normalizedGuardianContact = String(guardianContact || '').trim();
 	const normalizedAddress = String(address || '').trim();
+	const pendingFeesProvided =
+		pendingFees !== undefined && pendingFees !== null && String(pendingFees).trim() !== '';
 	const normalizedPendingFees =
 		pendingFees === undefined || pendingFees === null || String(pendingFees).trim() === '' ? 0 : Number(pendingFees);
 	const normalizedAttendance = Number(attendance);
@@ -157,7 +159,14 @@ const create = async (payload) => {
 			attendance: normalizedAttendance
 		});
 
-		await ensureMonthlyFeesForStudent({ studentId: student._id });
+		if (pendingFeesProvided) {
+			await applyManualPendingFeesOverride({
+				studentId: student._id,
+				targetPendingFees: normalizedPendingFees
+			});
+		} else {
+			await ensureMonthlyFeesForStudent({ studentId: student._id });
+		}
 
 		return Student.findById(student._id).populate('userId classId');
 	} catch (error) {
@@ -172,6 +181,8 @@ const updateById = async (id, payload = {}) => {
 	if (!student) {
 		return null;
 	}
+
+	const pendingFeesProvided = payload.pendingFees !== undefined;
 
 	const nextAdmissionNo =
 		payload.admissionNo !== undefined ? String(payload.admissionNo || '').trim() : String(student.admissionNo || '').trim();
@@ -285,11 +296,20 @@ const updateById = async (id, payload = {}) => {
 		await User.findByIdAndUpdate(student.userId, userUpdates, { new: true, runValidators: true });
 	}
 
+	if (pendingFeesProvided) {
+		await applyManualPendingFeesOverride({
+			studentId: student._id,
+			targetPendingFees: nextPendingFees
+		});
+	} else {
+		await ensureMonthlyFeesForStudent({ studentId: student._id });
+	}
+
 	return Student.findById(student._id).populate('userId classId');
 };
 
 const getAdminProfile = async (studentId) => {
-	const student = await Student.findById(studentId).populate('userId classId');
+	let student = await Student.findById(studentId).populate('userId classId');
 	if (!student) {
 		const error = new Error('Student not found');
 		error.statusCode = 404;
@@ -297,6 +317,12 @@ const getAdminProfile = async (studentId) => {
 	}
 
 	await ensureMonthlyFeesForStudent({ studentId: student._id });
+	student = await Student.findById(studentId).populate('userId classId');
+	if (!student) {
+		const error = new Error('Student not found');
+		error.statusCode = 404;
+		throw error;
+	}
 
 	const fees = await Fee.find({ studentId: student._id }).sort({ dueDate: -1 });
 	const payments = await Payment.find({ studentId: student._id })
