@@ -9,15 +9,18 @@ import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
 
+const MONTHLY_FEE_AMOUNT = 200;
+
 const text = {
   en: {
     eyebrow: 'Student Portal',
     title: 'Fees',
     description: 'View month-wise fee records and payment status.',
+    monthlyFeeLabel: 'Monthly Fee',
     columns: [
       { key: 'month', label: 'Month' },
-      { key: 'amountDue', label: 'Amount Due' },
       { key: 'amountPaid', label: 'Amount Paid' },
+      { key: 'amountPending', label: 'Amount Pending' },
       { key: 'status', label: 'Status' }
     ]
   },
@@ -25,10 +28,11 @@ const text = {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
     title: 'ফি',
     description: 'মাসভিত্তিক ফি রেকর্ড ও পেমেন্ট স্ট্যাটাস দেখুন।',
+    monthlyFeeLabel: 'মাসিক ফি',
     columns: [
       { key: 'month', label: 'মাস' },
-      { key: 'amountDue', label: 'মোট ফি' },
       { key: 'amountPaid', label: 'পরিশোধিত' },
+      { key: 'amountPending', label: 'বকেয়া' },
       { key: 'status', label: 'স্ট্যাটাস' }
     ]
   }
@@ -47,12 +51,17 @@ const formatMonth = (dateValue) => {
   return parsed.toLocaleString('en-US', { month: 'long', year: 'numeric' });
 };
 
-const normalizeStatus = (status) => {
-  const value = String(status || '').trim().toUpperCase();
-  if (value === 'PARTIALLY_PAID') {
+const deriveStatusFromAmountPaid = (amountPaid) => {
+  const paid = Number(amountPaid || 0);
+  if (!Number.isFinite(paid) || paid <= 0) {
+    return 'PENDING';
+  }
+
+  if (paid < MONTHLY_FEE_AMOUNT) {
     return 'PARTIALLY PAID';
   }
-  return value || 'PENDING';
+
+  return 'PAID';
 };
 
 export default function StudentFeesPage() {
@@ -103,9 +112,9 @@ export default function StudentFeesPage() {
             amountDueValue: Number(item.amountDue || 0),
             amountPaidValue: Number(item.amountPaid || 0),
             pendingAmountValue: Math.max(Number(item.amountDue || 0) - Number(item.amountPaid || 0), 0),
-            amountDue: `INR ${item.amountDue || 0}`,
             amountPaid: `INR ${item.amountPaid || 0}`,
-            status: normalizeStatus(item.status)
+            amountPending: `INR ${Math.max(Number(item.amountDue || 0) - Number(item.amountPaid || 0), 0)}`,
+            status: deriveStatusFromAmountPaid(item.amountPaid)
           }))
           .filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0);
 
@@ -145,6 +154,7 @@ export default function StudentFeesPage() {
           </div>
         }
       />
+      <p className="text-sm font-medium text-slate-700">{t.monthlyFeeLabel}: INR {MONTHLY_FEE_AMOUNT}</p>
       <Table columns={t.columns} rows={rows} loading={loading} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

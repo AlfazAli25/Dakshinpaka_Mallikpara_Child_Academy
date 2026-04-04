@@ -7,14 +7,6 @@ import Input from '@/components/Input';
 import { get, getBlob, post } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
-const columns = [
-  { key: 'month', label: 'Month' },
-  { key: 'amountDue', label: 'Amount Due' },
-  { key: 'amountPaid', label: 'Amount Paid' },
-  { key: 'status', label: 'Status' },
-  { key: 'studentName', label: 'Student' }
-];
-
 const verificationColumns = [
   { key: 'studentAdmissionNo', label: 'Student ID' },
   { key: 'studentName', label: 'Student' },
@@ -342,8 +334,6 @@ export default function AdminFeesPage() {
           {submittingCash ? 'Processing...' : paymentMode === 'CASH' ? 'Process Cash Payment' : 'Record Online Payment'}
         </button>
       </form>
-
-      <Table columns={columns} rows={rows} loading={loadingData} />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Static QR Verification Queue</h3>
