@@ -2,6 +2,7 @@ const createCrudController = require('./crud.controller.factory');
 const asyncHandler = require('../middleware/async.middleware');
 const studentService = require('../services/student.service');
 const { ensureMonthlyFeesForStudent } = require('../services/monthly-fee-ledger.service');
+const Teacher = require('../models/teacher.model');
 
 const base = createCrudController(studentService, 'Student');
 
@@ -36,6 +37,28 @@ const listAllForAdmin = asyncHandler(async (req, res) => {
 	res.json({ success: true, data });
 });
 
+const listByClass = asyncHandler(async (req, res) => {
+	const classId = String(req.params.classId || '');
+
+	if (req.user?.role === 'admin') {
+		const data = await studentService.findAll({ classId });
+		return res.json({ success: true, data });
+	}
+
+	if (req.user?.role === 'teacher') {
+		const teacher = await Teacher.findOne({ userId: req.user._id }).select('classIds');
+		const classSet = new Set((teacher?.classIds || []).map((value) => String(value || '')));
+		if (!classSet.has(classId)) {
+			return res.status(403).json({ success: false, message: 'Forbidden' });
+		}
+
+		const data = await studentService.findAll({ classId });
+		return res.json({ success: true, data });
+	}
+
+	return res.status(403).json({ success: false, message: 'Forbidden' });
+});
+
 const getAdminProfile = asyncHandler(async (req, res) => {
 	const profile = await studentService.getAdminProfile(req.params.id);
 	res.json({ success: true, data: profile });
@@ -58,6 +81,7 @@ const removeByUserId = asyncHandler(async (req, res) => {
 module.exports = {
 	...base,
 	list,
+	listByClass,
 	getMyProfile,
 	listAllForAdmin,
 	getAdminProfile,

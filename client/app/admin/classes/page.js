@@ -474,7 +474,8 @@ export default function AdminClassesPage() {
         </button>
       </form>
 
-      <Table columns={classColumns} rows={rows} loading={loading} />
+      <Table columns={classColumns} rows={rows} loading={loading} getRowHref={(row) => `/admin/classes/${row.id}`} />
+      <p className="text-xs text-slate-500">Click any class row to view all students registered in that class.</p>
       {enrichingRows && !loading && (
         <p className="text-xs text-slate-500">Refreshing subject and teacher insights...</p>
       )}

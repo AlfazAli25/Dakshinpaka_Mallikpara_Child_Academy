@@ -1,5 +1,5 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const { protect, requireRole } = require('../middleware/auth.middleware');
 const controller = require('../controllers/student.controller');
 const validate = require('../middleware/validate.middleware');
@@ -9,6 +9,14 @@ const router = express.Router();
 router.get('/', protect, controller.list);
 router.get('/me/profile', protect, requireRole(['student']), controller.getMyProfile);
 router.get('/admin/all', protect, requireRole(['admin']), controller.listAllForAdmin);
+router.get(
+	'/class/:classId',
+	protect,
+	requireRole(['admin', 'teacher']),
+	[param('classId').isMongoId().withMessage('Invalid class selected')],
+	validate,
+	controller.listByClass
+);
 router.get('/by-user/:userId/profile', protect, requireRole(['admin']), controller.getAdminProfileByUserId);
 router.delete('/by-user/:userId', protect, requireRole(['admin']), controller.removeByUserId);
 router.get('/:id/profile', protect, requireRole(['admin']), controller.getAdminProfile);

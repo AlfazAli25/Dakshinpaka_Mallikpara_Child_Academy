@@ -1,5 +1,6 @@
 "use client";
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
@@ -7,7 +8,7 @@ import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
-import { formatClassLabelList } from '@/lib/class-label';
+import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
 export default function TeacherDashboardPage() {
@@ -148,6 +149,30 @@ export default function TeacherDashboardPage() {
               }
             ]}
           />
+
+          {(teacherProfile.classIds || []).length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Class Student List</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(teacherProfile.classIds || []).map((classItem) => {
+                  const classId = String(classItem?._id || classItem || '');
+                  if (!classId) {
+                    return null;
+                  }
+
+                  return (
+                    <Link
+                      key={classId}
+                      href={`/teacher/classes/${classId}`}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      {formatClassLabel(classItem, 'Class')}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </InfoCard>
       ) : null}
 
