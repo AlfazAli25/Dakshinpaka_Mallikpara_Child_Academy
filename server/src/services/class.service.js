@@ -39,10 +39,27 @@ const isClassDuplicateError = (error) => {
 	}
 
 	const keyPattern = error?.keyPattern || {};
+	const keyValue = error?.keyValue || {};
+	const duplicateKeys = new Set([
+		...Object.keys(keyPattern || {}).map((key) => String(key || '').toLowerCase()),
+		...Object.keys(keyValue || {}).map((key) => String(key || '').toLowerCase())
+	]);
+	if (duplicateKeys.has('name') || duplicateKeys.has('normalizedname') || duplicateKeys.has('normalizedsection')) {
+		return true;
+	}
+
+	const message = String(error?.message || '').toLowerCase();
+	if (!message.includes('duplicate key')) {
+		return false;
+	}
+
 	return Boolean(
 		keyPattern.normalizedName ||
 		keyPattern.normalizedSection ||
-		keyPattern.name
+		keyPattern.name ||
+		message.includes('index: name_1') ||
+		message.includes('index: normalizedname_1') ||
+		message.includes('index: normalizedname_1_normalizedsection_1')
 	);
 };
 
@@ -129,17 +146,41 @@ const ensureClassIndexes = async () => {
 			}
 			return;
 		}
-		const legacyNameUniqueIndex = indexes.find(
-			(item) => item?.unique && item?.key && Object.keys(item.key).length === 1 && item.key.name === 1
-		);
+		const legacyNameUniqueIndexes = indexes.filter((item) => {
+			if (!item?.unique || !item?.key) {
+				return false;
+			}
 
-		if (legacyNameUniqueIndex?.name) {
+			const keys = Object.keys(item.key);
+			if (keys.length !== 1) {
+				return false;
+			}
+
+			return keys[0] === 'name' || keys[0] === 'normalizedName';
+		});
+
+		if (legacyNameUniqueIndexes.length > 0) {
+			for (const index of legacyNameUniqueIndexes) {
+				if (!index?.name) {
+					continue;
+				}
+
+				try {
+					await ClassModel.collection.dropIndex(index.name);
+				} catch (error) {
+					if (!isIgnorableIndexManagementError(error)) {
+						throw error;
+					}
+				}
+			}
+
 			try {
-				await ClassModel.collection.dropIndex(legacyNameUniqueIndex.name);
+				indexes = await ClassModel.collection.indexes();
 			} catch (error) {
 				if (!isIgnorableIndexManagementError(error)) {
 					throw error;
 				}
+				return;
 			}
 		}
 

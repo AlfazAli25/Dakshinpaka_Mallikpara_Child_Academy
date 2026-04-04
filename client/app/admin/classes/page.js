@@ -25,18 +25,39 @@ const getInitialSubjectForm = () => ({
   code: ''
 });
 
+const isClassDuplicateResponse = (apiError) => {
+  const statusCode = Number(apiError?.statusCode || 0);
+  if (statusCode === 409) {
+    return true;
+  }
+
+  const normalizedMessage = String(apiError?.message || '').toLowerCase();
+  const normalizedRawMessage = String(apiError?.rawMessage || '').toLowerCase();
+
+  return (
+    normalizedMessage.includes('same name and section') ||
+    normalizedRawMessage.includes('same name and section') ||
+    normalizedRawMessage.includes('duplicate key')
+  );
+};
+
 export default function AdminClassesPage() {
   const [rows, setRows] = useState([]);
+  const [classesData, setClassesData] = useState([]);
   const [classOptions, setClassOptions] = useState([]);
   const [subjectRows, setSubjectRows] = useState([]);
   const [enrichingRows, setEnrichingRows] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
   const [classForm, setClassForm] = useState(getInitialClassForm());
+  const [editClassId, setEditClassId] = useState('');
+  const [editClassForm, setEditClassForm] = useState(getInitialClassForm());
   const [subjectForm, setSubjectForm] = useState(getInitialSubjectForm());
   const [editSubjectId, setEditSubjectId] = useState('');
   const [editSubjectForm, setEditSubjectForm] = useState(getInitialSubjectForm());
   const [loading, setLoading] = useState(false);
   const [submittingClass, setSubmittingClass] = useState(false);
+  const [savingClass, setSavingClass] = useState(false);
+  const [deletingClassId, setDeletingClassId] = useState('');
   const [submittingSubject, setSubmittingSubject] = useState(false);
   const [savingSubject, setSavingSubject] = useState(false);
   const [deletingSubjectId, setDeletingSubjectId] = useState('');
@@ -91,6 +112,8 @@ export default function AdminClassesPage() {
       const token = getToken();
       const classResponse = await get('/classes', token);
       const classes = classResponse.data || [];
+
+      setClassesData(classes);
 
       // Render classes immediately; enrich subject/teacher counts in background.
       setRows(buildClassRows(classes, []));
@@ -149,6 +172,7 @@ export default function AdminClassesPage() {
       }
     } catch (apiError) {
       setRows([]);
+      setClassesData([]);
       setClassOptions([]);
       setSubjectRows([]);
       setSelectedClassId('');
@@ -168,8 +192,24 @@ export default function AdminClassesPage() {
     [subjectRows, selectedClassId]
   );
 
+  const subjectCountByClassId = useMemo(
+    () => subjectRows.reduce((acc, item) => {
+      if (!item.classId) {
+        return acc;
+      }
+
+      acc[item.classId] = (acc[item.classId] || 0) + 1;
+      return acc;
+    }, {}),
+    [subjectRows]
+  );
+
   const onClassFormChange = (field) => (event) => {
     setClassForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onEditClassFormChange = (field) => (event) => {
+    setEditClassForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
   const onSubjectFormChange = (field) => (event) => {
@@ -178,6 +218,86 @@ export default function AdminClassesPage() {
 
   const onEditSubjectFormChange = (field) => (event) => {
     setEditSubjectForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onStartEditClass = (classItem) => {
+    setEditClassId(String(classItem?._id || ''));
+    setEditClassForm({
+      name: classItem?.name || '',
+      section: classItem?.section || ''
+    });
+    setMessage('');
+    setError('');
+  };
+
+  const onCancelEditClass = () => {
+    setEditClassId('');
+    setEditClassForm(getInitialClassForm());
+  };
+
+  const onSaveClass = async (classId) => {
+    const normalizedName = String(editClassForm.name || '').trim();
+    if (!normalizedName) {
+      setError('Class name is required.');
+      setMessage('');
+      return;
+    }
+
+    setSavingClass(true);
+    setMessage('');
+    setError('');
+
+    try {
+      await put(
+        `/classes/${classId}`,
+        {
+          name: normalizedName,
+          section: String(editClassForm.section || '').trim() || undefined
+        },
+        getToken()
+      );
+
+      setMessage('Class updated successfully.');
+      onCancelEditClass();
+      await loadData();
+    } catch (apiError) {
+      if (isClassDuplicateResponse(apiError)) {
+        setError('Class with the same name and section already exists. Try a different section.');
+      } else {
+        setError(apiError.message);
+      }
+    } finally {
+      setSavingClass(false);
+    }
+  };
+
+  const onDeleteClass = async (classId) => {
+    const classItem = classesData.find((item) => String(item._id) === String(classId));
+    const classLabel = `${classItem?.name || 'class'}${classItem?.section ? ` (${classItem.section})` : ''}`;
+
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(`Delete ${classLabel}? This cannot be undone.`);
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setDeletingClassId(classId);
+    setMessage('');
+    setError('');
+
+    try {
+      await del(`/classes/${classId}`, getToken());
+      setMessage('Class deleted successfully.');
+      if (editClassId === classId) {
+        onCancelEditClass();
+      }
+      await loadData();
+    } catch (apiError) {
+      setError(apiError.message);
+    } finally {
+      setDeletingClassId('');
+    }
   };
 
   const onCreateClass = async (event) => {
@@ -207,10 +327,7 @@ export default function AdminClassesPage() {
       setMessage('Class added successfully.');
       await loadData();
     } catch (apiError) {
-      if (
-        String(apiError.message || '').toLowerCase().includes('duplicate key') ||
-        String(apiError.message || '').toLowerCase().includes('same name and section')
-      ) {
+      if (isClassDuplicateResponse(apiError)) {
         setError('Class with the same name and section already exists. Try a different section.');
       } else {
         setError(apiError.message);
@@ -356,6 +473,86 @@ export default function AdminClassesPage() {
       {enrichingRows && !loading && (
         <p className="text-xs text-slate-500">Refreshing subject and teacher insights...</p>
       )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900">Edit Or Delete Classes</h3>
+        <p className="mb-4 text-sm text-slate-600">Update class names/sections or delete classes that are no longer needed.</p>
+
+        {classesData.length === 0 ? (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found yet.</p>
+        ) : (
+          <div className="space-y-2">
+            {classesData.map((classItem) => {
+              const classId = String(classItem._id);
+              const isEditing = editClassId === classId;
+
+              return (
+                <div key={classId} className="rounded-lg border border-slate-200 bg-white p-3">
+                  {isEditing ? (
+                    <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto_auto]">
+                      <Input
+                        label="Class Name"
+                        value={editClassForm.name}
+                        onChange={onEditClassFormChange('name')}
+                        className="h-10"
+                      />
+                      <Input
+                        label="Section"
+                        value={editClassForm.section}
+                        onChange={onEditClassFormChange('section')}
+                        className="h-10"
+                        placeholder="A / B"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => onSaveClass(classId)}
+                        disabled={savingClass}
+                        className="mt-7 h-10 rounded-md bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {savingClass ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onCancelEditClass}
+                        className="mt-7 h-10 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm text-slate-700">
+                        <span className="font-semibold text-slate-900">{classItem.name}</span>
+                        {classItem.section ? ` (${classItem.section})` : ''}
+                        <span className="ml-2 text-xs text-slate-500">
+                          {subjectCountByClassId[classId] || 0} subjects
+                        </span>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onStartEditClass(classItem)}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteClass(classId)}
+                          disabled={deletingClassId === classId}
+                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingClassId === classId ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class</h3>

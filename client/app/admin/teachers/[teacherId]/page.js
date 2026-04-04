@@ -308,8 +308,6 @@ export default function TeacherProfilePage() {
     { label: 'Email', value: teacher?.userId?.email || '-' },
     { label: 'Teacher ID', value: teacher?.teacherId || '-' },
     { label: 'Contact Number', value: teacher?.contactNumber || '-' },
-    { label: 'Department', value: teacher?.department || '-' },
-    { label: 'Qualifications', value: teacher?.qualifications || '-' },
     { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-' },
     {
       label: 'Classes',
