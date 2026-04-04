@@ -119,7 +119,7 @@ export default function AdminFeesPage() {
           status: normalizeStatus(item.status),
           dueDate: item.dueDate?.slice(0, 10)
         };
-      }).sort((a, b) => {
+      }).filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0).sort((a, b) => {
         const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         return first - second;

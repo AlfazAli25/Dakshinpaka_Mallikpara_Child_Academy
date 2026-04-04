@@ -392,13 +392,15 @@ export default function StudentProfilePage() {
         <h3 className="mb-2 text-base font-semibold text-slate-900">Fee Records</h3>
         <Table
           columns={feeColumns}
-          rows={(profile.fees || []).map((item) => ({
+          rows={(profile.fees || [])
+            .filter((item) => Number(item.amountDue || 0) > 0 || Number(item.amountPaid || 0) > 0)
+            .map((item) => ({
             id: item._id,
             month: formatMonth(item.dueDate),
             amountDue: `INR ${item.amountDue || 0}`,
             amountPaid: `INR ${item.amountPaid || 0}`,
             status: normalizeStatus(item.status)
-          }))}
+            }))}
         />
       </div>
 

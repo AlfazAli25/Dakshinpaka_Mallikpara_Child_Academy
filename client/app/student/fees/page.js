@@ -106,7 +106,8 @@ export default function StudentFeesPage() {
             amountDue: `INR ${item.amountDue || 0}`,
             amountPaid: `INR ${item.amountPaid || 0}`,
             status: normalizeStatus(item.status)
-          }));
+          }))
+          .filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0);
 
         setRows(feeRows);
         setReceipts(receiptResponse.data || []);

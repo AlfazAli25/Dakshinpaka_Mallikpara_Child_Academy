@@ -61,7 +61,15 @@ const deriveFeeStatus = ({ amountDue, amountPaid }) => {
 		return FEE_STATUS.PAID;
 	}
 
-	return normalizedAmountPaid > 0 ? FEE_STATUS.PARTIALLY_PAID : FEE_STATUS.PENDING;
+	if (normalizedAmountPaid > 0) {
+		return FEE_STATUS.PARTIALLY_PAID;
+	}
+
+	if (normalizedAmountDue > 0 && normalizedAmountDue < MONTHLY_FEE_AMOUNT) {
+		return FEE_STATUS.PARTIALLY_PAID;
+	}
+
+	return FEE_STATUS.PENDING;
 };
 
 const normalizeFeeRow = async ({ fee, session }) => {
@@ -112,15 +120,14 @@ const listMonthStartsInRange = ({ fromDate, toDate }) => {
 	return months;
 };
 
-const listTrailingMonthStarts = ({ monthCount, anchorDate = new Date() }) => {
+const listSequentialMonthStarts = ({ startMonth, monthCount }) => {
 	const normalizedMonthCount = Number(monthCount || 0);
 	if (!Number.isInteger(normalizedMonthCount) || normalizedMonthCount <= 0) {
 		return [];
 	}
 
-	const targetMonth = getMonthStartDate(anchorDate);
-	const oldestMonth = addMonths(targetMonth, -(normalizedMonthCount - 1));
-	return listMonthStartsInRange({ fromDate: oldestMonth, toDate: targetMonth });
+	const start = getMonthStartDate(startMonth || new Date());
+	return Array.from({ length: normalizedMonthCount }, (_, index) => addMonths(start, index));
 };
 
 const splitIntoMonthlyChunks = (amount) => {
@@ -220,23 +227,25 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		const rightTime = new Date(right.dueDate || right.createdAt || 0).getTime();
 		return leftTime - rightTime;
 	});
+	const oldestUnpaidFee = sortedFees.find((fee) => calculateFeePendingAmount(fee) > EPSILON) || null;
+	const oldestUnpaidDate = oldestUnpaidFee
+		? getMonthStartDate(oldestUnpaidFee.dueDate || getMonthDateFromKey(oldestUnpaidFee.monthKey) || anchorDate)
+		: getMonthStartDate(anchorDate);
 
-	const totalPaid = toAmount(sortedFees.reduce((sum, fee) => sum + Math.max(toAmount(fee.amountPaid), 0), 0));
-	const totalDueToDistribute = toAmount(totalPaid + normalizedTargetPending);
-	const monthlyDueChunks = splitIntoMonthlyChunks(totalDueToDistribute);
-	const distributionMonths = listTrailingMonthStarts({ monthCount: monthlyDueChunks.length, anchorDate });
+	const monthlyDueChunks = splitIntoMonthlyChunks(normalizedTargetPending);
+	const distributionMonths = listSequentialMonthStarts({
+		startMonth: oldestUnpaidDate,
+		monthCount: monthlyDueChunks.length
+	});
 	const targetMonthKeys = new Set(distributionMonths.map((monthDate) => getMonthKey(monthDate)));
 	const feeByMonthKey = new Map(sortedFees.map((fee) => [fee.monthKey, fee]));
-
-	let remainingPaid = totalPaid;
 
 	for (let index = 0; index < distributionMonths.length; index += 1) {
 		const monthDate = distributionMonths[index];
 		const monthKey = getMonthKey(monthDate);
 		const amountDue = toAmount(monthlyDueChunks[index] || 0);
-		const amountPaid = toAmount(Math.min(amountDue, remainingPaid));
-		remainingPaid = toAmount(Math.max(remainingPaid - amountPaid, 0));
-		const status = deriveFeeStatus({ amountDue, amountPaid });
+		const amountPaid = 0;
+		const status = amountDue < MONTHLY_FEE_AMOUNT ? FEE_STATUS.PARTIALLY_PAID : FEE_STATUS.PENDING;
 
 		let fee = feeByMonthKey.get(monthKey);
 		if (!fee) {
@@ -247,8 +256,8 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 				amountDue,
 				amountPaid,
 				status,
-				paymentDate: amountPaid > 0 ? new Date() : undefined,
-				paymentMethod: amountPaid > 0 ? 'AUTO_REALLOCATION' : undefined
+				paymentDate: undefined,
+				paymentMethod: undefined
 			});
 			await fee.save({ session });
 			feeByMonthKey.set(monthKey, fee);
@@ -259,10 +268,8 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		fee.amountDue = amountDue;
 		fee.amountPaid = amountPaid;
 		fee.status = status;
-		if (amountPaid <= 0) {
-			fee.paymentDate = undefined;
-			fee.paymentMethod = undefined;
-		}
+		fee.paymentDate = undefined;
+		fee.paymentMethod = undefined;
 		await fee.save({ session });
 	}
 
@@ -271,12 +278,15 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 			continue;
 		}
 
+		const preservedPaid = Math.max(toAmount(fee.amountPaid), 0);
 		fee.dueDate = getMonthDateFromKey(fee.monthKey) || getMonthStartDate(fee.dueDate || anchorDate);
-		fee.amountDue = 0;
-		fee.amountPaid = 0;
+		fee.amountDue = preservedPaid;
+		fee.amountPaid = preservedPaid;
 		fee.status = FEE_STATUS.PAID;
-		fee.paymentDate = undefined;
-		fee.paymentMethod = undefined;
+		if (preservedPaid <= EPSILON) {
+			fee.paymentDate = undefined;
+			fee.paymentMethod = undefined;
+		}
 		await fee.save({ session });
 	}
 
