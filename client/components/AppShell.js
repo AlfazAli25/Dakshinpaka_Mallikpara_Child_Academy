@@ -84,18 +84,18 @@ export default function AppShell({ title, links, children }) {
     <div className="min-h-screen bg-[#f8f7f7]">
       <div className="sticky top-0 z-30 border-b border-red-900 bg-gradient-to-r from-red-800 via-red-700 to-red-800 px-4 py-3 shadow-md">
         <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20 md:hidden"
-            aria-label="Open navigation"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
-          </button>
-
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20 md:hidden"
+              aria-label="Open navigation"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+
             <Link
               href="/"
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20"
@@ -107,6 +107,9 @@ export default function AppShell({ title, links, children }) {
                 <path d="M5.5 9.5V21h13V9.5" />
               </svg>
             </Link>
+          </div>
+
+          <div className="flex items-center gap-2">
 
             {user?.role === 'admin' && (
               <div className="relative">

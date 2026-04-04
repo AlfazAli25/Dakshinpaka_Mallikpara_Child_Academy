@@ -21,11 +21,12 @@ const getInitialClassForm = () => ({
   name: '',
   section: ''
 });
-
 const getInitialSubjectForm = () => ({
   name: '',
   code: ''
 });
+
+const normalizeSubjectCode = (value) => String(value || '').toUpperCase();
 
 const isClassDuplicateResponse = (apiError) => {
   const statusCode = Number(apiError?.statusCode || 0);
@@ -232,11 +233,13 @@ export default function AdminClassesPage() {
   };
 
   const onSubjectFormChange = (field) => (event) => {
-    setSubjectForm((prev) => ({ ...prev, [field]: event.target.value }));
+    const nextValue = field === 'code' ? normalizeSubjectCode(event.target.value) : event.target.value;
+    setSubjectForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
   const onEditSubjectFormChange = (field) => (event) => {
-    setEditSubjectForm((prev) => ({ ...prev, [field]: event.target.value }));
+    const nextValue = field === 'code' ? normalizeSubjectCode(event.target.value) : event.target.value;
+    setEditSubjectForm((prev) => ({ ...prev, [field]: nextValue }));
   };
 
   const onStartEditClass = (classItem) => {
@@ -375,7 +378,7 @@ export default function AdminClassesPage() {
         {
           classId: selectedClassId,
           name: normalizedName,
-          code: String(subjectForm.code || '').trim() || undefined
+          code: normalizeSubjectCode(String(subjectForm.code || '').trim()) || undefined
         },
         getToken()
       );
@@ -393,7 +396,7 @@ export default function AdminClassesPage() {
     setEditSubjectId(subject.id);
     setEditSubjectForm({
       name: subject.name || '',
-      code: subject.code || ''
+      code: normalizeSubjectCode(subject.code || '')
     });
   };
 
@@ -416,7 +419,7 @@ export default function AdminClassesPage() {
         `/subjects/${subjectId}`,
         {
           name: normalizedName,
-          code: String(editSubjectForm.code || '').trim() || undefined
+          code: normalizeSubjectCode(String(editSubjectForm.code || '').trim()) || undefined
         },
         getToken()
       );

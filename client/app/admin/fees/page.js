@@ -81,7 +81,6 @@ export default function AdminFeesPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [submittingCash, setSubmittingCash] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [studentSearch, setStudentSearch] = useState('');
   const [verificationSearch, setVerificationSearch] = useState('');
@@ -149,6 +148,31 @@ export default function AdminFeesPage() {
 
   const filteredStudents = useMemo(() => filterStudentsBySearch(students, studentSearch), [students, studentSearch]);
 
+  const selectedStudent = useMemo(() => {
+    const query = String(studentSearch || '').trim().toLowerCase();
+    if (!query) {
+      return null;
+    }
+
+    const exactIdMatch = students.find((item) => String(item.admissionNo || '').toLowerCase() === query);
+    if (exactIdMatch) {
+      return exactIdMatch;
+    }
+
+    const exactNameMatches = students.filter((item) => String(item.userId?.name || '').toLowerCase() === query);
+    if (exactNameMatches.length === 1) {
+      return exactNameMatches[0];
+    }
+
+    if (filteredStudents.length === 1) {
+      return filteredStudents[0];
+    }
+
+    return null;
+  }, [filteredStudents, studentSearch, students]);
+
+  const selectedStudentId = String(selectedStudent?._id || '');
+
   const filteredPendingVerifications = useMemo(
     () => filterVerificationRows(pendingVerifications, verificationSearch),
     [pendingVerifications, verificationSearch]
@@ -171,6 +195,11 @@ export default function AdminFeesPage() {
 
   const onProcessPayment = async (event) => {
     event.preventDefault();
+    if (!selectedStudentId) {
+      setError('Search with exact Student ID or full name to select a student.');
+      return;
+    }
+
     if (!oldestPendingFee) {
       setError('No pending monthly fee found for this student.');
       return;
@@ -263,25 +292,17 @@ export default function AdminFeesPage() {
             onChange={(event) => setStudentSearch(event.target.value)}
             className="h-11"
             placeholder="Type student ID or name"
+            required
           />
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Student</label>
-            <select
-              value={selectedStudentId}
-              onChange={(event) => {
-                setSelectedStudentId(event.target.value);
-              }}
-              className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
-              required
-            >
-              <option value="">Select student</option>
-              {filteredStudents.map((student) => (
-                <option key={student._id} value={student._id}>
-                  {student.userId?.name || student.admissionNo} ({student.admissionNo})
-                </option>
-              ))}
-            </select>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {selectedStudent
+              ? `Selected: ${selectedStudent.userId?.name || 'Student'} (${selectedStudent.admissionNo || '-'})`
+              : studentSearch.trim()
+                ? filteredStudents.length > 1
+                  ? `Multiple students found (${filteredStudents.length}). Type exact Student ID or full name.`
+                  : 'No student found for this search.'
+                : 'Type Student ID or Name to select a student.'}
           </div>
 
           <div>
@@ -289,9 +310,11 @@ export default function AdminFeesPage() {
             <div className="h-11 rounded-lg border border-slate-300 bg-slate-50 px-3 text-sm leading-[44px] text-slate-700">
               {oldestPendingFee
                 ? `Oldest pending starts from ${oldestPendingFee.month}`
-                : selectedStudentId
-                  ? 'No pending month for selected student'
-                  : 'Select student first'}
+                : studentSearch.trim()
+                  ? selectedStudent
+                    ? 'No pending month for selected student'
+                    : 'Select a single student by exact ID or full name'
+                  : 'Search student first'}
             </div>
           </div>
 
