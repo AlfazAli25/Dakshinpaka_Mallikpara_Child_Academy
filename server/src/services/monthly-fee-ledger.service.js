@@ -288,20 +288,26 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 		const rightTime = new Date(right.dueDate || right.createdAt || 0).getTime();
 		return leftTime - rightTime;
 	});
-	const targetStartMonth = getStudentLedgerStartMonth(student);
+	const baseStartMonth = getStudentLedgerStartMonth(student);
 	const targetEndMonth = getMonthStartDate(anchorDate);
-	const distributionMonths = listMonthStartsInRange({ fromDate: targetStartMonth, toDate: targetEndMonth });
+	const pendingChunks = splitIntoMonthlyChunks(normalizedTargetPending);
+
+	// If pending exceeds months since registration, extend backward up to ledger start.
+	const requiredStartMonth = pendingChunks.length > 0 ? addMonths(targetEndMonth, -(pendingChunks.length - 1)) : targetEndMonth;
+	const ledgerFloorMonth = getMonthStartDate(LEDGER_START_DATE);
+	const targetStartMonth = requiredStartMonth < baseStartMonth ? requiredStartMonth : baseStartMonth;
+	const boundedStartMonth = targetStartMonth < ledgerFloorMonth ? ledgerFloorMonth : targetStartMonth;
+	const distributionMonths = listMonthStartsInRange({ fromDate: boundedStartMonth, toDate: targetEndMonth });
 	const maxSupportedPendingAmount = toAmount(distributionMonths.length * MONTHLY_FEE_AMOUNT);
 
 	if (normalizedTargetPending > maxSupportedPendingAmount + EPSILON) {
-		const error = new Error('Pending fees exceed supported range from student registration month to current month');
+		const error = new Error('Pending fees exceed supported fee ledger range');
 		error.statusCode = 400;
 		throw error;
 	}
 
 	const targetMonthKeys = new Set(distributionMonths.map((monthDate) => getMonthKey(monthDate)));
 	const feeByMonthKey = new Map(sortedFees.map((fee) => [fee.monthKey, fee]));
-	const pendingChunks = splitIntoMonthlyChunks(normalizedTargetPending);
 	const affectedMonths = listTrailingMonthStarts({ monthCount: pendingChunks.length, anchorDate: targetEndMonth });
 	const monthPendingMap = new Map();
 

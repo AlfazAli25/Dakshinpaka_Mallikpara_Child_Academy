@@ -94,9 +94,6 @@ export default function AppShell({ title, links, children }) {
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
-          <p className="rounded-lg border border-white/45 bg-white/10 px-3 py-1.5 text-sm font-bold uppercase tracking-[0.08em] text-white shadow-sm md:text-base">
-            {title}
-          </p>
 
           <div className="flex items-center gap-2">
             <Link

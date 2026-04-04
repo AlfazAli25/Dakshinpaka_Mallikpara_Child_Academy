@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 const ToastContext = createContext(null);
-const DEFAULT_DURATION_MS = 3200;
+const DEFAULT_DURATION_MS = 5000;
 
 const toneClassByType = {
   success: 'border-emerald-200 bg-emerald-50 text-emerald-900',
