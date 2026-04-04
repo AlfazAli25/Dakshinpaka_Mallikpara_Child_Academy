@@ -155,7 +155,7 @@ export default function StudentFeesPage() {
         }
       />
       <p className="text-sm font-medium text-slate-700">{t.monthlyFeeLabel}: INR {MONTHLY_FEE_AMOUNT}</p>
-      <Table columns={t.columns} rows={rows} loading={loading} />
+      <Table columns={t.columns} rows={rows} loading={loading} scrollY maxHeightClass="max-h-[276px]" />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Payment Receipts</h3>

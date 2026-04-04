@@ -31,8 +31,20 @@ const getStatusClass = (rawValue) => {
   return statusClassMap[key] || '';
 };
 
-export default function Table({ columns = [], rows = [], getRowHref, loading = false, skeletonRowCount = 6 }) {
+export default function Table({
+  columns = [],
+  rows = [],
+  getRowHref,
+  loading = false,
+  skeletonRowCount = 6,
+  scrollY = false,
+  maxHeightClass = 'max-h-[312px]'
+}) {
   const router = useRouter();
+
+  const tableContainerClass = scrollY
+    ? `overflow-x-auto overflow-y-auto ${maxHeightClass}`
+    : 'overflow-x-auto';
 
   const renderCell = (col, row) => {
     const value = row[col.key];
@@ -51,9 +63,9 @@ export default function Table({ columns = [], rows = [], getRowHref, loading = f
 
   return (
     <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
-      <div className="overflow-x-auto">
+      <div className={tableContainerClass}>
         <table className="min-w-full text-sm">
-          <thead className="bg-red-700 text-left">
+          <thead className={`bg-red-700 text-left ${scrollY ? 'sticky top-0 z-10' : ''}`}>
             <tr>
               {columns.map((col) => (
                 <th key={col.key} className="px-4 py-3 font-semibold text-red-50">
