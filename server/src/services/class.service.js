@@ -10,6 +10,28 @@ const base = createCrudService(ClassModel);
 
 let ensureClassIndexPromise = null;
 
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const isIgnorableIndexManagementError = (error) => {
+	const code = Number(error?.code || 0);
+	const codeName = String(error?.codeName || '').toLowerCase();
+	const message = String(error?.message || '').toLowerCase();
+
+	if ([13, 26, 27, 68, 85, 86].includes(code)) {
+		return true;
+	}
+
+	if (['unauthorized', 'indexnotfound', 'indexkeyspecconflict', 'indexoptionsconflict'].includes(codeName)) {
+		return true;
+	}
+
+	return (
+		message.includes('not authorized') ||
+		message.includes('index not found') ||
+		(message.includes('index') && message.includes('already exists'))
+	);
+};
+
 const isClassDuplicateError = (error) => {
 	const code = Number(error?.code || 0);
 	if (code !== 11000) {
@@ -28,6 +50,32 @@ const buildClassDuplicateError = () => {
 	const conflict = new Error('Class with the same name and section already exists');
 	conflict.statusCode = 409;
 	return conflict;
+};
+
+const ensureClassNameSectionUnique = async ({ name, section, excludeId = null }) => {
+	const normalizedName = String(name || '').trim();
+	const normalizedSection = String(section || '').trim();
+	const query = {
+		$or: [
+			{
+				normalizedName: normalizedName.toLowerCase(),
+				normalizedSection: normalizedSection.toLowerCase()
+			},
+			{
+				name: { $regex: `^${escapeRegex(normalizedName)}$`, $options: 'i' },
+				section: { $regex: `^${escapeRegex(normalizedSection)}$`, $options: 'i' }
+			}
+		]
+	};
+
+	if (excludeId) {
+		query._id = { $ne: excludeId };
+	}
+
+	const existing = await ClassModel.findOne(query).select('_id');
+	if (existing) {
+		throw buildClassDuplicateError();
+	}
 };
 
 const ensureClassIndexes = async () => {
@@ -61,18 +109,38 @@ const ensureClassIndexes = async () => {
 		}
 
 		// Shift has been deprecated for classes; clear any legacy values.
-		await ClassModel.collection.updateMany(
-			{ shift: { $exists: true } },
-			{ $unset: { shift: '' } }
-		);
+		try {
+			await ClassModel.collection.updateMany(
+				{ shift: { $exists: true } },
+				{ $unset: { shift: '' } }
+			);
+		} catch (error) {
+			if (!isIgnorableIndexManagementError(error)) {
+				throw error;
+			}
+		}
 
-		const indexes = await ClassModel.collection.indexes();
+		let indexes = [];
+		try {
+			indexes = await ClassModel.collection.indexes();
+		} catch (error) {
+			if (!isIgnorableIndexManagementError(error)) {
+				throw error;
+			}
+			return;
+		}
 		const legacyNameUniqueIndex = indexes.find(
 			(item) => item?.unique && item?.key && Object.keys(item.key).length === 1 && item.key.name === 1
 		);
 
 		if (legacyNameUniqueIndex?.name) {
-			await ClassModel.collection.dropIndex(legacyNameUniqueIndex.name);
+			try {
+				await ClassModel.collection.dropIndex(legacyNameUniqueIndex.name);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
 		}
 
 		const hasCompositeIndex = indexes.some(
@@ -80,17 +148,23 @@ const ensureClassIndexes = async () => {
 		);
 
 		if (!hasCompositeIndex) {
-			await ClassModel.collection.createIndex(
-				{ normalizedName: 1, normalizedSection: 1 },
-				{
-					unique: true,
-					name: 'normalizedName_1_normalizedSection_1',
-					partialFilterExpression: {
-						normalizedName: { $exists: true, $type: 'string', $ne: '' },
-						normalizedSection: { $exists: true, $type: 'string' }
+			try {
+				await ClassModel.collection.createIndex(
+					{ normalizedName: 1, normalizedSection: 1 },
+					{
+						unique: true,
+						name: 'normalizedName_1_normalizedSection_1',
+						partialFilterExpression: {
+							normalizedName: { $exists: true, $type: 'string', $ne: '' },
+							normalizedSection: { $exists: true, $type: 'string' }
+						}
 					}
+				);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
 				}
-			);
+			}
 		}
 	})();
 
@@ -123,6 +197,8 @@ const create = async (payload = {}) => {
 		throw error;
 	}
 
+	await ensureClassNameSectionUnique({ name: normalizedName, section: normalizedSection });
+
 	try {
 		return await ClassModel.create({
 			name: normalizedName,
@@ -146,18 +222,26 @@ const updateById = async (id, payload = {}) => {
 	}
 
 	const nextName = payload.name !== undefined ? String(payload.name || '').trim() : String(classRecord.name || '').trim();
+	const nextSection =
+		payload.section !== undefined ? String(payload.section || '').trim() : String(classRecord.section || '').trim();
 	if (!nextName) {
 		const error = new Error('Class name is required');
 		error.statusCode = 400;
 		throw error;
 	}
 
+	await ensureClassNameSectionUnique({
+		name: nextName,
+		section: nextSection,
+		excludeId: classRecord._id
+	});
+
 	try {
 		await ClassModel.findByIdAndUpdate(
 			id,
 			{
 				name: nextName,
-				section: payload.section !== undefined ? String(payload.section || '').trim() : classRecord.section,
+				section: nextSection,
 				classTeacher: payload.classTeacher !== undefined ? payload.classTeacher : classRecord.classTeacher
 			},
 			{ new: true, runValidators: true }
