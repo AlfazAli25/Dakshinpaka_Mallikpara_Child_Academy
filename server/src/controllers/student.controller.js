@@ -1,6 +1,7 @@
 const createCrudController = require('./crud.controller.factory');
 const asyncHandler = require('../middleware/async.middleware');
 const studentService = require('../services/student.service');
+const { ensureMonthlyFeesForStudent } = require('../services/monthly-fee-ledger.service');
 
 const base = createCrudController(studentService, 'Student');
 
@@ -24,7 +25,10 @@ const getMyProfile = asyncHandler(async (req, res) => {
 		return res.status(404).json({ success: false, message: 'Student record not found' });
 	}
 
-	return res.json({ success: true, data: student });
+	await ensureMonthlyFeesForStudent({ studentId: student._id });
+	const refreshedStudent = await studentService.findByUserId(req.user._id);
+
+	return res.json({ success: true, data: refreshedStudent || student });
 });
 
 const listAllForAdmin = asyncHandler(async (req, res) => {

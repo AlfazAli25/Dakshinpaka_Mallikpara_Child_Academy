@@ -9,6 +9,7 @@ const Attendance = require('../models/attendance.model');
 const Grade = require('../models/grade.model');
 const createCrudService = require('./crud.service');
 const { isValidEmail } = require('../utils/validation');
+const { ensureMonthlyFeesForStudent } = require('./monthly-fee-ledger.service');
 
 const base = createCrudService(Student);
 
@@ -67,7 +68,8 @@ const create = async (payload) => {
 	const normalizedGender = String(gender || '').toUpperCase().trim();
 	const normalizedGuardianContact = String(guardianContact || '').trim();
 	const normalizedAddress = String(address || '').trim();
-	const normalizedPendingFees = Number(pendingFees);
+	const normalizedPendingFees =
+		pendingFees === undefined || pendingFees === null || String(pendingFees).trim() === '' ? 0 : Number(pendingFees);
 	const normalizedAttendance = Number(attendance);
 	const parsedDob = new Date(dob);
 
@@ -81,11 +83,10 @@ const create = async (payload) => {
 		!dob ||
 		!normalizedGuardianContact ||
 		!normalizedAddress ||
-		pendingFees === undefined ||
 		attendance === undefined
 	) {
 		const error = new Error(
-			'All student details are required: name, email, password, admission number, class, gender, date of birth, guardian contact, address, pending fees, and attendance'
+			'All student details are required: name, email, password, admission number, class, gender, date of birth, guardian contact, address, and attendance'
 		);
 		error.statusCode = 400;
 		throw error;
@@ -156,8 +157,11 @@ const create = async (payload) => {
 			attendance: normalizedAttendance
 		});
 
+		await ensureMonthlyFeesForStudent({ studentId: student._id });
+
 		return Student.findById(student._id).populate('userId classId');
 	} catch (error) {
+		await Student.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
 		throw error;
 	}
@@ -292,6 +296,8 @@ const getAdminProfile = async (studentId) => {
 		throw error;
 	}
 
+	await ensureMonthlyFeesForStudent({ studentId: student._id });
+
 	const fees = await Fee.find({ studentId: student._id }).sort({ dueDate: -1 });
 	const payments = await Payment.find({ studentId: student._id })
 		.populate('processedByAdmin', 'name email')
@@ -307,9 +313,9 @@ const getAdminProfile = async (studentId) => {
 	);
 
 	const ledgerPending = Math.max(totals.totalDue - totals.totalPaid, 0);
-	const configuredPendingFees = Math.max(Number(student.pendingFees || 0), 0);
-	const totalPending = Math.max(ledgerPending, configuredPendingFees);
-	const totalDue = Math.max(totals.totalDue, totals.totalPaid + totalPending);
+	const totalPending = ledgerPending;
+	const totalDue = totals.totalDue;
+	const state = totalPending === 0 && totalDue > 0 ? 'PAID' : totals.totalPaid > 0 ? 'PARTIALLY PAID' : 'PENDING';
 
 	return {
 		student,
@@ -319,7 +325,7 @@ const getAdminProfile = async (studentId) => {
 			totalDue,
 			totalPaid: totals.totalPaid,
 			totalPending: totalPending,
-			state: totalPending === 0 && totalDue > 0 ? 'PAID' : 'PENDING'
+			state
 		}
 	};
 };

@@ -11,7 +11,7 @@ const columns = [
   { key: 'month', label: 'Month' },
   { key: 'amountDue', label: 'Amount Due' },
   { key: 'amountPaid', label: 'Amount Paid' },
-  { key: 'pendingAmount', label: 'Pending Amount' },
+  { key: 'status', label: 'Status' },
   { key: 'studentName', label: 'Student' }
 ];
 
@@ -25,6 +25,14 @@ const verificationColumns = [
 ];
 
 const PENDING_SCREENSHOT_VERIFICATION_MESSAGE = 'Payment screenshot pending verification. Please verify before processing payment.';
+
+const normalizeStatus = (status) => {
+  const value = String(status || '').trim().toUpperCase();
+  if (value === 'PARTIALLY_PAID') {
+    return 'PARTIALLY PAID';
+  }
+  return value || 'PENDING';
+};
 
 const formatMonth = (dateValue) => {
   if (!dateValue) {
@@ -79,7 +87,6 @@ export default function AdminFeesPage() {
   const [message, setMessage] = useState('');
   const [submittingCash, setSubmittingCash] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [selectedFeeId, setSelectedFeeId] = useState('');
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [studentSearch, setStudentSearch] = useState('');
   const [verificationSearch, setVerificationSearch] = useState('');
@@ -109,9 +116,13 @@ export default function AdminFeesPage() {
           month: formatMonth(item.dueDate),
           amountDue: `INR ${item.amountDue || 0}`,
           amountPaid: `INR ${item.amountPaid || 0}`,
-          pendingAmount: `INR ${pending}`,
+          status: normalizeStatus(item.status),
           dueDate: item.dueDate?.slice(0, 10)
         };
+      }).sort((a, b) => {
+        const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return first - second;
       });
 
       setRows(feeRows);
@@ -136,26 +147,37 @@ export default function AdminFeesPage() {
     [pendingVerifications, verificationSearch]
   );
 
-  const feeOptions = rows.filter((row) => row.studentId === selectedStudentId && row.pendingAmountValue > 0);
+  const selectedStudentRows = useMemo(
+    () => rows.filter((row) => row.studentId === selectedStudentId),
+    [rows, selectedStudentId]
+  );
 
-  const selectedFee = rows.find((row) => row.id === selectedFeeId);
+  const oldestPendingFee = useMemo(
+    () => selectedStudentRows.find((row) => row.pendingAmountValue > 0) || null,
+    [selectedStudentRows]
+  );
+
+  const selectedStudentPendingTotal = useMemo(
+    () => selectedStudentRows.reduce((sum, row) => sum + (row.pendingAmountValue || 0), 0),
+    [selectedStudentRows]
+  );
 
   const onProcessPayment = async (event) => {
     event.preventDefault();
-    if (!selectedFee) {
-      setError('Please select a valid month.');
+    if (!oldestPendingFee) {
+      setError('No pending monthly fee found for this student.');
       return;
     }
 
-    if (paymentMode === 'CASH') {
-      const hasPendingScreenshot = pendingVerifications.some(
-        (item) => String(item.feeId?._id || item.feeId) === String(selectedFee.id) && item.paymentStatus === 'PENDING_VERIFICATION'
-      );
-      if (hasPendingScreenshot) {
-        window.alert(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
-        setError(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
-        return;
-      }
+    const amountToProcess = Number(amount || selectedStudentPendingTotal);
+    if (!Number.isFinite(amountToProcess) || amountToProcess <= 0) {
+      setError('Enter a valid payment amount greater than 0.');
+      return;
+    }
+
+    if (amountToProcess > selectedStudentPendingTotal) {
+      setError(`Amount cannot exceed total pending INR ${selectedStudentPendingTotal}.`);
+      return;
     }
 
     setSubmittingCash(true);
@@ -164,18 +186,18 @@ export default function AdminFeesPage() {
 
     try {
       if (paymentMode === 'CASH') {
-        await post(`/fees/${selectedFee.id}/pay-cash`, { amount: Number(amount || selectedFee.pendingAmountValue) }, getToken());
-        setMessage('Cash payment processed successfully.');
+        await post(`/fees/${oldestPendingFee.id}/pay-cash`, { amount: amountToProcess }, getToken());
+        setMessage('Cash payment processed and auto-allocated successfully.');
       } else {
         await post(
-          `/fees/${selectedFee.id}/pay-online`,
+          `/fees/${oldestPendingFee.id}/pay-online`,
           {
-            amount: Number(amount || selectedFee.pendingAmountValue),
+            amount: amountToProcess,
             transactionReference: transactionReference.trim() || undefined
           },
           getToken()
         );
-        setMessage('Online payment recorded successfully.');
+        setMessage('Online payment recorded and auto-allocated successfully.');
         setTransactionReference('');
       }
 
@@ -243,7 +265,6 @@ export default function AdminFeesPage() {
               value={selectedStudentId}
               onChange={(event) => {
                 setSelectedStudentId(event.target.value);
-                setSelectedFeeId('');
               }}
               className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
               required
@@ -258,20 +279,14 @@ export default function AdminFeesPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Month</label>
-            <select
-              value={selectedFeeId}
-              onChange={(event) => setSelectedFeeId(event.target.value)}
-              className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
-              required
-            >
-              <option value="">Select month</option>
-              {feeOptions.map((fee) => (
-                <option key={fee.id} value={fee.id}>
-                  {fee.month} - Pending INR {fee.pendingAmountValue}
-                </option>
-              ))}
-            </select>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Auto Allocation</label>
+            <div className="h-11 rounded-lg border border-slate-300 bg-slate-50 px-3 text-sm leading-[44px] text-slate-700">
+              {oldestPendingFee
+                ? `Oldest pending starts from ${oldestPendingFee.month}`
+                : selectedStudentId
+                  ? 'No pending month for selected student'
+                  : 'Select student first'}
+            </div>
           </div>
 
           <div>
@@ -293,7 +308,7 @@ export default function AdminFeesPage() {
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             className="h-11"
-            placeholder={selectedFee ? String(selectedFee.pendingAmountValue) : 'Enter amount'}
+            placeholder={selectedStudentId ? String(selectedStudentPendingTotal || 0) : 'Enter amount'}
           />
 
           {paymentMode === 'ONLINE' && (
@@ -321,7 +336,7 @@ export default function AdminFeesPage() {
 
         <button
           type="submit"
-          disabled={submittingCash || !selectedFee}
+          disabled={submittingCash || !oldestPendingFee}
           className="mt-4 h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submittingCash ? 'Processing...' : paymentMode === 'CASH' ? 'Process Cash Payment' : 'Record Online Payment'}

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Fee = require('../models/fee.model');
 const Student = require('../models/student.model');
 const Payment = require('../models/payment.model');
@@ -7,662 +8,885 @@ const { createFeeReceipt } = require('./receipt.service');
 const { createActionLog } = require('./action-log.service');
 const { notifyAdminPaymentSubmitted } = require('./notification.service');
 const { uploadPaymentScreenshot } = require('./cloudinary.service');
+const {
+ensureMonthlyFeesForStudent,
+ensureMonthlyFeesForAllStudents,
+calculateFeePendingAmount,
+deriveFeeStatus
+} = require('./monthly-fee-ledger.service');
 
 const base = createCrudService(Fee);
 
-const findAll = (filter = {}) =>
-	Fee.find(filter).populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] });
-const findById = (id) =>
-	Fee.findById(id).populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] });
+const PENDING_SCREENSHOT_VERIFICATION_MESSAGE =
+'Payment screenshot pending verification. Please verify before processing payment.';
 
-const buildTransactionId = () => `TXN-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+const findAll = async (filter = {}) => {
+if (filter?.studentId) {
+await ensureMonthlyFeesForStudent({ studentId: filter.studentId });
+} else {
+await ensureMonthlyFeesForAllStudents();
+}
+
+return Fee.find(filter)
+.populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] })
+.sort({ dueDate: 1, createdAt: 1 });
+};
+
+const findById = async (id) =>
+Fee.findById(id).populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] });
+
+const buildTransactionId = (prefix = 'TXN') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
 const buildStudentPayload = (student) => ({
-	name: student.name || 'Student',
-	email: student.email || process.env.ADMIN_EMAIL || '',
-	phone: student.phone || '',
-	admissionNo: student.admissionNo || ''
+name: student.name || 'Student',
+email: student.email || process.env.ADMIN_EMAIL || '',
+phone: student.phone || '',
+admissionNo: student.admissionNo || ''
 });
 
-const calculatePendingAmount = (fee) => Math.max((fee.amountDue || 0) - (fee.amountPaid || 0), 0);
+const resolveRequestedAmount = ({ amount, totalPendingAmount }) => {
+const fallbackAmount =
+amount === undefined || amount === null || String(amount).trim() === '' ? totalPendingAmount : Number(amount);
 
-const deriveFeeStatus = ({ amountDue, amountPaid }) => {
-	const pending = Math.max((amountDue || 0) - (amountPaid || 0), 0);
-	if (pending === 0) {
-		return 'PAID';
-	}
+if (!Number.isFinite(fallbackAmount) || fallbackAmount <= 0) {
+const error = new Error('Invalid payment amount');
+error.statusCode = 400;
+throw error;
+}
 
-	return amountPaid > 0 ? 'PARTIALLY_PAID' : 'PENDING';
+if (fallbackAmount > totalPendingAmount) {
+const error = new Error('Payment amount exceeds total pending balance');
+error.statusCode = 400;
+throw error;
+}
+
+return Number(fallbackAmount.toFixed(2));
 };
 
-const calculatePayAmount = ({ amount, pendingAmount }) => {
-	const requestedAmount = Number(amount || pendingAmount);
-	if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
-		const error = new Error('Invalid payment amount');
-		error.statusCode = 400;
-		throw error;
-	}
+const getSessionQuery = (query, session) => (session ? query.session(session) : query);
 
-	return Math.min(requestedAmount, pendingAmount);
+const getPendingFeeRowsForStudent = async ({ studentId, session }) => {
+const feeRows = await getSessionQuery(
+Fee.find({ studentId }).sort({ dueDate: 1, createdAt: 1 }),
+session
+);
+
+const pendingRows = feeRows
+.map((fee) => ({ fee, pendingAmount: calculateFeePendingAmount(fee) }))
+.filter((item) => item.pendingAmount > 0);
+
+const totalPendingAmount = Number(
+pendingRows.reduce((sum, item) => sum + item.pendingAmount, 0).toFixed(2)
+);
+
+return {
+feeRows,
+pendingRows,
+totalPendingAmount
+};
 };
 
-const PENDING_SCREENSHOT_VERIFICATION_MESSAGE =
-	'Payment screenshot pending verification. Please verify before processing payment.';
+const findPendingStaticQrVerification = ({ studentId, excludePaymentId, session }) => {
+const query = {
+studentId,
+paymentStatus: 'PENDING_VERIFICATION',
+paymentMethod: 'STATIC_QR'
+};
 
-const findPendingStaticQrVerification = ({ feeId, studentId }) =>
-	Payment.findOne({
-		feeId,
-		studentId,
-		paymentStatus: 'PENDING_VERIFICATION',
-		paymentMethod: 'STATIC_QR'
-	});
+if (excludePaymentId) {
+query._id = { $ne: excludePaymentId };
+}
 
-const recordFeeReceipt = async ({ studentId, fee, payment, amount, paymentMethod, generatedBy }) => {
-	const student = await Student.findById(studentId).populate('userId classId');
-	if (!student) {
-		return null;
-	}
+return getSessionQuery(Payment.findOne(query), session);
+};
 
-	return createFeeReceipt({
-		student,
-		fee,
-		payment,
-		amount,
-		paymentMethod,
-		transactionReference: payment?.providerReferenceId || payment?.transactionId,
-		generatedBy
-	});
+const recordFeeReceipt = async ({ studentId, fee, payment, amount, paymentMethod, generatedBy, session }) => {
+const student = await getSessionQuery(Student.findById(studentId).populate('userId classId'), session);
+if (!student) {
+return null;
+}
+
+return createFeeReceipt({
+student,
+fee,
+payment,
+amount,
+paymentMethod,
+transactionReference: payment?.providerReferenceId || payment?.transactionId,
+generatedBy,
+session
+});
+};
+
+const allocatePaymentAcrossOldestMonths = async ({ studentId, amount, paymentMethod, session }) => {
+const { pendingRows, totalPendingAmount } = await getPendingFeeRowsForStudent({ studentId, session });
+if (totalPendingAmount <= 0) {
+const error = new Error('No pending monthly fees found for this student');
+error.statusCode = 400;
+throw error;
+}
+
+const payAmount = resolveRequestedAmount({ amount, totalPendingAmount });
+let remainingAmount = payAmount;
+const allocationRows = [];
+const updatedFees = [];
+const paymentDate = new Date();
+
+for (const { fee, pendingAmount } of pendingRows) {
+if (remainingAmount <= 0) {
+break;
+}
+
+const appliedAmount = Math.min(pendingAmount, remainingAmount);
+if (appliedAmount <= 0) {
+continue;
+}
+
+fee.amountPaid = Number((Number(fee.amountPaid || 0) + appliedAmount).toFixed(2));
+fee.status = deriveFeeStatus({ amountDue: fee.amountDue, amountPaid: fee.amountPaid });
+fee.paymentDate = paymentDate;
+fee.paymentMethod = paymentMethod;
+await fee.save({ session });
+
+updatedFees.push(fee);
+allocationRows.push({
+feeId: fee._id,
+monthKey: fee.monthKey,
+amount: appliedAmount
+});
+
+remainingAmount = Number((remainingAmount - appliedAmount).toFixed(2));
+}
+
+const remainingBalance = Number(Math.max(totalPendingAmount - payAmount, 0).toFixed(2));
+
+return {
+payAmount,
+totalPendingAmount,
+remainingBalance,
+allocations: allocationRows,
+updatedFees,
+primaryFee: updatedFees[0] || null
+};
+};
+
+const runWithOptionalTransaction = async (handler) => {
+const session = await mongoose.startSession();
+try {
+let result;
+try {
+await session.withTransaction(async () => {
+result = await handler(session);
+});
+return result;
+} catch (error) {
+const message = String(error?.message || '');
+const transactionUnsupported =
+message.includes('Transaction numbers are only allowed') ||
+message.includes('replica set') ||
+message.includes('NoSuchTransaction');
+
+if (!transactionUnsupported) {
+throw error;
+}
+
+return handler(null);
+}
+} finally {
+await session.endSession();
+}
 };
 
 const createSmepayQrPaymentByStudent = async ({ feeId, userId, amount }) => {
-	const student = await Student.findOne({ userId });
-	if (!student) {
-		const error = new Error('Student record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const student = await Student.findOne({ userId });
+if (!student) {
+const error = new Error('Student record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	const fee = await Fee.findOne({ _id: feeId, studentId: student._id });
-	if (!fee) {
-		const error = new Error('Fee record not found for this student');
-		error.statusCode = 404;
-		throw error;
-	}
+const selectedFee = await Fee.findOne({ _id: feeId, studentId: student._id });
+if (!selectedFee) {
+const error = new Error('Fee record not found for this student');
+error.statusCode = 404;
+throw error;
+}
 
-	const pendingAmount = calculatePendingAmount(fee);
-	if (pendingAmount <= 0) {
-		const error = new Error('This fee item is already fully paid');
-		error.statusCode = 400;
-		throw error;
-	}
+await ensureMonthlyFeesForStudent({ studentId: student._id });
+const { pendingRows, totalPendingAmount } = await getPendingFeeRowsForStudent({ studentId: student._id });
+if (totalPendingAmount <= 0) {
+const error = new Error('All monthly fees are already paid');
+error.statusCode = 400;
+throw error;
+}
 
-	const payAmount = calculatePayAmount({ amount, pendingAmount });
+const payAmount = resolveRequestedAmount({ amount, totalPendingAmount });
+const primaryPendingFee = pendingRows[0]?.fee;
 
-	const alreadyPending = await Payment.findOne({
-		feeId: fee._id,
-		studentId: student._id,
-		paymentStatus: 'PENDING',
-		amount: payAmount
-	}).sort({ createdAt: -1 });
+const alreadyPending = await Payment.findOne({
+studentId: student._id,
+paymentStatus: 'PENDING',
+paymentMethod: 'SMEPAY_QR',
+amount: payAmount
+}).sort({ createdAt: -1 });
 
-	if (alreadyPending) {
-		return alreadyPending;
-	}
+if (alreadyPending) {
+return alreadyPending;
+}
 
-	const transactionId = buildTransactionId();
+const transactionId = buildTransactionId('TXN');
+const payment = await Payment.create({
+studentId: student._id,
+feeId: primaryPendingFee?._id || selectedFee._id,
+amount: payAmount,
+transactionId,
+paymentStatus: 'PENDING',
+paymentMethod: 'SMEPAY_QR',
+processedBy: 'SYSTEM',
+remainingBalance: Number(Math.max(totalPendingAmount - payAmount, 0).toFixed(2)),
+logs: [
+{
+source: 'REQUEST',
+status: 'PENDING',
+message: 'Payment request created locally before SMEpay call',
+payload: { feeId: String(primaryPendingFee?._id || selectedFee._id), amount: payAmount }
+}
+]
+});
 
-	const payment = await Payment.create({
-		studentId: student._id,
-		feeId: fee._id,
-		amount: payAmount,
-		transactionId,
-		paymentStatus: 'PENDING',
-		paymentMethod: 'SMEPAY_QR',
-		logs: [
-			{
-				source: 'REQUEST',
-				status: 'PENDING',
-				message: 'Payment request created locally before SMEpay call',
-				payload: { feeId: String(fee._id), amount: payAmount }
-			}
-		]
-	});
+try {
+const gatewayResponse = await smepayService.createDynamicQr({
+transactionId,
+amount: payAmount,
+student: buildStudentPayload(student)
+});
 
-	try {
-		const gatewayResponse = await smepayService.createDynamicQr({
-			transactionId,
-			amount: payAmount,
-			student: buildStudentPayload(student)
-		});
+payment.providerOrderId = gatewayResponse.providerOrderId;
+payment.providerReferenceId = gatewayResponse.providerReferenceId;
+payment.qrCodeData = gatewayResponse.qrCodeData;
+payment.rawProviderResponse = gatewayResponse.raw;
+payment.logs.push({
+source: 'REQUEST',
+status: 'PENDING',
+message: 'SMEpay QR created successfully',
+payload: gatewayResponse.raw
+});
+await payment.save();
 
-		payment.providerOrderId = gatewayResponse.providerOrderId;
-		payment.providerReferenceId = gatewayResponse.providerReferenceId;
-		payment.qrCodeData = gatewayResponse.qrCodeData;
-		payment.rawProviderResponse = gatewayResponse.raw;
-		payment.logs.push({
-			source: 'REQUEST',
-			status: 'PENDING',
-			message: 'SMEpay QR created successfully',
-			payload: gatewayResponse.raw
-		});
-		await payment.save();
+await createActionLog({
+actorId: userId,
+action: 'FEE_SMEPAY_QR_CREATED',
+module: 'FEE',
+entityId: String(payment.feeId),
+metadata: { paymentId: String(payment._id), amount: payAmount, transactionId }
+});
 
-		await createActionLog({
-			actorId: userId,
-			action: 'FEE_SMEPAY_QR_CREATED',
-			module: 'FEE',
-			entityId: String(fee._id),
-			metadata: { paymentId: String(payment._id), amount: payAmount, transactionId }
-		});
-
-		return payment;
-	} catch (error) {
-		payment.paymentStatus = 'FAILED';
-		payment.logs.push({
-			source: 'REQUEST',
-			status: 'FAILED',
-			message: error.message || 'SMEpay QR creation failed',
-			payload: error.providerResponse || null
-		});
-		await payment.save();
-		throw error;
-	}
-};
-
-const applySuccessfulPaymentToFee = async ({ paymentDoc, method }) => {
-	const fee = await Fee.findById(paymentDoc.feeId);
-	if (!fee) {
-		const error = new Error('Fee record linked to payment was not found');
-		error.statusCode = 404;
-		throw error;
-	}
-
-	const pendingAmount = calculatePendingAmount(fee);
-	const appliedAmount = Math.min(paymentDoc.amount, pendingAmount);
-
-	if (appliedAmount > 0) {
-		fee.amountPaid = (fee.amountPaid || 0) + appliedAmount;
-		fee.paymentDate = new Date();
-		fee.paymentMethod = method;
-		fee.status = deriveFeeStatus({ amountDue: fee.amountDue, amountPaid: fee.amountPaid });
-		await fee.save();
-	}
-
-	return { fee, appliedAmount };
+return payment;
+} catch (error) {
+payment.paymentStatus = 'FAILED';
+payment.logs.push({
+source: 'REQUEST',
+status: 'FAILED',
+message: error.message || 'SMEpay QR creation failed',
+payload: error.providerResponse || null
+});
+await payment.save();
+throw error;
+}
 };
 
 const processSmepayWebhook = async ({ payload, rawBody, signature }) => {
-	const isValid = smepayService.verifyWebhookSignature({ rawBody, signature });
-	if (!isValid) {
-		const error = new Error('Invalid SMEpay webhook signature');
-		error.statusCode = 401;
-		throw error;
-	}
+const isValid = smepayService.verifyWebhookSignature({ rawBody, signature });
+if (!isValid) {
+const error = new Error('Invalid SMEpay webhook signature');
+error.statusCode = 401;
+throw error;
+}
 
-	const transactionId = payload.transactionId || payload.transaction_id || payload.orderId || payload.order_id;
-	if (!transactionId) {
-		const error = new Error('transactionId is missing in webhook payload');
-		error.statusCode = 400;
-		throw error;
-	}
+const transactionId = payload.transactionId || payload.transaction_id || payload.orderId || payload.order_id;
+if (!transactionId) {
+const error = new Error('transactionId is missing in webhook payload');
+error.statusCode = 400;
+throw error;
+}
 
-	const normalizedStatus = smepayService.normalizeStatus(payload.status || payload.paymentStatus);
-	const payment = await Payment.findOne({ transactionId });
-	if (!payment) {
-		const error = new Error('Payment record not found for transactionId');
-		error.statusCode = 404;
-		throw error;
-	}
+const normalizedStatus = smepayService.normalizeStatus(payload.status || payload.paymentStatus);
+const existingPayment = await Payment.findOne({ transactionId });
+if (!existingPayment) {
+const error = new Error('Payment record not found for transactionId');
+error.statusCode = 404;
+throw error;
+}
 
-	payment.logs.push({
-		source: 'WEBHOOK',
-		status: normalizedStatus,
-		message: 'Received webhook event from SMEpay',
-		payload
-	});
+if (existingPayment.paymentStatus === 'SUCCESS') {
+existingPayment.logs.push({
+source: 'WEBHOOK',
+status: normalizedStatus,
+message: 'Duplicate webhook received after payment already succeeded',
+payload
+});
+await existingPayment.save();
+return { payment: existingPayment, idempotent: true, updated: false };
+}
 
-	if (payment.paymentStatus === 'SUCCESS') {
-		await payment.save();
-		return { payment, idempotent: true, updated: false };
-	}
+if (normalizedStatus === 'SUCCESS') {
+const result = await runWithOptionalTransaction(async (session) => {
+const payment = await getSessionQuery(Payment.findById(existingPayment._id), session);
+if (!payment) {
+const error = new Error('Payment record not found while processing webhook');
+error.statusCode = 404;
+throw error;
+}
 
-	if (normalizedStatus === 'SUCCESS') {
-		payment.paymentStatus = 'SUCCESS';
-		payment.paidAt = new Date();
-		payment.providerReferenceId = payload.referenceId || payload.reference_id || payment.providerReferenceId;
-		await payment.save();
+if (payment.paymentStatus === 'SUCCESS') {
+return { payment, updated: false, allocation: null };
+}
 
-		const { fee, appliedAmount } = await applySuccessfulPaymentToFee({ paymentDoc: payment, method: 'smepay_qr' });
-		await recordFeeReceipt({
-			studentId: payment.studentId,
-			fee,
-			payment,
-			amount: appliedAmount,
-			paymentMethod: 'SMEPAY_QR'
-		});
-		payment.logs.push({
-			source: 'WEBHOOK',
-			status: 'SUCCESS',
-			message: `Applied INR ${appliedAmount} to fee ledger`,
-			payload: { appliedAmount }
-		});
-		await payment.save();
-		await createActionLog({
-			action: 'FEE_SMEPAY_SUCCESS',
-			module: 'FEE',
-			entityId: String(fee._id),
-			metadata: { paymentId: String(payment._id), appliedAmount, transactionId }
-		});
-		return { payment, idempotent: false, updated: true };
-	}
+await ensureMonthlyFeesForStudent({ studentId: payment.studentId, session });
+const allocation = await allocatePaymentAcrossOldestMonths({
+studentId: payment.studentId,
+amount: payment.amount,
+paymentMethod: 'SMEPAY_QR',
+session
+});
 
-	if (normalizedStatus === 'FAILED' || normalizedStatus === 'CANCELLED') {
-		payment.paymentStatus = normalizedStatus;
-		await payment.save();
-		return { payment, idempotent: false, updated: true };
-	}
+payment.paymentStatus = 'SUCCESS';
+payment.paidAt = new Date();
+payment.providerReferenceId = payload.referenceId || payload.reference_id || payment.providerReferenceId;
+payment.processedBy = 'SYSTEM';
+payment.feeId = allocation.primaryFee?._id || payment.feeId;
+payment.allocations = allocation.allocations;
+payment.remainingBalance = allocation.remainingBalance;
+payment.logs.push({
+source: 'WEBHOOK',
+status: 'SUCCESS',
+message: `Applied INR ${allocation.payAmount} across monthly ledger entries`,
+payload: {
+transactionId,
+remainingBalance: allocation.remainingBalance,
+allocationCount: allocation.allocations.length
+}
+});
+await payment.save({ session });
 
-	await payment.save();
-	return { payment, idempotent: false, updated: false };
+const receipt = await recordFeeReceipt({
+studentId: payment.studentId,
+fee: allocation.primaryFee,
+payment,
+amount: allocation.payAmount,
+paymentMethod: 'SMEPAY_QR',
+session
+});
+
+return { payment, updated: true, allocation, receipt };
+});
+
+if (result.updated) {
+await createActionLog({
+action: 'FEE_SMEPAY_SUCCESS',
+module: 'FEE',
+entityId: String(result.payment.feeId),
+metadata: {
+paymentId: String(result.payment._id),
+transactionId,
+amount: result.allocation?.payAmount || result.payment.amount,
+remainingBalance: result.payment.remainingBalance
+}
+});
+}
+
+return { payment: result.payment, idempotent: false, updated: result.updated };
+}
+
+if (normalizedStatus === 'FAILED' || normalizedStatus === 'CANCELLED') {
+existingPayment.paymentStatus = normalizedStatus;
+existingPayment.logs.push({
+source: 'WEBHOOK',
+status: normalizedStatus,
+message: 'Payment marked unsuccessful from SMEpay webhook',
+payload
+});
+await existingPayment.save();
+return { payment: existingPayment, idempotent: false, updated: true };
+}
+
+existingPayment.logs.push({
+source: 'WEBHOOK',
+status: normalizedStatus,
+message: 'Webhook received with non-terminal status',
+payload
+});
+await existingPayment.save();
+return { payment: existingPayment, idempotent: false, updated: false };
 };
 
 const getPaymentStatusByTransactionForStudent = async ({ transactionId, userId }) => {
-	const student = await Student.findOne({ userId });
-	if (!student) {
-		const error = new Error('Student record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const student = await Student.findOne({ userId });
+if (!student) {
+const error = new Error('Student record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	const payment = await Payment.findOne({ transactionId, studentId: student._id });
-	if (!payment) {
-		const error = new Error('Payment record not found for this student');
-		error.statusCode = 404;
-		throw error;
-	}
+const payment = await Payment.findOne({ transactionId, studentId: student._id });
+if (!payment) {
+const error = new Error('Payment record not found for this student');
+error.statusCode = 404;
+throw error;
+}
 
-	return payment;
+return payment;
 };
 
 const payCashByAdmin = async ({ feeId, adminUserId, amount }) => {
-	const fee = await Fee.findById(feeId);
-	if (!fee) {
-		const error = new Error('Fee record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const result = await runWithOptionalTransaction(async (session) => {
+const selectedFee = await getSessionQuery(Fee.findById(feeId), session);
+if (!selectedFee) {
+const error = new Error('Fee record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	const pendingScreenshotVerification = await findPendingStaticQrVerification({ feeId: fee._id, studentId: fee.studentId });
-	if (pendingScreenshotVerification) {
-		const error = new Error(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
-		error.statusCode = 409;
-		throw error;
-	}
+await ensureMonthlyFeesForStudent({ studentId: selectedFee.studentId, session });
+const pendingScreenshotVerification = await findPendingStaticQrVerification({
+studentId: selectedFee.studentId,
+session
+});
+if (pendingScreenshotVerification) {
+const error = new Error(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
+error.statusCode = 409;
+throw error;
+}
 
-	const pendingAmount = calculatePendingAmount(fee);
-	if (pendingAmount <= 0) {
-		const error = new Error('This fee item is already fully paid');
-		error.statusCode = 400;
-		throw error;
-	}
+const allocation = await allocatePaymentAcrossOldestMonths({
+studentId: selectedFee.studentId,
+amount,
+paymentMethod: 'CASH',
+session
+});
 
-	const payAmount = calculatePayAmount({ amount, pendingAmount });
-	const transactionId = `CASH-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+const payment = await Payment.create(
+[
+{
+studentId: selectedFee.studentId,
+feeId: allocation.primaryFee?._id || selectedFee._id,
+amount: allocation.payAmount,
+transactionId: buildTransactionId('CASH'),
+paymentStatus: 'SUCCESS',
+paymentMethod: 'CASH',
+processedBy: 'ADMIN',
+processedByAdmin: adminUserId,
+remainingBalance: allocation.remainingBalance,
+paidAt: new Date(),
+allocations: allocation.allocations,
+logs: [
+{
+source: 'REQUEST',
+status: 'SUCCESS',
+message: 'Cash payment processed by admin and allocated to monthly ledger',
+payload: {
+processedByAdmin: String(adminUserId),
+remainingBalance: allocation.remainingBalance,
+allocationCount: allocation.allocations.length
+}
+}
+]
+}
+],
+{ session }
+);
 
-	const payment = await Payment.create({
-		studentId: fee.studentId,
-		feeId: fee._id,
-		amount: payAmount,
-		transactionId,
-		paymentStatus: 'SUCCESS',
-		paymentMethod: 'CASH',
-		processedByAdmin: adminUserId,
-		paidAt: new Date(),
-		logs: [
-			{
-				source: 'REQUEST',
-				status: 'SUCCESS',
-				message: 'Cash payment processed by admin',
-				payload: { processedByAdmin: String(adminUserId) }
-			}
-		]
-	});
-	fee.status = 'PENDING_VERIFICATION';
-	await fee.save();
+const paymentDoc = payment[0];
+const receipt = await recordFeeReceipt({
+studentId: selectedFee.studentId,
+fee: allocation.primaryFee,
+payment: paymentDoc,
+amount: allocation.payAmount,
+paymentMethod: 'CASH',
+generatedBy: adminUserId,
+session
+});
 
-	const { fee: updatedFee, appliedAmount } = await applySuccessfulPaymentToFee({ paymentDoc: payment, method: 'cash' });
-	const receipt = await recordFeeReceipt({
-		studentId: fee.studentId,
-		fee: updatedFee,
-		payment,
-		amount: appliedAmount,
-		paymentMethod: 'CASH',
-		generatedBy: adminUserId
-	});
+return { fee: allocation.primaryFee, payment: paymentDoc, receipt, allocation };
+});
 
-	await createActionLog({
-		actorId: adminUserId,
-		action: 'FEE_CASH_PAYMENT_PROCESSED',
-		module: 'FEE',
-		entityId: String(updatedFee._id),
-		metadata: { paymentId: String(payment._id), amount: appliedAmount }
-	});
+await createActionLog({
+actorId: adminUserId,
+action: 'FEE_CASH_PAYMENT_PROCESSED',
+module: 'FEE',
+entityId: String(result.fee?._id || ''),
+metadata: {
+paymentId: String(result.payment._id),
+amount: result.allocation.payAmount,
+remainingBalance: result.allocation.remainingBalance,
+allocations: result.allocation.allocations
+}
+});
 
-	return { fee: updatedFee, payment, receipt };
+return { fee: result.fee, payment: result.payment, receipt: result.receipt };
 };
 
 const payOnlineByAdmin = async ({ feeId, adminUserId, amount, transactionReference }) => {
-	const fee = await Fee.findById(feeId);
-	if (!fee) {
-		const error = new Error('Fee record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const normalizedTransactionReference = String(transactionReference || '').trim();
 
-	const pendingScreenshotVerification = await findPendingStaticQrVerification({ feeId: fee._id, studentId: fee.studentId });
-	if (pendingScreenshotVerification) {
-		const error = new Error(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
-		error.statusCode = 409;
-		throw error;
-	}
+const result = await runWithOptionalTransaction(async (session) => {
+const selectedFee = await getSessionQuery(Fee.findById(feeId), session);
+if (!selectedFee) {
+const error = new Error('Fee record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	const pendingAmount = calculatePendingAmount(fee);
-	if (pendingAmount <= 0) {
-		const error = new Error('This fee item is already fully paid');
-		error.statusCode = 400;
-		throw error;
-	}
+await ensureMonthlyFeesForStudent({ studentId: selectedFee.studentId, session });
+const pendingScreenshotVerification = await findPendingStaticQrVerification({
+studentId: selectedFee.studentId,
+session
+});
+if (pendingScreenshotVerification) {
+const error = new Error(PENDING_SCREENSHOT_VERIFICATION_MESSAGE);
+error.statusCode = 409;
+throw error;
+}
 
-	const payAmount = calculatePayAmount({ amount, pendingAmount });
-	const normalizedTransactionReference = String(transactionReference || '').trim();
-	const payment = await Payment.create({
-		studentId: fee.studentId,
-		feeId: fee._id,
-		amount: payAmount,
-		transactionId: `ADMIN-ONLINE-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
-		providerReferenceId: normalizedTransactionReference || undefined,
-		paymentStatus: 'SUCCESS',
-		paymentMethod: 'STATIC_QR',
-		processedByAdmin: adminUserId,
-		verifiedByAdmin: adminUserId,
-		verifiedAt: new Date(),
-		paidAt: new Date(),
-		verificationNotes: 'Directly verified by admin during in-person payment',
-		logs: [
-			{
-				source: 'REQUEST',
-				status: 'SUCCESS',
-				message: 'Online payment recorded directly by admin without screenshot upload',
-				payload: {
-					processedByAdmin: String(adminUserId),
-					transactionReference: normalizedTransactionReference || null
-				}
-			}
-		]
-	});
+const allocation = await allocatePaymentAcrossOldestMonths({
+studentId: selectedFee.studentId,
+amount,
+paymentMethod: 'STATIC_QR',
+session
+});
 
-	fee.status = 'PENDING_VERIFICATION';
-	await fee.save();
+const payment = await Payment.create(
+[
+{
+studentId: selectedFee.studentId,
+feeId: allocation.primaryFee?._id || selectedFee._id,
+amount: allocation.payAmount,
+transactionId: buildTransactionId('ADMIN-ONLINE'),
+providerReferenceId: normalizedTransactionReference || undefined,
+paymentStatus: 'SUCCESS',
+paymentMethod: 'STATIC_QR',
+processedBy: 'ADMIN',
+processedByAdmin: adminUserId,
+verifiedByAdmin: adminUserId,
+verifiedAt: new Date(),
+paidAt: new Date(),
+verificationNotes: 'Directly verified by admin during in-person payment',
+remainingBalance: allocation.remainingBalance,
+allocations: allocation.allocations,
+logs: [
+{
+source: 'REQUEST',
+status: 'SUCCESS',
+message: 'Online payment recorded directly by admin and allocated to monthly ledger',
+payload: {
+processedByAdmin: String(adminUserId),
+transactionReference: normalizedTransactionReference || null,
+remainingBalance: allocation.remainingBalance,
+allocationCount: allocation.allocations.length
+}
+}
+]
+}
+],
+{ session }
+);
 
-	const { fee: updatedFee, appliedAmount } = await applySuccessfulPaymentToFee({ paymentDoc: payment, method: 'static_qr' });
-	const receipt = await recordFeeReceipt({
-		studentId: fee.studentId,
-		fee: updatedFee,
-		payment,
-		amount: appliedAmount,
-		paymentMethod: 'STATIC_QR',
-		generatedBy: adminUserId
-	});
+const paymentDoc = payment[0];
+const receipt = await recordFeeReceipt({
+studentId: selectedFee.studentId,
+fee: allocation.primaryFee,
+payment: paymentDoc,
+amount: allocation.payAmount,
+paymentMethod: 'STATIC_QR',
+generatedBy: adminUserId,
+session
+});
 
-	await createActionLog({
-		actorId: adminUserId,
-		action: 'FEE_ONLINE_PAYMENT_RECORDED_BY_ADMIN',
-		module: 'FEE',
-		entityId: String(updatedFee._id),
-		metadata: {
-			paymentId: String(payment._id),
-			amount: appliedAmount,
-			transactionReference: normalizedTransactionReference || null
-		}
-	});
+return { fee: allocation.primaryFee, payment: paymentDoc, receipt, allocation };
+});
 
-	return { fee: updatedFee, payment, receipt };
+await createActionLog({
+actorId: adminUserId,
+action: 'FEE_ONLINE_PAYMENT_RECORDED_BY_ADMIN',
+module: 'FEE',
+entityId: String(result.fee?._id || ''),
+metadata: {
+paymentId: String(result.payment._id),
+amount: result.allocation.payAmount,
+remainingBalance: result.allocation.remainingBalance,
+transactionReference: normalizedTransactionReference || null,
+allocations: result.allocation.allocations
+}
+});
+
+return { fee: result.fee, payment: result.payment, receipt: result.receipt };
 };
 
 const uploadStaticQrScreenshotByStudent = async ({ feeId, userId, file, amount, transactionReference }) => {
-	if (!file) {
-		const error = new Error('Payment screenshot is required');
-		error.statusCode = 400;
-		throw error;
-	}
+if (!file) {
+const error = new Error('Payment screenshot is required');
+error.statusCode = 400;
+throw error;
+}
 
-	if (!file.buffer) {
-		const error = new Error('Payment screenshot payload is invalid');
-		error.statusCode = 400;
-		throw error;
-	}
+if (!file.buffer) {
+const error = new Error('Payment screenshot payload is invalid');
+error.statusCode = 400;
+throw error;
+}
 
-	const student = await Student.findOne({ userId }).populate('userId classId');
-	if (!student) {
-		const error = new Error('Student record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const student = await Student.findOne({ userId }).populate('userId classId');
+if (!student) {
+const error = new Error('Student record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	const fee = await Fee.findOne({ _id: feeId, studentId: student._id });
-	if (!fee) {
-		const error = new Error('Fee record not found for this student');
-		error.statusCode = 404;
-		throw error;
-	}
+const selectedFee = await Fee.findOne({ _id: feeId, studentId: student._id });
+if (!selectedFee) {
+const error = new Error('Fee record not found for this student');
+error.statusCode = 404;
+throw error;
+}
 
-	const pendingAmount = calculatePendingAmount(fee);
-	if (pendingAmount <= 0) {
-		const error = new Error('This fee item is already fully paid');
-		error.statusCode = 400;
-		throw error;
-	}
+await ensureMonthlyFeesForStudent({ studentId: student._id });
+const { pendingRows, totalPendingAmount } = await getPendingFeeRowsForStudent({ studentId: student._id });
+if (totalPendingAmount <= 0) {
+const error = new Error('All monthly fees are already paid');
+error.statusCode = 400;
+throw error;
+}
 
-	const payAmount = calculatePayAmount({ amount, pendingAmount });
-	const existing = await Payment.findOne({
-		feeId: fee._id,
-		studentId: student._id,
-		paymentStatus: 'PENDING_VERIFICATION',
-		paymentMethod: 'STATIC_QR'
-	});
-	if (existing) {
-		const error = new Error('A static QR payment is already pending verification for this fee item');
-		error.statusCode = 409;
-		throw error;
-	}
+const payAmount = resolveRequestedAmount({ amount, totalPendingAmount });
+const existing = await findPendingStaticQrVerification({ studentId: student._id });
+if (existing) {
+const error = new Error('A static QR payment is already pending verification for this student');
+error.statusCode = 409;
+throw error;
+}
 
-	let uploadedScreenshot;
-	try {
-		uploadedScreenshot = await uploadPaymentScreenshot({
-			buffer: file.buffer,
-			mimeType: file.mimetype,
-			originalName: file.originalname
-		});
-	} catch (error) {
-		if (!error.statusCode) {
-			error.statusCode = 502;
-			error.message = 'Failed to upload screenshot to storage provider';
-		}
-		throw error;
-	}
+let uploadedScreenshot;
+try {
+uploadedScreenshot = await uploadPaymentScreenshot({
+buffer: file.buffer,
+mimeType: file.mimetype,
+originalName: file.originalname
+});
+} catch (error) {
+if (!error.statusCode) {
+error.statusCode = 502;
+error.message = 'Failed to upload screenshot to storage provider';
+}
+throw error;
+}
 
-	const payment = await Payment.create({
-		studentId: student._id,
-		feeId: fee._id,
-		amount: payAmount,
-		transactionId: transactionReference || `STATIC-${Date.now()}-${Math.floor(Math.random() * 1000000)}`,
-		providerReferenceId: transactionReference,
-		paymentStatus: 'PENDING_VERIFICATION',
-		paymentMethod: 'STATIC_QR',
-		screenshotPath: uploadedScreenshot.secureUrl,
-		screenshotPublicId: uploadedScreenshot.publicId,
-		logs: [
-			{
-				source: 'REQUEST',
-				status: 'PENDING_VERIFICATION',
-				message: 'Student uploaded static QR screenshot for verification',
-				payload: {
-					originalName: file.originalname,
-					size: file.size,
-					storage: 'cloudinary',
-					screenshotPublicId: uploadedScreenshot.publicId
-				}
-			}
-		]
-	});
+const primaryPendingFee = pendingRows[0]?.fee || selectedFee;
+const normalizedTransactionReference = String(transactionReference || '').trim();
+const payment = await Payment.create({
+studentId: student._id,
+feeId: primaryPendingFee._id,
+amount: payAmount,
+transactionId: buildTransactionId('STATIC'),
+providerReferenceId: normalizedTransactionReference || undefined,
+paymentStatus: 'PENDING_VERIFICATION',
+paymentMethod: 'STATIC_QR',
+processedBy: 'SYSTEM',
+remainingBalance: Number(Math.max(totalPendingAmount - payAmount, 0).toFixed(2)),
+screenshotPath: uploadedScreenshot.secureUrl,
+screenshotPublicId: uploadedScreenshot.publicId,
+logs: [
+{
+source: 'REQUEST',
+status: 'PENDING_VERIFICATION',
+message: 'Student uploaded static QR screenshot for verification',
+payload: {
+originalName: file.originalname,
+size: file.size,
+storage: 'cloudinary',
+screenshotPublicId: uploadedScreenshot.publicId,
+requestedAmount: payAmount,
+remainingBalanceAfterApproval: Number(Math.max(totalPendingAmount - payAmount, 0).toFixed(2))
+}
+}
+]
+});
 
-	fee.status = 'PENDING_VERIFICATION';
-	await fee.save();
+await notifyAdminPaymentSubmitted({
+studentId: student._id,
+studentName: student.userId?.name || 'Student',
+paymentId: payment._id
+});
 
-	await notifyAdminPaymentSubmitted({
-		studentId: student._id,
-		studentName: student.userId?.name || 'Student',
-		paymentId: payment._id
-	});
+await createActionLog({
+actorId: userId,
+action: 'FEE_STATIC_QR_SUBMITTED',
+module: 'FEE',
+entityId: String(primaryPendingFee._id),
+metadata: { paymentId: String(payment._id), amount: payAmount }
+});
 
-	await createActionLog({
-		actorId: userId,
-		action: 'FEE_STATIC_QR_SUBMITTED',
-		module: 'FEE',
-		entityId: String(fee._id),
-		metadata: { paymentId: String(payment._id), amount: payAmount }
-	});
-
-	return payment;
+return payment;
 };
 
 const listPendingVerificationPayments = async () =>
-	Payment.find({ paymentStatus: 'PENDING_VERIFICATION', paymentMethod: 'STATIC_QR' })
-		.populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] })
-		.populate('feeId')
-		.sort({ createdAt: -1 });
+Payment.find({ paymentStatus: 'PENDING_VERIFICATION', paymentMethod: 'STATIC_QR' })
+.populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] })
+.populate('feeId')
+.sort({ createdAt: -1 });
 
 const verifyStaticQrPaymentByAdmin = async ({ paymentId, decision, adminUserId, notes, transactionReference }) => {
-	const payment = await Payment.findById(paymentId);
-	if (!payment) {
-		const error = new Error('Payment record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const payment = await Payment.findById(paymentId);
+if (!payment) {
+const error = new Error('Payment record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	if (payment.paymentStatus !== 'PENDING_VERIFICATION') {
-		const error = new Error('Payment is already verified');
-		error.statusCode = 409;
-		throw error;
-	}
+if (payment.paymentStatus !== 'PENDING_VERIFICATION') {
+const error = new Error('Payment is already verified');
+error.statusCode = 409;
+throw error;
+}
 
-	if (decision === 'APPROVE') {
-		payment.paymentStatus = 'SUCCESS';
-		payment.verifiedByAdmin = adminUserId;
-		payment.verifiedAt = new Date();
-		payment.paidAt = new Date();
-		payment.verificationNotes = notes;
-		if (transactionReference) {
-			payment.providerReferenceId = transactionReference;
-		}
-		await payment.save();
+if (decision === 'APPROVE') {
+const normalizedTransactionReference = String(transactionReference || '').trim();
+const result = await runWithOptionalTransaction(async (session) => {
+const paymentDoc = await getSessionQuery(Payment.findById(paymentId), session);
+if (!paymentDoc) {
+const error = new Error('Payment record not found');
+error.statusCode = 404;
+throw error;
+}
 
-		const { fee, appliedAmount } = await applySuccessfulPaymentToFee({ paymentDoc: payment, method: 'static_qr' });
-		const receipt = await recordFeeReceipt({
-			studentId: payment.studentId,
-			fee,
-			payment,
-			amount: appliedAmount,
-			paymentMethod: 'STATIC_QR',
-			generatedBy: adminUserId
-		});
+if (paymentDoc.paymentStatus !== 'PENDING_VERIFICATION') {
+const error = new Error('Payment is already verified');
+error.statusCode = 409;
+throw error;
+}
 
-		await createActionLog({
-			actorId: adminUserId,
-			action: 'FEE_STATIC_QR_APPROVED',
-			module: 'FEE',
-			entityId: String(fee._id),
-			metadata: { paymentId: String(payment._id), amount: appliedAmount }
-		});
+await ensureMonthlyFeesForStudent({ studentId: paymentDoc.studentId, session });
+const allocation = await allocatePaymentAcrossOldestMonths({
+studentId: paymentDoc.studentId,
+amount: paymentDoc.amount,
+paymentMethod: 'STATIC_QR',
+session
+});
 
-		return { payment, fee, receipt };
-	}
+paymentDoc.paymentStatus = 'SUCCESS';
+paymentDoc.processedBy = 'ADMIN';
+paymentDoc.verifiedByAdmin = adminUserId;
+paymentDoc.verifiedAt = new Date();
+paymentDoc.paidAt = new Date();
+paymentDoc.verificationNotes = notes;
+paymentDoc.feeId = allocation.primaryFee?._id || paymentDoc.feeId;
+paymentDoc.allocations = allocation.allocations;
+paymentDoc.remainingBalance = allocation.remainingBalance;
+if (normalizedTransactionReference) {
+paymentDoc.providerReferenceId = normalizedTransactionReference;
+}
+await paymentDoc.save({ session });
 
-	if (decision === 'REJECT') {
-		payment.paymentStatus = 'FAILED';
-		payment.verifiedByAdmin = adminUserId;
-		payment.verifiedAt = new Date();
-		payment.verificationNotes = notes;
-		await payment.save();
+const receipt = await recordFeeReceipt({
+studentId: paymentDoc.studentId,
+fee: allocation.primaryFee,
+payment: paymentDoc,
+amount: allocation.payAmount,
+paymentMethod: 'STATIC_QR',
+generatedBy: adminUserId,
+session
+});
 
-		const fee = await Fee.findById(payment.feeId);
-		if (fee) {
-			fee.status = 'FAILED';
-			await fee.save();
-		}
+return { payment: paymentDoc, fee: allocation.primaryFee, receipt, allocation };
+});
 
-		await createActionLog({
-			actorId: adminUserId,
-			action: 'FEE_STATIC_QR_REJECTED',
-			module: 'FEE',
-			entityId: String(payment.feeId),
-			metadata: { paymentId: String(payment._id) }
-		});
+await createActionLog({
+actorId: adminUserId,
+action: 'FEE_STATIC_QR_APPROVED',
+module: 'FEE',
+entityId: String(result.fee?._id || ''),
+metadata: {
+paymentId: String(result.payment._id),
+amount: result.allocation.payAmount,
+remainingBalance: result.allocation.remainingBalance,
+allocations: result.allocation.allocations
+}
+});
 
-		return { payment, fee: null, receipt: null };
-	}
+return { payment: result.payment, fee: result.fee, receipt: result.receipt };
+}
 
-	const error = new Error('Invalid verification decision');
-	error.statusCode = 400;
-	throw error;
+if (decision === 'REJECT') {
+payment.paymentStatus = 'FAILED';
+payment.processedBy = 'ADMIN';
+payment.verifiedByAdmin = adminUserId;
+payment.verifiedAt = new Date();
+payment.verificationNotes = notes;
+await payment.save();
+
+await createActionLog({
+actorId: adminUserId,
+action: 'FEE_STATIC_QR_REJECTED',
+module: 'FEE',
+entityId: String(payment.feeId),
+metadata: { paymentId: String(payment._id) }
+});
+
+return { payment, fee: null, receipt: null };
+}
+
+const error = new Error('Invalid verification decision');
+error.statusCode = 400;
+throw error;
 };
 
 const getStudentPaymentsForAdmin = async ({ studentId }) =>
-	Payment.find({ studentId })
-		.populate('processedByAdmin', 'name email')
-		.sort({ createdAt: -1 });
+Payment.find({ studentId })
+.populate('processedByAdmin', 'name email')
+.sort({ createdAt: -1 });
 
 const getStudentPaymentsForStudent = async ({ userId }) => {
-	const student = await Student.findOne({ userId });
-	if (!student) {
-		const error = new Error('Student record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const student = await Student.findOne({ userId });
+if (!student) {
+const error = new Error('Student record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	return Payment.find({ studentId: student._id }).populate('processedByAdmin', 'name email').sort({ createdAt: -1 });
+return Payment.find({ studentId: student._id })
+.populate('processedByAdmin', 'name email')
+.sort({ createdAt: -1 });
 };
 
 const getPaymentScreenshotPathForAdmin = async ({ paymentId }) => {
-	const payment = await Payment.findById(paymentId);
-	if (!payment) {
-		const error = new Error('Payment record not found');
-		error.statusCode = 404;
-		throw error;
-	}
+const payment = await Payment.findById(paymentId);
+if (!payment) {
+const error = new Error('Payment record not found');
+error.statusCode = 404;
+throw error;
+}
 
-	if (!payment.screenshotPath) {
-		const error = new Error('Screenshot not found for this payment');
-		error.statusCode = 404;
-		throw error;
-	}
+if (!payment.screenshotPath) {
+const error = new Error('Screenshot not found for this payment');
+error.statusCode = 404;
+throw error;
+}
 
-	return payment.screenshotPath;
+return payment.screenshotPath;
 };
 
 module.exports = {
-	...base,
-	findAll,
-	findById,
-	payCashByAdmin,
-	payOnlineByAdmin,
-	createSmepayQrPaymentByStudent,
-	uploadStaticQrScreenshotByStudent,
-	listPendingVerificationPayments,
-	verifyStaticQrPaymentByAdmin,
-	processSmepayWebhook,
-	getPaymentStatusByTransactionForStudent,
-	getStudentPaymentsForAdmin,
-	getStudentPaymentsForStudent,
-	getPaymentScreenshotPathForAdmin
+...base,
+findAll,
+findById,
+payCashByAdmin,
+payOnlineByAdmin,
+createSmepayQrPaymentByStudent,
+uploadStaticQrScreenshotByStudent,
+listPendingVerificationPayments,
+verifyStaticQrPaymentByAdmin,
+processSmepayWebhook,
+getPaymentStatusByTransactionForStudent,
+getStudentPaymentsForAdmin,
+getStudentPaymentsForStudent,
+getPaymentScreenshotPathForAdmin
 };

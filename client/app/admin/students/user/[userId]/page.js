@@ -15,7 +15,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const feeColumns = [
   { key: 'month', label: 'Month' },
   { key: 'amountDue', label: 'Amount Due' },
-  { key: 'amountPaid', label: 'Amount Paid' }
+  { key: 'amountPaid', label: 'Amount Paid' },
+  { key: 'status', label: 'Status' }
 ];
 
 const paymentColumns = [
@@ -38,6 +39,14 @@ const formatMonth = (dateValue) => {
 };
 
 const toPaymentMode = (paymentMethod) => (String(paymentMethod || '').toUpperCase().includes('CASH') ? 'Via Cash' : 'Via Online');
+
+const normalizeStatus = (status) => {
+  const value = String(status || '').trim().toUpperCase();
+  if (value === 'PARTIALLY_PAID') {
+    return 'PARTIALLY PAID';
+  }
+  return value || 'PENDING';
+};
 
 const genderOptions = [
   { value: '', label: 'Select Gender' },
@@ -397,7 +406,8 @@ export default function StudentUserProfilePage() {
             id: item._id,
             month: formatMonth(item.dueDate),
             amountDue: `INR ${item.amountDue || 0}`,
-            amountPaid: `INR ${item.amountPaid || 0}`
+            amountPaid: `INR ${item.amountPaid || 0}`,
+            status: normalizeStatus(item.status)
           }))}
         />
       </div>

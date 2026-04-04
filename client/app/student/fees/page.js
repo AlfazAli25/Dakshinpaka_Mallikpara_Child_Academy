@@ -7,43 +7,52 @@ import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
 import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
-import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
+import { getAuthContext } from '@/lib/user-records';
 
 const text = {
   en: {
     eyebrow: 'Student Portal',
     title: 'Fees',
-    description: 'View your overall fee summary, paid history, and pending balance.',
+    description: 'View month-wise fee records and payment status.',
     columns: [
-      { key: 'feeType', label: 'Fee Type' },
+      { key: 'month', label: 'Month' },
       { key: 'amountDue', label: 'Amount Due' },
       { key: 'amountPaid', label: 'Amount Paid' },
-      { key: 'paymentStatus', label: 'Payment Status' }
+      { key: 'status', label: 'Status' }
     ]
   },
   bn: {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
     title: 'ফি',
-    description: 'সামগ্রিক ফি, পরিশোধিত এবং বকেয়া দেখুন।',
+    description: 'মাসভিত্তিক ফি রেকর্ড ও পেমেন্ট স্ট্যাটাস দেখুন।',
     columns: [
-      { key: 'feeType', label: 'ফি ধরন' },
+      { key: 'month', label: 'মাস' },
       { key: 'amountDue', label: 'মোট ফি' },
       { key: 'amountPaid', label: 'পরিশোধিত' },
-      { key: 'paymentStatus', label: 'পেমেন্ট স্ট্যাটাস' }
+      { key: 'status', label: 'স্ট্যাটাস' }
     ]
   }
 };
 
-const mapPaymentStatus = ({ totalDue, totalPaid, totalPending }) => {
-  if (totalPending <= 0 && totalDue > 0) {
-    return 'PAID';
+const formatMonth = (dateValue) => {
+  if (!dateValue) {
+    return '-';
   }
 
-  if (totalPaid > 0) {
-    return 'PARTIALLY_PAID';
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(dateValue).slice(0, 7);
   }
 
-  return 'PENDING';
+  return parsed.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+};
+
+const normalizeStatus = (status) => {
+  const value = String(status || '').trim().toUpperCase();
+  if (value === 'PARTIALLY_PAID') {
+    return 'PARTIALLY PAID';
+  }
+  return value || 'PENDING';
 };
 
 export default function StudentFeesPage() {
@@ -52,7 +61,6 @@ export default function StudentFeesPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [receipts, setReceipts] = useState([]);
-  const [profilePendingFees, setProfilePendingFees] = useState(0);
 
   const downloadTextFile = (filename, lines) => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
@@ -70,46 +78,37 @@ export default function StudentFeesPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const student = await getCurrentStudentRecord();
         const { token } = getAuthContext();
-        if (!student || !token) {
+        if (!token) {
           setRows([]);
           setReceipts([]);
-          setProfilePendingFees(0);
           return;
         }
 
-        const profilePending = Math.max(Number(student.pendingFees || 0), 0);
-        setProfilePendingFees(profilePending);
+        const [response, receiptResponse] = await Promise.all([
+          get('/student/fees', token),
+          get('/receipts/student', token)
+        ]);
 
-        const response = await get('/student/fees', token);
-        const receiptResponse = await get('/receipts/student', token);
-        const feeRows = response.data || [];
-        const totals = feeRows.reduce(
-          (acc, item) => {
-            acc.totalDue += item.amountDue || 0;
-            acc.totalPaid += item.amountPaid || 0;
-            return acc;
-          },
-          { totalDue: 0, totalPaid: 0 }
-        );
+        const feeRows = (response.data || [])
+          .slice()
+          .sort((a, b) => {
+            const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+            const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+            return first - second;
+          })
+          .map((item) => ({
+            id: item._id,
+            month: formatMonth(item.dueDate),
+            amountDueValue: Number(item.amountDue || 0),
+            amountPaidValue: Number(item.amountPaid || 0),
+            pendingAmountValue: Math.max(Number(item.amountDue || 0) - Number(item.amountPaid || 0), 0),
+            amountDue: `INR ${item.amountDue || 0}`,
+            amountPaid: `INR ${item.amountPaid || 0}`,
+            status: normalizeStatus(item.status)
+          }));
 
-        const ledgerPending = Math.max(totals.totalDue - totals.totalPaid, 0);
-        const totalPending = Math.max(ledgerPending, profilePending);
-        const totalDue = Math.max(totals.totalDue, totals.totalPaid + totalPending);
-
-        setRows(
-          [
-            {
-              id: 'overall-fees',
-              feeType: 'Overall',
-              amountDue: `INR ${totalDue}`,
-              amountPaid: `INR ${totals.totalPaid}`,
-              paymentStatus: mapPaymentStatus({ totalDue, totalPaid: totals.totalPaid, totalPending }),
-              pendingAmount: totalPending
-            }
-          ]
-        );
+        setRows(feeRows);
         setReceipts(receiptResponse.data || []);
       } catch (_error) {
         setRows([]);
@@ -123,11 +122,8 @@ export default function StudentFeesPage() {
   }, []);
 
   const pendingTotal = useMemo(
-    () => {
-      const ledgerPending = rows.reduce((sum, row) => sum + (row.pendingAmount || 0), 0);
-      return Math.max(ledgerPending, profilePendingFees);
-    },
-    [rows, profilePendingFees]
+    () => rows.reduce((sum, row) => sum + (row.pendingAmountValue || 0), 0),
+    [rows]
   );
 
   return (

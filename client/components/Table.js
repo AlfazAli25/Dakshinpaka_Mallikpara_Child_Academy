@@ -9,6 +9,8 @@ const statusClassMap = {
   COMPLETED: 'status-badge status-success',
   ACTIVE: 'status-badge status-success',
   PRESENT: 'status-badge status-success',
+  'PARTIALLY PAID': 'status-badge status-warning',
+  PARTIALLY_PAID: 'status-badge status-warning',
   PENDING: 'status-badge status-warning',
   PROCESSING: 'status-badge status-warning',
   DUE: 'status-badge status-warning',

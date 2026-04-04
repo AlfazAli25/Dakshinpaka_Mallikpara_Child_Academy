@@ -4,13 +4,14 @@ const randomSuffix = () => Math.floor(Math.random() * 1000000).toString().padSta
 
 const buildReceiptNumber = (prefix) => `${prefix}-${Date.now()}-${randomSuffix()}`;
 
-const createFeeReceipt = async ({ student, fee, payment, amount, paymentMethod, transactionReference, generatedBy }) => {
-  const existing = payment?._id ? await Receipt.findOne({ paymentId: payment._id }) : null;
+const createFeeReceipt = async ({ student, fee, payment, amount, paymentMethod, transactionReference, generatedBy, session }) => {
+  const existing = payment?._id ? await Receipt.findOne({ paymentId: payment._id }).session(session || null) : null;
   if (existing) {
     return existing;
   }
 
-  return Receipt.create({
+  const [receipt] = await Receipt.create([
+    {
     receiptNumber: buildReceiptNumber('FEE'),
     receiptType: 'FEE',
     studentId: student?._id,
@@ -24,16 +25,20 @@ const createFeeReceipt = async ({ student, fee, payment, amount, paymentMethod, 
     paymentDate: payment?.paidAt || fee?.paymentDate || new Date(),
     transactionReference: transactionReference || payment?.providerReferenceId || payment?.transactionId,
     status: 'PAID'
-  });
+    }
+  ], { session });
+
+  return receipt;
 };
 
-const createSalaryReceipt = async ({ teacher, payroll, amount, paymentMethod, generatedBy, pendingSalaryCleared }) => {
-  const existing = payroll?.receiptId ? await Receipt.findById(payroll.receiptId) : null;
+const createSalaryReceipt = async ({ teacher, payroll, amount, paymentMethod, generatedBy, pendingSalaryCleared, session }) => {
+  const existing = payroll?.receiptId ? await Receipt.findById(payroll.receiptId).session(session || null) : null;
   if (existing) {
     return existing;
   }
 
-  return Receipt.create({
+  const [receipt] = await Receipt.create([
+    {
     receiptNumber: buildReceiptNumber('SAL'),
     receiptType: 'SALARY',
     teacherId: teacher?._id,
@@ -46,7 +51,10 @@ const createSalaryReceipt = async ({ teacher, payroll, amount, paymentMethod, ge
     transactionReference: payroll?._id ? `PAYROLL-${payroll._id}` : undefined,
     status: 'PAID',
     pendingSalaryCleared
-  });
+    }
+  ], { session });
+
+  return receipt;
 };
 
 const findStudentReceipts = async (studentId) =>

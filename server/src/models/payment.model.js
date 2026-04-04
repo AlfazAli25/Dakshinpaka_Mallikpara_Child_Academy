@@ -10,6 +10,15 @@ const paymentLogSchema = new mongoose.Schema(
   { _id: false, timestamps: true }
 );
 
+const paymentAllocationSchema = new mongoose.Schema(
+  {
+    feeId: { type: mongoose.Schema.Types.ObjectId, ref: 'Fee', required: true },
+    monthKey: { type: String, trim: true },
+    amount: { type: Number, required: true, min: 0.01 }
+  },
+  { _id: false }
+);
+
 const paymentSchema = new mongoose.Schema(
   {
     studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true, index: true },
@@ -27,6 +36,9 @@ const paymentSchema = new mongoose.Schema(
     paymentMethod: { type: String, trim: true, default: 'SMEPAY_QR' },
     screenshotPath: { type: String, trim: true },
     screenshotPublicId: { type: String, trim: true },
+    allocations: { type: [paymentAllocationSchema], default: [] },
+    remainingBalance: { type: Number, min: 0, default: 0 },
+    processedBy: { type: String, enum: ['ADMIN', 'SYSTEM'], default: 'SYSTEM' },
     processedByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     verifiedByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     verifiedAt: { type: Date },

@@ -37,6 +37,7 @@ export default function StudentCheckoutPage() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [queryAmount, setQueryAmount] = useState(0);
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -45,7 +46,11 @@ export default function StudentCheckoutPage() {
 
     const params = new URLSearchParams(window.location.search);
     const amount = Number(params.get('amount') || 0);
-    setQueryAmount(Number.isFinite(amount) ? amount : 0);
+    const normalizedAmount = Number.isFinite(amount) ? amount : 0;
+    setQueryAmount(normalizedAmount);
+    if (normalizedAmount > 0) {
+      setPaymentAmount(String(normalizedAmount));
+    }
   }, []);
 
   const loadCheckoutData = async () => {
@@ -116,6 +121,8 @@ export default function StudentCheckoutPage() {
     [totalPending, profilePendingFees]
   );
   const payableAmount = queryAmount > 0 ? queryAmount : effectivePendingAmount;
+  const enteredAmount = Number(paymentAmount || payableAmount);
+  const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= effectivePendingAmount;
 
   const feeRowForSubmission = rows[0] || null;
 
@@ -131,6 +138,15 @@ export default function StudentCheckoutPage() {
       return;
     }
 
+    if (!isEnteredAmountValid) {
+      setError(
+        effectivePendingAmount > 0
+          ? `Enter a valid payment amount between 1 and ${effectivePendingAmount}.`
+          : 'No pending fees available for payment.'
+      );
+      return;
+    }
+
     setPaying(true);
     setError('');
     setMessage('');
@@ -138,7 +154,7 @@ export default function StudentCheckoutPage() {
     try {
       const formData = new FormData();
       formData.append('screenshot', screenshotFile);
-      formData.append('amount', String(feeRowForSubmission.pendingAmountValue));
+      formData.append('amount', String(enteredAmount));
       if (transactionReference) {
         formData.append('transactionReference', transactionReference);
       }
@@ -147,6 +163,7 @@ export default function StudentCheckoutPage() {
       setMessage('Screenshot uploaded successfully. Payment status is now Pending until admin verification.');
       setScreenshotFile(null);
       setTransactionReference('');
+      setPaymentAmount('');
       await loadCheckoutData();
     } catch (apiError) {
       setError(apiError.message);
@@ -156,13 +173,15 @@ export default function StudentCheckoutPage() {
   };
 
   const hasPendingFeeMonth = Boolean(feeRowForSubmission);
-  const canSubmitOnline = paymentMode === 'VIA_ONLINE' && hasPendingFeeMonth && Boolean(screenshotFile) && !paying;
+  const canSubmitOnline = paymentMode === 'VIA_ONLINE' && hasPendingFeeMonth && Boolean(screenshotFile) && !paying && isEnteredAmountValid;
   const submitHint = !hasPendingFeeMonth
     ? profilePendingFees > 0
       ? `Pending fee INR ${profilePendingFees} exists, but fee ledger records are missing. Please contact admin.`
       : 'Submit is disabled because pending fee is 0.'
     : screenshotFile
-      ? 'Ready to submit screenshot for admin verification.'
+      ? isEnteredAmountValid
+        ? 'Ready to submit screenshot for admin verification.'
+        : `Enter amount up to INR ${effectivePendingAmount} before submitting.`
       : 'Submit is enabled after uploading screenshot in the field above.';
 
   return (
@@ -209,6 +228,9 @@ export default function StudentCheckoutPage() {
             <p className="text-sm font-semibold text-slate-800">Outstanding Fee</p>
             <p className="mt-2 text-sm text-slate-700">Pending Amount: INR {effectivePendingAmount}</p>
             <p className="text-xs text-slate-500">Payments are applied to your oldest pending ledger entry automatically.</p>
+            {feeRowForSubmission && (
+              <p className="mt-1 text-xs text-slate-500">Oldest pending month due date: {feeRowForSubmission.dueDate || '-'}</p>
+            )}
             {rows.length === 0 && (
               <p className="mt-3 text-sm text-amber-700">No fee ledger record found for this account. Please contact admin.</p>
             )}
@@ -230,6 +252,17 @@ export default function StudentCheckoutPage() {
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <Input
+                label="Payment Amount"
+                type="number"
+                min="1"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(event) => setPaymentAmount(event.target.value)}
+                className="h-11"
+                placeholder={String(payableAmount || 0)}
+              />
+
               <Input
                 label="Transaction Reference (optional)"
                 value={transactionReference}

@@ -119,7 +119,7 @@ export default function StudentDashboardPage() {
           (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
           0
         );
-        const pendingFees = Math.max(pendingFromFees, Number(student.pendingFees || 0));
+        const pendingFees = pendingFromFees;
 
         setStats([
           { title: 'Attendance %', value: attendancePercent },
