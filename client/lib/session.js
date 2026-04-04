@@ -74,6 +74,10 @@ export const isTokenExpired = (token = '') => {
   }
 
   const payload = decodeTokenPayload(token);
+  if (!payload) {
+    return true;
+  }
+
   if (!payload?.exp) {
     return false;
   }

@@ -1,3 +1,4 @@
+import { clearSession, getToken, isTokenExpired } from './session';
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
 const REQUEST_TIMEOUT_MS = 15000;
 const GET_CACHE_TTL_MS = 12000;
@@ -110,9 +111,14 @@ const handleUnauthorized = () => {
     return;
   }
 
+  const token = getToken();
+  const shouldInvalidateSession = !token || isTokenExpired(token);
+  if (!shouldInvalidateSession) {
+    return;
+  }
+
   try {
-    localStorage.removeItem('sms_token');
-    localStorage.removeItem('sms_user');
+    clearSession();
   } catch (_error) {
     // no-op
   }
