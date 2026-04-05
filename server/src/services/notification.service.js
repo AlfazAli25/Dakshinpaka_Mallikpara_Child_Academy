@@ -1,6 +1,25 @@
 const Notification = require('../models/notification.model');
 const payrollService = require('./payroll.service');
 
+const READ_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+const buildVisibleNotificationsQuery = ({ recipientRole, teacherId } = {}) => {
+  const cutoff = new Date(Date.now() - READ_RETENTION_MS);
+  const query = {
+    recipientRole,
+    $or: [
+      { status: 'UNREAD' },
+      { status: 'READ', readAt: { $gte: cutoff } }
+    ]
+  };
+
+  if (teacherId) {
+    query.teacherId = teacherId;
+  }
+
+  return query;
+};
+
 const toAmount = (value) => {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric) || numeric < 0) {
@@ -25,10 +44,14 @@ const notifyAdminPaymentSubmitted = async ({ studentId, studentName, paymentId }
   });
 
 const listAdminNotifications = async () =>
-  Notification.find({ recipientRole: 'admin' }).sort({ status: 1, submittedAt: -1 }).limit(30);
+  Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'admin' }))
+    .sort({ status: 1, submittedAt: -1 })
+    .limit(30);
 
 const listTeacherNotifications = async ({ teacherId }) =>
-  Notification.find({ recipientRole: 'teacher', teacherId }).sort({ status: 1, submittedAt: -1 }).limit(30);
+  Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'teacher', teacherId }))
+    .sort({ status: 1, submittedAt: -1 })
+    .limit(30);
 
 const markAdminNotificationRead = async (notificationId) =>
   Notification.findByIdAndUpdate(notificationId, { status: 'READ', readAt: new Date() }, { new: true });

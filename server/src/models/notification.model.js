@@ -22,5 +22,12 @@ const notificationSchema = new mongoose.Schema(
 );
 
 notificationSchema.index({ recipientRole: 1, status: 1, createdAt: -1 });
+notificationSchema.index(
+  { readAt: 1 },
+  {
+    expireAfterSeconds: 24 * 60 * 60,
+    partialFilterExpression: { status: 'READ', readAt: { $exists: true } }
+  }
+);
 
 module.exports = mongoose.model('Notification', notificationSchema);

@@ -51,7 +51,6 @@ export default function StudentCheckoutPage() {
   const [paymentMode, setPaymentMode] = useState('VIA_ONLINE');
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
-  const [queryAmount, setQueryAmount] = useState(0);
   const [paymentAmount, setPaymentAmount] = useState('');
 
   useEffect(() => {
@@ -74,7 +73,6 @@ export default function StudentCheckoutPage() {
     const params = new URLSearchParams(window.location.search);
     const amount = Number(params.get('amount') || 0);
     const normalizedAmount = Number.isFinite(amount) ? amount : 0;
-    setQueryAmount(normalizedAmount);
     if (normalizedAmount > 0) {
       setPaymentAmount(String(normalizedAmount));
     }
@@ -146,10 +144,10 @@ export default function StudentCheckoutPage() {
     [rows]
   );
   const effectivePendingAmount = useMemo(
-    () => Math.max(totalPending, profilePendingFees),
-    [totalPending, profilePendingFees]
+    () => (rows.length > 0 ? totalPending : profilePendingFees),
+    [rows.length, totalPending, profilePendingFees]
   );
-  const payableAmount = queryAmount > 0 ? queryAmount : effectivePendingAmount;
+  const payableAmount = effectivePendingAmount;
   const enteredAmount = Number(paymentAmount || payableAmount);
   const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= effectivePendingAmount;
 
