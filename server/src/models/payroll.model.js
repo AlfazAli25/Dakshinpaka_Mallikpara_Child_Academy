@@ -16,7 +16,25 @@ const payrollSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-payrollSchema.index({ staffId: 1, month: 1 }, { unique: true, sparse: true });
-payrollSchema.index({ teacherId: 1, month: 1 }, { unique: true, sparse: true });
+payrollSchema.index(
+  { staffId: 1, month: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      staffId: { $type: 'objectId' },
+      month: { $type: 'string' }
+    }
+  }
+);
+payrollSchema.index(
+  { teacherId: 1, month: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      teacherId: { $type: 'objectId' },
+      month: { $type: 'string' }
+    }
+  }
+);
 
 module.exports = mongoose.model('Payroll', payrollSchema);

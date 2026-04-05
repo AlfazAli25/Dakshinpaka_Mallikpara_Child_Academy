@@ -54,7 +54,7 @@ const mapTeacherCreateDuplicateError = (error, { normalizedEmail = '', normalize
 			duplicateMessage.includes('index: teacherid_1_month_1')
 		)
 	) {
-		const retryError = new Error('Teacher registration is being processed in parallel. Please try again.');
+		const retryError = new Error('Unable to finalize teacher salary ledger right now. Please try again.');
 		retryError.statusCode = 409;
 		return retryError;
 	}

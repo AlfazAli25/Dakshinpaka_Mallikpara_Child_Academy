@@ -23,7 +23,7 @@ const isIgnorableIndexManagementError = (error) => {
 	const codeName = String(error?.codeName || '').toLowerCase();
 	const message = String(error?.message || '').toLowerCase();
 
-	if ([13, 26, 27, 68, 85, 86].includes(code)) {
+	if ([13, 26, 27, 68, 85, 86, 11000].includes(code)) {
 		return true;
 	}
 
@@ -48,11 +48,24 @@ const hasExactIndexKey = (indexKey = {}, expectedKey = {}) => {
 	return expectedKeys.every((key) => indexKey[key] === expectedKey[key]);
 };
 
-const hasSparseOrPartialFilter = (index = {}, fieldName) =>
-	Boolean(
-		index.sparse ||
-		(index.partialFilterExpression && Object.prototype.hasOwnProperty.call(index.partialFilterExpression, fieldName))
-	);
+const hasObjectIdPartialFilter = (index = {}, fieldName) => {
+	const partialFilter = index.partialFilterExpression || {};
+	const fieldRule = partialFilter[fieldName];
+	if (!fieldRule || typeof fieldRule !== 'object') {
+		return false;
+	}
+
+	const typeRule = fieldRule.$type;
+	if (Array.isArray(typeRule)) {
+		return typeRule.some((item) => {
+			const normalized = String(item || '').toLowerCase();
+			return normalized === 'objectid' || normalized === '7';
+		});
+	}
+
+	const normalized = String(typeRule || '').toLowerCase();
+	return normalized === 'objectid' || normalized === '7';
+};
 
 const ensurePayrollIndexes = async () => {
 	if (ensurePayrollIndexesPromise) {
@@ -75,7 +88,7 @@ const ensurePayrollIndexes = async () => {
 			(index) =>
 				index?.unique &&
 				hasExactIndexKey(index?.key, { staffId: 1, month: 1 }) &&
-				!hasSparseOrPartialFilter(index, 'staffId')
+				!hasObjectIdPartialFilter(index, 'staffId')
 		);
 
 		for (const index of legacyStaffMonthUniqueIndexes) {
@@ -96,7 +109,7 @@ const ensurePayrollIndexes = async () => {
 			(index) =>
 				index?.unique &&
 				hasExactIndexKey(index?.key, { teacherId: 1, month: 1 }) &&
-				!hasSparseOrPartialFilter(index, 'teacherId')
+				!hasObjectIdPartialFilter(index, 'teacherId')
 		);
 
 		for (const index of legacyTeacherMonthUniqueIndexes) {
@@ -127,14 +140,21 @@ const ensurePayrollIndexes = async () => {
 			(index) =>
 				index?.unique &&
 				hasExactIndexKey(index?.key, { staffId: 1, month: 1 }) &&
-				hasSparseOrPartialFilter(index, 'staffId')
+				hasObjectIdPartialFilter(index, 'staffId')
 		);
 
 		if (!hasSafeStaffMonthUniqueIndex) {
 			try {
 				await Payroll.collection.createIndex(
 					{ staffId: 1, month: 1 },
-					{ unique: true, sparse: true, name: 'staffId_1_month_1' }
+					{
+						unique: true,
+						name: 'staffId_1_month_1',
+						partialFilterExpression: {
+							staffId: { $type: 'objectId' },
+							month: { $type: 'string' }
+						}
+					}
 				);
 			} catch (error) {
 				if (!isIgnorableIndexManagementError(error)) {
@@ -147,14 +167,21 @@ const ensurePayrollIndexes = async () => {
 			(index) =>
 				index?.unique &&
 				hasExactIndexKey(index?.key, { teacherId: 1, month: 1 }) &&
-				hasSparseOrPartialFilter(index, 'teacherId')
+				hasObjectIdPartialFilter(index, 'teacherId')
 		);
 
 		if (!hasSafeTeacherMonthUniqueIndex) {
 			try {
 				await Payroll.collection.createIndex(
 					{ teacherId: 1, month: 1 },
-					{ unique: true, sparse: true, name: 'teacherId_1_month_1' }
+					{
+						unique: true,
+						name: 'teacherId_1_month_1',
+						partialFilterExpression: {
+							teacherId: { $type: 'objectId' },
+							month: { $type: 'string' }
+						}
+					}
 				);
 			} catch (error) {
 				if (!isIgnorableIndexManagementError(error)) {
