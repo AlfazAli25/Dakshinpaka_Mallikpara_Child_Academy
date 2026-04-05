@@ -8,11 +8,28 @@ import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
 const columns = [
-  { key: 'subject', label: 'Subject' },
+  { key: 'examName', label: 'Exam Name' },
+  { key: 'examType', label: 'Exam Type' },
   { key: 'className', label: 'Class' },
-  { key: 'date', label: 'Date' },
-  { key: 'marks', label: 'Marks' }
+  { key: 'subjects', label: 'Subjects' },
+  { key: 'academicYear', label: 'Academic Year' },
+  { key: 'startDate', label: 'Start Date' },
+  { key: 'endDate', label: 'End Date' },
+  { key: 'status', label: 'Status' }
 ];
+
+const toDateLabel = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  return date.toLocaleDateString();
+};
 
 export default function TeacherExamsPage() {
   const [loading, setLoading] = useState(true);
@@ -33,10 +50,18 @@ export default function TeacherExamsPage() {
         setRows(
           (response.data || []).map((item) => ({
             id: item._id,
-            subject: item.subjectId?.name || '-',
+            examName: item.examName || item.description || '-',
+            examType: item.examType || '-',
             className: formatClassLabel(item.classId),
-            date: item.date?.slice(0, 10),
-            marks: item.totalMarks || 0
+            subjects:
+              (item.subjects || [])
+                .map((subject) => subject?.name || subject?.code)
+                .filter(Boolean)
+                .join(', ') || '-',
+            academicYear: item.academicYear || '-',
+            startDate: toDateLabel(item.startDate || item.date || item.examDate),
+            endDate: toDateLabel(item.endDate),
+            status: item.status || 'Scheduled'
           }))
         );
       } catch (_error) {
@@ -54,9 +79,9 @@ export default function TeacherExamsPage() {
       <PageHeader
         eyebrow="Teaching Panel"
         title="Exams"
-        description="Plan and review subject-wise exam schedules and marks structure."
+        description="View your upcoming and completed exams for assigned classes and subjects."
       />
-      <Table columns={columns} rows={rows} loading={loading} getRowHref={(row) => `/teacher/grades/${row.id}`} />
+      <Table columns={columns} rows={rows} loading={loading} />
     </div>
   );
 }

@@ -5,8 +5,8 @@ const createCrudService = require('./crud.service');
 
 const base = createCrudService(Exam);
 
-const findAll = (filter = {}) => base.findAll(filter, 'classId subjectId');
-const findById = (id) => base.findById(id, 'classId subjectId');
+const findAll = (filter = {}) => base.findAll(filter, 'classId subjects createdBy');
+const findById = (id) => base.findById(id, 'classId subjects createdBy');
 
 const deleteById = async (id) => {
 	const [linkedGrade, linkedMarks] = await Promise.all([

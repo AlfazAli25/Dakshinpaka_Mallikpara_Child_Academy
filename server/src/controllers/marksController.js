@@ -19,7 +19,7 @@ const MARKS_POPULATE = [
   },
   { path: 'classId', select: 'name section' },
   { path: 'subjectId', select: 'name code classId teacherId' },
-  { path: 'examId', select: 'examName academicYear examDate classId subjectId date totalMarks description' },
+  { path: 'examId', select: 'examName examType academicYear startDate endDate examDate classId subjectId subjects date totalMarks description status' },
   { path: 'createdBy', select: 'name email role' }
 ];
 
@@ -161,7 +161,7 @@ const ensureSubjectClassTeacherConsistency = async ({ subjectId, classId, teache
 };
 
 const ensureExamConsistency = async ({ examId, classId, subjectId }) => {
-  const exam = await Exam.findById(examId).select('_id classId subjectId').lean();
+  const exam = await Exam.findById(examId).select('_id classId subjectId subjects').lean();
   if (!exam) {
     throw createHttpError(400, 'Invalid exam selected');
   }
@@ -170,7 +170,15 @@ const ensureExamConsistency = async ({ examId, classId, subjectId }) => {
     throw createHttpError(400, 'Selected exam does not belong to the selected class');
   }
 
-  if (exam.subjectId && toIdString(exam.subjectId) !== String(subjectId || '')) {
+  const normalizedExamSubjectIds = Array.isArray(exam.subjects)
+    ? exam.subjects.map((value) => String(value || '')).filter(Boolean)
+    : [];
+
+  if (normalizedExamSubjectIds.length > 0 && !normalizedExamSubjectIds.includes(String(subjectId || ''))) {
+    throw createHttpError(400, 'Selected exam does not include the selected subject');
+  }
+
+  if (normalizedExamSubjectIds.length === 0 && exam.subjectId && toIdString(exam.subjectId) !== String(subjectId || '')) {
     throw createHttpError(400, 'Selected exam does not belong to the selected subject');
   }
 

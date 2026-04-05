@@ -96,7 +96,13 @@ const fetchStudentDashboardData = async () => {
         ? configuredAttendance
         : 0
   }%`;
-  const upcomingExams = (examsRes.data || []).filter((item) => new Date(item.date).getTime() >= Date.now()).length;
+  const upcomingExamCount = (examsRes.data || [])
+    .filter((item) => {
+      const examDateValue = item?.startDate || item?.date || item?.examDate;
+      const examDate = examDateValue ? new Date(examDateValue) : null;
+      return examDate && !Number.isNaN(examDate.getTime()) && examDate.getTime() >= Date.now();
+    })
+    .length;
   const pendingFromFees = (feesRes.data || []).reduce(
     (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
     0
@@ -106,7 +112,7 @@ const fetchStudentDashboardData = async () => {
     studentProfile: student,
     stats: [
       { title: 'Attendance %', value: attendancePercent },
-      { title: 'Upcoming Exams', value: String(upcomingExams) },
+      { title: 'Upcoming Exams', value: String(upcomingExamCount) },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ]
   };

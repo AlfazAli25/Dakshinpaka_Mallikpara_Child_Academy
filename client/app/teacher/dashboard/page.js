@@ -100,12 +100,13 @@ export default function TeacherDashboardPage() {
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const upcomingExam = exams
           .map((item) => {
-            const examDate = item?.date ? new Date(item.date) : null;
+            const examDateValue = item?.startDate || item?.date || item?.examDate;
+            const examDate = examDateValue ? new Date(examDateValue) : null;
             if (!examDate || Number.isNaN(examDate.getTime())) {
               return null;
             }
 
-            const examName = String(item?.description || item?.subjectId?.name || item?.subjectId?.code || 'Exam').trim();
+            const examName = String(item?.examName || item?.description || 'Exam').trim();
             return {
               name: examName || 'Exam',
               date: examDate
