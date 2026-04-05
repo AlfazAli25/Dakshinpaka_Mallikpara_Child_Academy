@@ -15,6 +15,12 @@ import { useToast } from '@/lib/toast-context';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTACT_REGEX = /^\d{7,15}$/;
 
+const requiredLabel = (label) => (
+  <>
+    {label} <span className="text-red-600">*</span>
+  </>
+);
+
 const salaryColumns = [
   { key: 'month', label: 'Month' },
   { key: 'amount', label: 'Amount' },
@@ -28,6 +34,11 @@ const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
   email: teacher?.userId?.email || '',
   contactNumber: teacher?.contactNumber || '',
+  qualifications: teacher?.qualifications || '',
+  monthlySalary:
+    teacher?.monthlySalary === undefined || teacher?.monthlySalary === null ? '' : String(teacher.monthlySalary),
+  pendingSalary:
+    teacher?.pendingSalary === undefined || teacher?.pendingSalary === null ? '0' : String(teacher.pendingSalary),
   classIds: (teacher?.classIds || []).map((item) => String(item?._id || item)).filter(Boolean),
   subjects: (teacher?.subjects || []).map((item) => String(item?._id || item)).filter(Boolean),
   password: ''
@@ -49,6 +60,9 @@ export default function TeacherProfilePage() {
     name: '',
     email: '',
     contactNumber: '',
+    qualifications: '',
+    monthlySalary: '',
+    pendingSalary: '0',
     classIds: [],
     subjects: [],
     password: ''
@@ -214,6 +228,12 @@ export default function TeacherProfilePage() {
     if (!String(editForm.contactNumber || '').trim()) {
       missing.push('Contact Number');
     }
+    if (!String(editForm.qualifications || '').trim()) {
+      missing.push('Qualifications');
+    }
+    if (String(editForm.monthlySalary || '').trim() === '') {
+      missing.push('Monthly Salary');
+    }
     if (editForm.classIds.length === 0) {
       missing.push('Classes');
     }
@@ -253,6 +273,21 @@ export default function TeacherProfilePage() {
       return;
     }
 
+    const monthlySalaryValue = Number(editForm.monthlySalary);
+    if (!Number.isFinite(monthlySalaryValue) || monthlySalaryValue <= 0) {
+      setError('Monthly salary must be greater than zero.');
+      return;
+    }
+
+    const pendingSalaryValue =
+      editForm.pendingSalary === '' || editForm.pendingSalary === null || editForm.pendingSalary === undefined
+        ? 0
+        : Number(editForm.pendingSalary);
+    if (!Number.isFinite(pendingSalaryValue) || pendingSalaryValue < 0) {
+      setError('Pending salary must be 0 or greater.');
+      return;
+    }
+
     if (editForm.password && String(editForm.password).length < 6) {
       setError('Password must be at least 6 characters.');
       return;
@@ -267,6 +302,9 @@ export default function TeacherProfilePage() {
         name: String(editForm.name || '').trim(),
         email: String(editForm.email || '').trim(),
         contactNumber: String(editForm.contactNumber || '').trim(),
+        qualifications: String(editForm.qualifications || '').trim(),
+        monthlySalary: monthlySalaryValue,
+        pendingSalary: pendingSalaryValue,
         classIds: editForm.classIds,
         subjects: editForm.subjects
       };
@@ -358,15 +396,39 @@ export default function TeacherProfilePage() {
           ) : (
             <form onSubmit={onSaveEdit} className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
-                <Input label="Name" value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
-                <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
+                <Input label={requiredLabel('Name')} value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
+                <Input label={requiredLabel('Email')} type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
                 <Input
-                  label="Contact Number"
+                  label={requiredLabel('Contact Number')}
                   value={editForm.contactNumber}
                   onChange={onEditChange('contactNumber')}
                   required
                   className="h-10"
                   placeholder="Digits only"
+                />
+                <Input
+                  label={requiredLabel('Qualifications')}
+                  value={editForm.qualifications}
+                  onChange={onEditChange('qualifications')}
+                  required
+                  className="h-10"
+                  placeholder="e.g. B.Ed, M.Sc"
+                />
+                <Input
+                  label={requiredLabel('Monthly Salary')}
+                  type="number"
+                  value={editForm.monthlySalary}
+                  onChange={onEditChange('monthlySalary')}
+                  required
+                  className="h-10"
+                />
+                <Input
+                  label="Pending Salary"
+                  type="number"
+                  value={editForm.pendingSalary}
+                  onChange={onEditChange('pendingSalary')}
+                  className="h-10"
+                  placeholder="0"
                 />
                 <Input
                   label="Set New Password (optional)"
