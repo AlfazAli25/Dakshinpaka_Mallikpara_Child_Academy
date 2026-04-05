@@ -33,7 +33,7 @@ const text = {
     },
     stats: {
       'Attendance %': 'Attendance %',
-      'Upcoming Exams': 'Upcoming Exams',
+      'Upcoming Exam': 'Upcoming Exam',
       'Pending Fees': 'Pending Fees'
     }
   },
@@ -57,7 +57,7 @@ const text = {
     },
     stats: {
       'Attendance %': 'উপস্থিতি %',
-      'Upcoming Exams': 'আসন্ন পরীক্ষা',
+      'Upcoming Exam': 'আসন্ন পরীক্ষা',
       'Pending Fees': 'বকেয়া ফি'
     }
   }
@@ -65,9 +65,91 @@ const text = {
 
 const DEFAULT_STATS = [
   { title: 'Attendance %', value: '0%' },
-  { title: 'Upcoming Exams', value: '0' },
+  { title: 'Upcoming Exam', value: 'No Upcoming Exam' },
   { title: 'Pending Fees', value: 'INR 0' }
 ];
+
+const toValidDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const getExamWindow = (exam) => {
+  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
+  const slotWindows = scheduleRows
+    .map((slot) => {
+      const startDate = toValidDate(slot?.startDate);
+      const endDate = toValidDate(slot?.endDate);
+
+      if (!startDate || !endDate) {
+        return null;
+      }
+
+      return { startDate, endDate };
+    })
+    .filter(Boolean);
+
+  if (slotWindows.length > 0) {
+    return {
+      startDate: new Date(Math.min(...slotWindows.map((item) => item.startDate.getTime()))),
+      endDate: new Date(Math.max(...slotWindows.map((item) => item.endDate.getTime())))
+    };
+  }
+
+  const fallbackStartDate = toValidDate(exam?.startDate || exam?.date || exam?.examDate);
+  const fallbackEndDate = toValidDate(exam?.endDate) || fallbackStartDate;
+
+  if (!fallbackStartDate || !fallbackEndDate) {
+    return null;
+  }
+
+  return {
+    startDate: fallbackStartDate,
+    endDate: fallbackEndDate
+  };
+};
+
+const getUpcomingExamValue = (exams) => {
+  const nowMs = Date.now();
+
+  const examWindows = (Array.isArray(exams) ? exams : [])
+    .map((item) => {
+      const examWindow = getExamWindow(item);
+      if (!examWindow) {
+        return null;
+      }
+
+      const examName = String(item?.examName || item?.description || 'Exam').trim() || 'Exam';
+      return {
+        name: examName,
+        startDate: examWindow.startDate,
+        endDate: examWindow.endDate
+      };
+    })
+    .filter(Boolean);
+
+  const ongoingExam = examWindows
+    .filter((item) => nowMs >= item.startDate.getTime() && nowMs <= item.endDate.getTime())
+    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+  if (ongoingExam) {
+    return 'Ongoing';
+  }
+
+  const nextScheduledExam = examWindows
+    .filter((item) => item.startDate.getTime() > nowMs)
+    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+  return nextScheduledExam?.name || 'No Upcoming Exam';
+};
 
 const fetchStudentDashboardData = async () => {
   const student = await getCurrentStudentRecord();
@@ -96,13 +178,7 @@ const fetchStudentDashboardData = async () => {
         ? configuredAttendance
         : 0
   }%`;
-  const upcomingExamCount = (examsRes.data || [])
-    .filter((item) => {
-      const examDateValue = item?.startDate || item?.date || item?.examDate;
-      const examDate = examDateValue ? new Date(examDateValue) : null;
-      return examDate && !Number.isNaN(examDate.getTime()) && examDate.getTime() >= Date.now();
-    })
-    .length;
+  const upcomingExamValue = getUpcomingExamValue(examsRes.data || []);
   const pendingFromFees = (feesRes.data || []).reduce(
     (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
     0
@@ -112,7 +188,7 @@ const fetchStudentDashboardData = async () => {
     studentProfile: student,
     stats: [
       { title: 'Attendance %', value: attendancePercent },
-      { title: 'Upcoming Exams', value: String(upcomingExamCount) },
+      { title: 'Upcoming Exam', value: upcomingExamValue },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ]
   };

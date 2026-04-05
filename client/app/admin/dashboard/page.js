@@ -10,31 +10,89 @@ import { getToken } from '@/lib/session';
 const DEFAULT_STATS = [
   { title: 'Total Students', value: '0' },
   { title: 'Total Teachers', value: '0' },
-  { title: 'Upcoming Exam', value: 'No upcoming exam' }
+  { title: 'Upcoming Exam', value: 'No Upcoming Exam' }
 ];
 
-const getUpcomingExamName = (exams) => {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const toValidDate = (value) => {
+  if (!value) {
+    return null;
+  }
 
-  const upcomingExam = (Array.isArray(exams) ? exams : [])
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const getExamWindow = (exam) => {
+  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
+  const slotWindows = scheduleRows
+    .map((slot) => {
+      const startDate = toValidDate(slot?.startDate);
+      const endDate = toValidDate(slot?.endDate);
+
+      if (!startDate || !endDate) {
+        return null;
+      }
+
+      return { startDate, endDate };
+    })
+    .filter(Boolean);
+
+  if (slotWindows.length > 0) {
+    return {
+      startDate: new Date(Math.min(...slotWindows.map((item) => item.startDate.getTime()))),
+      endDate: new Date(Math.max(...slotWindows.map((item) => item.endDate.getTime())))
+    };
+  }
+
+  const fallbackStartDate = toValidDate(exam?.startDate || exam?.date || exam?.examDate);
+  const fallbackEndDate = toValidDate(exam?.endDate) || fallbackStartDate;
+
+  if (!fallbackStartDate || !fallbackEndDate) {
+    return null;
+  }
+
+  return {
+    startDate: fallbackStartDate,
+    endDate: fallbackEndDate
+  };
+};
+
+const getUpcomingExamValue = (exams) => {
+  const nowMs = Date.now();
+
+  const examWindows = (Array.isArray(exams) ? exams : [])
     .map((item) => {
-      const examDateValue = item?.startDate || item?.date || item?.examDate;
-      const examDate = examDateValue ? new Date(examDateValue) : null;
-      if (!examDate || Number.isNaN(examDate.getTime())) {
+      const examWindow = getExamWindow(item);
+      if (!examWindow) {
         return null;
       }
 
       const examName = String(item?.examName || item?.description || 'Exam').trim();
       return {
         name: examName || 'Exam',
-        date: examDate
+        startDate: examWindow.startDate,
+        endDate: examWindow.endDate
       };
     })
-    .filter((item) => item && item.date >= startOfToday)
-    .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
+    .filter(Boolean);
 
-  return upcomingExam?.name || 'No upcoming exam';
+  const ongoingExam = examWindows
+    .filter((item) => nowMs >= item.startDate.getTime() && nowMs <= item.endDate.getTime())
+    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+  if (ongoingExam) {
+    return 'Ongoing';
+  }
+
+  const nextScheduledExam = examWindows
+    .filter((item) => item.startDate.getTime() > nowMs)
+    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+  return nextScheduledExam?.name || 'No Upcoming Exam';
 };
 
 const fetchAdminDashboardStats = async () => {
@@ -49,7 +107,7 @@ const fetchAdminDashboardStats = async () => {
     get('/exams', token)
   ]);
 
-  const upcomingExamName = getUpcomingExamName(examsRes.data || []);
+  const upcomingExamName = getUpcomingExamValue(examsRes.data || []);
 
   return [
     { title: 'Total Students', value: String(studentsRes.data?.length || 0) },
