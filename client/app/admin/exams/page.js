@@ -87,6 +87,9 @@ const combineDateAndTime = (dateValue, timeValue) => {
   return parsed;
 };
 
+const hasTimeOverlap = (firstStart, firstEnd, secondStart, secondEnd) =>
+  firstStart.getTime() < secondEnd.getTime() && secondStart.getTime() < firstEnd.getTime();
+
 const toDateLabel = (value) => {
   const parsed = parseDateValue(value);
   if (!parsed) {
@@ -640,6 +643,7 @@ export default function AdminExamsPage() {
     for (const classId of form.classIds) {
       const classLabel = classLabelMap.get(classId) || 'selected class';
       const classRows = form.schedule.filter((row) => row.classId === classId);
+      const classSlots = [];
 
       if (classRows.length === 0) {
         return `Select at least one subject for ${classLabel}`;
@@ -667,6 +671,23 @@ export default function AdminExamsPage() {
         if (endDate.getTime() < startDate.getTime()) {
           return `End time must be after start time for ${subjectLabel} (${classLabel})`;
         }
+
+        classSlots.push({
+          subjectLabel,
+          startDate,
+          endDate
+        });
+      }
+
+      for (let index = 0; index < classSlots.length; index += 1) {
+        for (let peerIndex = index + 1; peerIndex < classSlots.length; peerIndex += 1) {
+          const firstSlot = classSlots[index];
+          const secondSlot = classSlots[peerIndex];
+
+          if (hasTimeOverlap(firstSlot.startDate, firstSlot.endDate, secondSlot.startDate, secondSlot.endDate)) {
+            return `Two subjects in ${classLabel} cannot be scheduled at the same time (${firstSlot.subjectLabel} and ${secondSlot.subjectLabel})`;
+          }
+        }
       }
     }
 
@@ -681,6 +702,7 @@ export default function AdminExamsPage() {
     }
 
     const subjectIdSet = new Set();
+    const scheduleWindows = [];
     const schedule = [];
     let minStartMs = Number.POSITIVE_INFINITY;
     let maxEndMs = 0;
@@ -697,6 +719,18 @@ export default function AdminExamsPage() {
       if (endDate.getTime() < startDate.getTime()) {
         throw new Error('Subject schedule end time must be after start time');
       }
+
+      const overlapWindow = scheduleWindows.find((window) =>
+        hasTimeOverlap(startDate, endDate, window.startDate, window.endDate)
+      );
+      if (overlapWindow) {
+        throw new Error('Two subjects in the same class cannot have exam at the same time');
+      }
+
+      scheduleWindows.push({
+        startDate,
+        endDate
+      });
 
       subjectIdSet.add(subjectId);
 

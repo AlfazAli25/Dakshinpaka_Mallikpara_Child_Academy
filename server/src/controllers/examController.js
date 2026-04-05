@@ -78,6 +78,9 @@ const normalizeDateValue = (value) => {
   return parsed;
 };
 
+const hasTimeOverlap = (firstStartMs, firstEndMs, secondStartMs, secondEndMs) =>
+  firstStartMs < secondEndMs && secondStartMs < firstEndMs;
+
 const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizeTeacherScope = (teacher) => {
@@ -265,6 +268,7 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
 
   const schedule = [];
   const scheduleKeySet = new Set();
+  const scheduleWindowsByClass = new Map();
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
@@ -310,6 +314,27 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     if (scheduleEndDate.getTime() <= scheduleStartDate.getTime()) {
       throw createHttpError(400, `End time must be after start time in schedule row ${index + 1}`);
     }
+
+    const scheduleStartMs = scheduleStartDate.getTime();
+    const scheduleEndMs = scheduleEndDate.getTime();
+    const existingClassWindows = scheduleWindowsByClass.get(scheduleClassId) || [];
+    const overlapWindow = existingClassWindows.find((window) =>
+      hasTimeOverlap(scheduleStartMs, scheduleEndMs, window.startMs, window.endMs)
+    );
+
+    if (overlapWindow) {
+      throw createHttpError(
+        400,
+        `Two subjects of the same class cannot be scheduled simultaneously (schedule rows ${overlapWindow.rowIndex + 1} and ${index + 1})`
+      );
+    }
+
+    existingClassWindows.push({
+      startMs: scheduleStartMs,
+      endMs: scheduleEndMs,
+      rowIndex: index
+    });
+    scheduleWindowsByClass.set(scheduleClassId, existingClassWindows);
 
     const scheduleKey = `${scheduleClassId}:${scheduleSubjectId}`;
     if (scheduleKeySet.has(scheduleKey)) {

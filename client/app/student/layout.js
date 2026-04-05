@@ -148,8 +148,8 @@ const translations = {
   en: {
     title: 'Student Panel',
     sidebar: {
-      upcomingExamsTitle: 'Upcoming Exams & Timetable',
-      loading: 'Loading upcoming exams...',
+      nextExamTitle: 'Next Exam',
+      loading: 'Loading next exam...',
       empty: 'No Upcoming Exam',
       ongoing: 'Ongoing',
       scheduled: 'Scheduled'
@@ -157,6 +157,7 @@ const translations = {
     links: [
       { href: '/student/dashboard', label: 'Dashboard' },
       { href: '/student/timetable', label: 'Timetable' },
+      { href: '/student/exams', label: 'Exams' },
       { href: '/student/results', label: 'Results' },
       { href: '/student/attendance', label: 'Attendance' },
       { href: '/student/fees', label: 'Fees' },
@@ -166,8 +167,8 @@ const translations = {
   bn: {
     title: 'স্টুডেন্ট প্যানেল',
     sidebar: {
-      upcomingExamsTitle: 'আসন্ন পরীক্ষা ও সময়সূচি',
-      loading: 'আসন্ন পরীক্ষা লোড হচ্ছে...',
+      nextExamTitle: 'পরবর্তী পরীক্ষা',
+      loading: 'পরবর্তী পরীক্ষা লোড হচ্ছে...',
       empty: 'কোনো আসন্ন পরীক্ষা নেই',
       ongoing: 'চলমান',
       scheduled: 'নির্ধারিত'
@@ -175,6 +176,7 @@ const translations = {
     links: [
       { href: '/student/dashboard', label: 'ড্যাশবোর্ড' },
       { href: '/student/timetable', label: 'রুটিন' },
+      { href: '/student/exams', label: 'পরীক্ষা' },
       { href: '/student/results', label: 'ফলাফল' },
       { href: '/student/attendance', label: 'উপস্থিতি' },
       { href: '/student/fees', label: 'ফি' },
@@ -219,10 +221,7 @@ export default function StudentLayout({ children }) {
           return;
         }
 
-        const examsResponse = await get(`/exams?classId=${studentClassId}&page=1&limit=200`, token, {
-          forceRefresh: true,
-          cacheTtlMs: 0
-        });
+        const examsResponse = await get(`/exams?classId=${studentClassId}&page=1&limit=200`, token);
 
         if (!active) {
           return;
@@ -241,46 +240,43 @@ export default function StudentLayout({ children }) {
     };
 
     loadUpcomingExamSlots();
-    const timer = setInterval(loadUpcomingExamSlots, 60000);
 
     return () => {
       active = false;
-      clearInterval(timer);
     };
   }, []);
 
   const panelTitle = studentName ? `Welcome, ${studentName}` : current.title;
+  const nextExamSlot = upcomingExamSlots[0] || null;
 
   const sidebarUpcomingExamWidget = (
     <div className="rounded-xl border border-white/25 bg-white/10 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-red-100/95">{current.sidebar.upcomingExamsTitle}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-red-100/95">{current.sidebar.nextExamTitle}</p>
 
       {loadingUpcomingExamSlots ? (
         <p className="mt-2 text-xs text-red-50/90">{current.sidebar.loading}</p>
-      ) : upcomingExamSlots.length === 0 ? (
+      ) : !nextExamSlot ? (
         <p className="mt-2 text-xs font-semibold text-red-50">{current.sidebar.empty}</p>
       ) : (
-        <div className="mt-2 space-y-2">
-          {upcomingExamSlots.map((slot) => (
-            <div key={slot.id} className="rounded-lg border border-red-100 bg-white px-2.5 py-2 text-red-900 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-xs font-semibold leading-tight">{slot.examName}</p>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                    slot.status === 'Ongoing'
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}
-                >
-                  {slot.status === 'Ongoing' ? current.sidebar.ongoing : current.sidebar.scheduled}
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] font-medium text-slate-800">{slot.subjectName}</p>
-              <p className="text-[11px] text-slate-600">
-                {formatDateLabel(slot.startDate)} | {formatTimeLabel(slot.startDate)} - {formatTimeLabel(slot.endDate)}
-              </p>
+        <div className="mt-2">
+          <div className="rounded-lg border border-red-100 bg-white px-2.5 py-2 text-red-900 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-xs font-semibold leading-tight">{nextExamSlot.examName}</p>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  nextExamSlot.status === 'Ongoing'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {nextExamSlot.status === 'Ongoing' ? current.sidebar.ongoing : current.sidebar.scheduled}
+              </span>
             </div>
-          ))}
+            <p className="mt-1 text-[11px] font-medium text-slate-800">{nextExamSlot.subjectName}</p>
+            <p className="text-[11px] text-slate-600">
+              {formatDateLabel(nextExamSlot.startDate)} | {formatTimeLabel(nextExamSlot.startDate)} - {formatTimeLabel(nextExamSlot.endDate)}
+            </p>
+          </div>
         </div>
       )}
     </div>
