@@ -36,8 +36,14 @@ export default function TeacherClassStudentsPage() {
       try {
         const token = getToken();
         const [classResponse, studentResponse] = await Promise.all([
-          get(`/classes/${classId}`, token),
-          get(`/students/class/${classId}`, token)
+          get(`/classes/${classId}`, token, {
+            forceRefresh: true,
+            cacheTtlMs: 0
+          }),
+          get(`/students/class/${classId}`, token, {
+            forceRefresh: true,
+            cacheTtlMs: 0
+          })
         ]);
 
         const classItem = classResponse.data || null;

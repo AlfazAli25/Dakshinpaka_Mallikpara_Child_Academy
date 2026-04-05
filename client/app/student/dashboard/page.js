@@ -10,7 +10,7 @@ import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { useLanguage } from '@/lib/language-context';
-import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
+import { getAuthContext } from '@/lib/user-records';
 
 const text = {
   en: {
@@ -152,9 +152,20 @@ const getUpcomingExamValue = (exams) => {
 };
 
 const fetchStudentDashboardData = async () => {
-  const student = await getCurrentStudentRecord();
   const { token } = getAuthContext();
-  if (!student || !token) {
+  if (!token) {
+    return {
+      studentProfile: null,
+      stats: DEFAULT_STATS
+    };
+  }
+
+  const profileRes = await get('/students/me/profile', token, {
+    forceRefresh: true,
+    cacheTtlMs: 0
+  });
+  const student = profileRes.data || null;
+  if (!student) {
     return {
       studentProfile: null,
       stats: DEFAULT_STATS

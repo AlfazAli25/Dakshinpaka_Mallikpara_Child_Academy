@@ -2,6 +2,7 @@
 
 import { memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { isAttendanceKey, isAttendanceLow } from '@/lib/attendance-warning';
 
 const statusClassMap = {
   PAID: 'status-badge status-success',
@@ -70,6 +71,10 @@ function Table({
     const statusClass = isStatusColumn ? getStatusClass(value) : '';
     if (statusClass) {
       return <span className={statusClass}>{value}</span>;
+    }
+
+    if (isAttendanceKey(col.key) && isAttendanceLow(value)) {
+      return <span className="status-badge status-warning">{value}</span>;
     }
 
     return value;

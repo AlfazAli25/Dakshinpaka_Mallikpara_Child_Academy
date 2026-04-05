@@ -119,7 +119,10 @@ export default function StudentUserProfilePage() {
       return;
     }
 
-    const response = await get(`/students/by-user/${userId}/profile`, getToken());
+    const response = await get(`/students/by-user/${userId}/profile`, getToken(), {
+      forceRefresh: true,
+      cacheTtlMs: 0
+    });
     setProfile(response.data);
   };
 
