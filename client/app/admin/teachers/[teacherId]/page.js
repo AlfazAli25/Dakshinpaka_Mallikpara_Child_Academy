@@ -16,12 +16,6 @@ import { useToast } from '@/lib/toast-context';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTACT_REGEX = /^\d{7,15}$/;
 
-const requiredLabel = (label) => (
-  <>
-    {label} <span className="text-red-600">*</span>
-  </>
-);
-
 const salaryColumns = [
   { key: 'month', label: 'Month' },
   { key: 'amount', label: 'Amount' },
@@ -66,6 +60,7 @@ export default function TeacherProfilePage() {
   const params = useParams();
   const teacherId = params?.teacherId;
   const toast = useToast();
+
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -115,11 +110,8 @@ export default function TeacherProfilePage() {
   );
 
   const availableSubjects = useMemo(
-    () =>
-      subjectOptions.filter(
-        (subject) => editForm.classIds.includes(subject.classId)
-      ),
-    [editForm.classIds, editForm.subjects, otherAssignedSubjectIdSet, subjectOptions]
+    () => subjectOptions.filter((subject) => editForm.classIds.includes(subject.classId)),
+    [editForm.classIds, subjectOptions]
   );
 
   const availableSubjectsByClass = useMemo(
@@ -138,6 +130,7 @@ export default function TeacherProfilePage() {
     if (!teacherId) {
       return;
     }
+
     const response = await get(`/teachers/${teacherId}/profile`, getToken());
     setProfile(response.data);
   };
@@ -235,32 +228,6 @@ export default function TeacherProfilePage() {
     });
   };
 
-  const missingTeacherFields = useMemo(() => {
-    const missing = [];
-    if (!String(editForm.name || '').trim()) {
-      missing.push('Name');
-    }
-    if (!String(editForm.email || '').trim()) {
-      missing.push('Email');
-    }
-    if (!String(editForm.contactNumber || '').trim()) {
-      missing.push('Contact Number');
-    }
-    if (!String(editForm.qualifications || '').trim()) {
-      missing.push('Qualifications');
-    }
-    if (String(editForm.monthlySalary || '').trim() === '') {
-      missing.push('Monthly Salary');
-    }
-    if (editForm.classIds.length === 0) {
-      missing.push('Classes');
-    }
-    if (editForm.subjects.length === 0) {
-      missing.push('Subjects');
-    }
-    return missing;
-  }, [editForm]);
-
   const onCancelEdit = () => {
     if (profile?.teacher) {
       setEditForm(getTeacherFormFromProfile(profile.teacher));
@@ -276,38 +243,88 @@ export default function TeacherProfilePage() {
       return;
     }
 
-    if (!EMAIL_REGEX.test(String(editForm.email || '').trim())) {
-      setError('Please enter a valid email address.');
-      return;
+    const originalForm = getTeacherFormFromProfile(profile.teacher);
+    const nextName = String(editForm.name || '').trim();
+    const nextEmail = String(editForm.email || '').trim();
+    const nextContactNumber = String(editForm.contactNumber || '').trim();
+    const nextQualifications = String(editForm.qualifications || '').trim();
+
+    const payload = {};
+
+    if (nextName && nextName !== String(originalForm.name || '').trim()) {
+      payload.name = nextName;
     }
 
-    if (!CONTACT_REGEX.test(String(editForm.contactNumber || '').trim())) {
-      setError('Contact number must contain only digits (7 to 15 digits).');
-      return;
+    if (nextEmail && nextEmail !== String(originalForm.email || '').trim()) {
+      if (!EMAIL_REGEX.test(nextEmail)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+
+      payload.email = nextEmail;
     }
 
-    if (missingTeacherFields.length > 0) {
-      setError(`Please complete all mandatory fields: ${missingTeacherFields.join(', ')}`);
-      return;
+    if (nextContactNumber && nextContactNumber !== String(originalForm.contactNumber || '').trim()) {
+      if (!CONTACT_REGEX.test(nextContactNumber)) {
+        setError('Contact number must contain only digits (7 to 15 digits).');
+        return;
+      }
+
+      payload.contactNumber = nextContactNumber;
     }
 
-    const monthlySalaryValue = Number(editForm.monthlySalary);
-    if (!Number.isFinite(monthlySalaryValue) || monthlySalaryValue <= 0) {
-      setError('Monthly salary must be greater than zero.');
-      return;
+    if (nextQualifications && nextQualifications !== String(originalForm.qualifications || '').trim()) {
+      payload.qualifications = nextQualifications;
     }
 
-    const pendingSalaryValue =
-      editForm.pendingSalary === '' || editForm.pendingSalary === null || editForm.pendingSalary === undefined
-        ? 0
-        : Number(editForm.pendingSalary);
-    if (!Number.isFinite(pendingSalaryValue) || pendingSalaryValue < 0) {
-      setError('Pending salary must be 0 or greater.');
-      return;
+    const monthlySalaryText = String(editForm.monthlySalary || '').trim();
+    const originalMonthlySalaryText = String(originalForm.monthlySalary || '').trim();
+    if (monthlySalaryText && monthlySalaryText !== originalMonthlySalaryText) {
+      const monthlySalaryValue = Number(monthlySalaryText);
+      if (!Number.isFinite(monthlySalaryValue) || monthlySalaryValue <= 0) {
+        setError('Monthly salary must be greater than zero.');
+        return;
+      }
+
+      payload.monthlySalary = monthlySalaryValue;
+    }
+
+    const pendingSalaryText = String(editForm.pendingSalary || '').trim();
+    const originalPendingSalaryText = String(originalForm.pendingSalary || '').trim();
+    if (pendingSalaryText && pendingSalaryText !== originalPendingSalaryText) {
+      const pendingSalaryValue = Number(pendingSalaryText);
+      if (!Number.isFinite(pendingSalaryValue) || pendingSalaryValue < 0) {
+        setError('Pending salary must be 0 or greater.');
+        return;
+      }
+
+      payload.pendingSalary = pendingSalaryValue;
+    }
+
+    const sortedCurrentClassIds = [...(originalForm.classIds || [])].sort();
+    const sortedNextClassIds = [...(editForm.classIds || [])].sort();
+    if (JSON.stringify(sortedCurrentClassIds) !== JSON.stringify(sortedNextClassIds)) {
+      payload.classIds = editForm.classIds;
+    }
+
+    const sortedCurrentSubjectIds = [...(originalForm.subjects || [])].sort();
+    const sortedNextSubjectIds = [...(editForm.subjects || [])].sort();
+    if (JSON.stringify(sortedCurrentSubjectIds) !== JSON.stringify(sortedNextSubjectIds)) {
+      payload.subjects = editForm.subjects;
     }
 
     if (editForm.password && String(editForm.password).length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    if (editForm.password) {
+      payload.password = editForm.password;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setMessage('No changes found to update.');
+      setError('');
       return;
     }
 
@@ -316,21 +333,6 @@ export default function TeacherProfilePage() {
     setMessage('');
 
     try {
-      const payload = {
-        name: String(editForm.name || '').trim(),
-        email: String(editForm.email || '').trim(),
-        contactNumber: String(editForm.contactNumber || '').trim(),
-        qualifications: String(editForm.qualifications || '').trim(),
-        monthlySalary: monthlySalaryValue,
-        pendingSalary: pendingSalaryValue,
-        classIds: editForm.classIds,
-        subjects: editForm.subjects
-      };
-
-      if (editForm.password) {
-        payload.password = editForm.password;
-      }
-
       await put(`/teachers/${teacherRecordId}`, payload, getToken());
       setMessage('Teacher profile updated successfully.');
       setEditMode(false);
@@ -349,10 +351,14 @@ export default function TeacherProfilePage() {
     setMessage('');
 
     try {
-      const response = await post(`/payroll/teacher/${teacherId}/pay`, {
-        amount: Number(form.amount),
-        paymentMethod: form.paymentMethod
-      }, getToken());
+      const response = await post(
+        `/payroll/teacher/${teacherId}/pay`,
+        {
+          amount: Number(form.amount),
+          paymentMethod: form.paymentMethod
+        },
+        getToken()
+      );
 
       setMessage(response.message || 'Salary payment request sent to teacher for confirmation.');
       setForm({ amount: '', paymentMethod: 'Via Online' });
@@ -414,30 +420,27 @@ export default function TeacherProfilePage() {
           ) : (
             <form onSubmit={onSaveEdit} className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
-                <Input label={requiredLabel('Name')} value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
-                <Input label={requiredLabel('Email')} type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
+                <Input label="Name" value={editForm.name} onChange={onEditChange('name')} className="h-10" />
+                <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} className="h-10" />
                 <Input
-                  label={requiredLabel('Contact Number')}
+                  label="Contact Number"
                   value={editForm.contactNumber}
                   onChange={onEditChange('contactNumber')}
-                  required
                   className="h-10"
                   placeholder="Digits only"
                 />
                 <Input
-                  label={requiredLabel('Qualifications')}
+                  label="Qualifications"
                   value={editForm.qualifications}
                   onChange={onEditChange('qualifications')}
-                  required
                   className="h-10"
                   placeholder="e.g. B.Ed, M.Sc"
                 />
                 <Input
-                  label={requiredLabel('Monthly Salary')}
+                  label="Monthly Salary"
                   type="number"
                   value={editForm.monthlySalary}
                   onChange={onEditChange('monthlySalary')}
-                  required
                   className="h-10"
                 />
                 <Input
@@ -464,7 +467,10 @@ export default function TeacherProfilePage() {
                 ) : (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     {classOptions.map((classOption) => (
-                      <label key={classOption.id} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                      <label
+                        key={classOption.id}
+                        className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      >
                         <input
                           type="checkbox"
                           checked={editForm.classIds.includes(classOption.id)}
@@ -492,7 +498,14 @@ export default function TeacherProfilePage() {
                         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {group.subjects.map((subject) => (
-                            <label key={subject.id} className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${otherAssignedSubjectIdSet.has(subject.id) && !editForm.subjects.includes(subject.id) ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-700'}`}>
+                            <label
+                              key={subject.id}
+                              className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                                otherAssignedSubjectIdSet.has(subject.id) && !editForm.subjects.includes(subject.id)
+                                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                  : 'border-slate-200 bg-white text-slate-700'
+                              }`}
+                            >
                               <input
                                 type="checkbox"
                                 checked={editForm.subjects.includes(subject.id)}
@@ -519,14 +532,6 @@ export default function TeacherProfilePage() {
                   </div>
                 )}
               </div>
-
-              <p
-                className={`rounded-md px-3 py-2 text-xs ${
-                  missingTeacherFields.length === 0 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                }`}
-              >
-                Mandatory fields remaining: {missingTeacherFields.length === 0 ? 'None' : missingTeacherFields.join(', ')}
-              </p>
 
               <div className="flex gap-2">
                 <button

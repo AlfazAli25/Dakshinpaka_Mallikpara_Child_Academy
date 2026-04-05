@@ -247,31 +247,25 @@ const updateById = async (id, payload = {}) => {
 		payload.address !== undefined ? String(payload.address || '').trim() : String(student.address || '').trim();
 	const nextPendingFees = payload.pendingFees !== undefined ? Number(payload.pendingFees) : Number(student.pendingFees ?? 0);
 
-	if (!nextAdmissionNo || !nextClassId || !nextGender || !nextDob || !nextGuardianContact || !nextAddress) {
-		const error = new Error('Student profile must keep all mandatory fields complete');
-		error.statusCode = 400;
-		throw error;
-	}
-
 	if (!Number.isFinite(nextPendingFees) || nextPendingFees < 0) {
 		const error = new Error('Pending fees must be 0 or greater');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (!['MALE', 'FEMALE', 'OTHER'].includes(nextGender)) {
+	if (nextGender && !['MALE', 'FEMALE', 'OTHER'].includes(nextGender)) {
 		const error = new Error('Gender must be MALE, FEMALE, or OTHER');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (Number.isNaN(nextDob.getTime()) || nextDob > new Date()) {
+	if (nextDob && (Number.isNaN(nextDob.getTime()) || nextDob > new Date())) {
 		const error = new Error('Please enter a valid date of birth');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (nextAdmissionNo !== String(student.admissionNo || '').trim()) {
+	if (nextAdmissionNo && nextAdmissionNo !== String(student.admissionNo || '').trim()) {
 		const existingAdmissionNo = await Student.findOne({ admissionNo: nextAdmissionNo, _id: { $ne: student._id } });
 		if (existingAdmissionNo) {
 			const error = new Error('Admission number already in use');

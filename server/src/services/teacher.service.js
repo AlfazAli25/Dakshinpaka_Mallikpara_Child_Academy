@@ -21,6 +21,15 @@ const TEACHER_POPULATE = [
 
 const CONTACT_NUMBER_REGEX = /^\d{7,15}$/;
 
+const isSyntheticAutoPaidPayrollRow = (row = {}) => {
+	if (String(row?.status || '') !== 'Paid') {
+		return false;
+	}
+
+	const pendingSalaryCleared = Number(row?.pendingSalaryCleared || 0);
+	return !row?.paidOn && !row?.processedByAdmin && !row?.receiptId && (!Number.isFinite(pendingSalaryCleared) || pendingSalaryCleared <= 0);
+};
+
 const isMongoDuplicateKeyError = (error) => Number(error?.code || 0) === 11000;
 
 const createConflictError = (message) => {
@@ -464,13 +473,13 @@ const updateById = async (id, payload = {}) => {
 		nextClassIds = await deriveClassIdsFromSubjects(nextSubjects);
 	}
 
-	if (!nextTeacherId || !nextContactNumber || !nextDepartment || !nextQualifications || !nextJoiningDate) {
-		const error = new Error('Teacher profile must keep all mandatory fields complete');
+	if (!nextTeacherId) {
+		const error = new Error('Teacher ID is required');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (Number.isNaN(nextJoiningDate.getTime())) {
+	if (nextJoiningDate && Number.isNaN(nextJoiningDate.getTime())) {
 		const error = new Error('Please enter a valid joining date');
 		error.statusCode = 400;
 		throw error;
@@ -488,7 +497,9 @@ const updateById = async (id, payload = {}) => {
 		throw error;
 	}
 
-	ensureValidContactNumber(nextContactNumber);
+	if (nextContactNumber) {
+		ensureValidContactNumber(nextContactNumber);
+	}
 
 	const validAssignments = await ensureValidAssignments({
 		classIds: nextClassIds,
@@ -618,11 +629,12 @@ const getAdminProfile = async (teacherId) => {
 
 	await ensureMonthlyPayrollForTeacher({ teacherId: teacher._id });
 
-	const salaryHistory = await Payroll.find({ teacherId: teacher._id })
+	const rawSalaryHistory = await Payroll.find({ teacherId: teacher._id })
 		.populate('processedByAdmin', 'name email')
 		.populate('receiptId')
 		.sort({ month: -1, createdAt: -1 })
 		.lean();
+	const salaryHistory = rawSalaryHistory.filter((item) => !isSyntheticAutoPaidPayrollRow(item));
 	const receipts = await Receipt.find({ teacherId: teacher._id, receiptType: 'SALARY' }).sort({ createdAt: -1 }).lean();
 
 	const totals = salaryHistory.reduce(
@@ -660,10 +672,7 @@ const deleteById = async (id) => {
 		Subject.updateMany({ teacherId: teacher.userId }, { $unset: { teacherId: 1 } }),
 		Attendance.updateMany({ markedBy: teacher._id }, { $unset: { markedBy: 1 } }),
 		ClassModel.updateMany({ classTeacher: teacher._id }, { $unset: { classTeacher: 1 } }),
-		Timetable.updateMany(
-			{ 'schedule.teacherId': teacher._id },
-			{ $pull: { schedule: { teacherId: teacher._id } } }
-		)
+		Timetable.deleteMany({ teacherId: teacher.userId })
 	]);
 
 	await Teacher.findByIdAndDelete(teacher._id);

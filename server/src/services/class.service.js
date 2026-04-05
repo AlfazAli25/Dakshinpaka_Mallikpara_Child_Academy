@@ -306,7 +306,7 @@ const deleteById = async (id) => {
 	const [linkedStudent, linkedExam, linkedTimetable, linkedMarks] = await Promise.all([
 		Student.findOne({ classId: classRecord._id }).select('_id'),
 		Exam.findOne({ classId: classRecord._id }).select('_id'),
-		Timetable.findOne({ classId: classRecord._id }).select('_id'),
+		Timetable.findOne({ classId: classRecord._id }).select('_id').lean(),
 		Marks.findOne({ classId: classRecord._id }).select('_id')
 	]);
 

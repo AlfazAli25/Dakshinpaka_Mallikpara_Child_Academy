@@ -76,6 +76,7 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/timetable', timetableRoutes);
 app.use('/api/timetables', timetableRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/grades', gradeRoutes);

@@ -414,6 +414,27 @@ const applyManualPendingSalaryOverride = async ({
 		throw error;
 	}
 
+	if (normalizedTargetPending <= EPSILON) {
+		const existingRows = await withSession(
+			Payroll.find({ teacherId: teacher._id }).sort({ month: -1, createdAt: -1 }),
+			session
+		);
+
+		if (existingRows.length === 0) {
+			const shouldUpdateTeacherSalary =
+				!areAmountsEqual(teacher.pendingSalary || 0, 0) ||
+				!areAmountsEqual(teacher.monthlySalary || 0, normalizedMonthlyAmount);
+
+			if (shouldUpdateTeacherSalary) {
+				teacher.pendingSalary = 0;
+				teacher.monthlySalary = normalizedMonthlyAmount;
+				await teacher.save({ session });
+			}
+
+			return [];
+		}
+	}
+
 	const targetMonth = getMonthStartDate(anchorDate);
 	const startMonth = getTeacherPayrollStartMonth(teacher);
 	let distributionMonths = listMonthStartsInRange({ fromDate: startMonth, toDate: targetMonth });
@@ -579,6 +600,15 @@ const ensureMonthlyPayrollForTeacher = async ({ teacherId, session, anchorDate =
 			? teacher.monthlySalary || inferMonthlySalaryAmount(payrollRows)
 			: monthlyAmount
 	);
+
+	if (payrollRows.length === 0 && toAmount(teacher.pendingSalary) <= EPSILON) {
+		if (resolvedMonthlyAmount > EPSILON && !areAmountsEqual(teacher.monthlySalary || 0, resolvedMonthlyAmount)) {
+			teacher.monthlySalary = resolvedMonthlyAmount;
+			await teacher.save({ session });
+		}
+
+		return [];
+	}
 
 	if (
 		payrollRows.length === 0 &&

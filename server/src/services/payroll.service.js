@@ -23,6 +23,15 @@ const roundAmount = (value) => {
 	return Number(numeric.toFixed(2));
 };
 
+const isSyntheticAutoPaidPayrollRow = (row = {}) => {
+	if (String(row?.status || '') !== 'Paid') {
+		return false;
+	}
+
+	const pendingSalaryCleared = Number(row?.pendingSalaryCleared || 0);
+	return !row?.paidOn && !row?.processedByAdmin && !row?.receiptId && (!Number.isFinite(pendingSalaryCleared) || pendingSalaryCleared <= 0);
+};
+
 const findAll = async (filter = {}) => {
 	if (filter?.teacherId) {
 		await ensureMonthlyPayrollForTeacher({ teacherId: filter.teacherId });
@@ -315,7 +324,11 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 
 const getTeacherSalaryHistoryForAdmin = async ({ teacherId }) => {
 	await ensureMonthlyPayrollForTeacher({ teacherId });
-	return Payroll.find({ teacherId }).populate('teacherId processedByAdmin receiptId').sort({ month: -1, createdAt: -1 });
+	const rows = await Payroll.find({ teacherId })
+		.populate('teacherId processedByAdmin receiptId')
+		.sort({ month: -1, createdAt: -1 });
+
+	return rows.filter((item) => !isSyntheticAutoPaidPayrollRow(item));
 };
 
 const getTeacherSalaryHistoryByUser = async ({ userId }) => {
@@ -328,9 +341,11 @@ const getTeacherSalaryHistoryByUser = async ({ userId }) => {
 
 	await ensureMonthlyPayrollForTeacher({ teacherId: teacher._id });
 
-	return Payroll.find({ teacherId: teacher._id })
+	const rows = await Payroll.find({ teacherId: teacher._id })
 		.populate('teacherId processedByAdmin receiptId')
 		.sort({ month: -1, createdAt: -1 });
+
+	return rows.filter((item) => !isSyntheticAutoPaidPayrollRow(item));
 };
 
 module.exports = {

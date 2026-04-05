@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
 import { get, post } from '@/lib/api';
@@ -13,6 +13,8 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [user, setUser] = useState(null);
+  const notifPanelRef = useRef(null);
+  const notifButtonRef = useRef(null);
 
   useEffect(() => {
     setUser(getUser());
@@ -60,6 +62,38 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [user?.role]);
+
+  useEffect(() => {
+    if (!notifOpen) {
+      return;
+    }
+
+    const onPointerDown = (event) => {
+      const panelElement = notifPanelRef.current;
+      const buttonElement = notifButtonRef.current;
+      const target = event.target;
+
+      if (panelElement?.contains(target) || buttonElement?.contains(target)) {
+        return;
+      }
+
+      setNotifOpen(false);
+    };
+
+    const onEscapePress = (event) => {
+      if (event.key === 'Escape') {
+        setNotifOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onEscapePress);
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onEscapePress);
+    };
+  }, [notifOpen]);
 
   const unreadCount = notifications.filter((item) => item.status === 'UNREAD').length;
 
@@ -114,8 +148,11 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
             {user?.role === 'admin' && (
               <div className="relative">
                 <button
+                  ref={notifButtonRef}
                   type="button"
                   onClick={() => setNotifOpen((prev) => !prev)}
+                  aria-expanded={notifOpen}
+                  aria-haspopup="dialog"
                   className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/45 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
                 >
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
@@ -126,9 +163,24 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                 </button>
 
                 {notifOpen && (
-                  <div className="absolute right-0 top-12 z-50 w-80 rounded-xl border border-red-100 bg-white p-2 shadow-xl">
-                    <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-red-700">Payment Alerts</p>
-                    <div className="max-h-80 overflow-auto">
+                  <div
+                    ref={notifPanelRef}
+                    className="fixed inset-x-3 top-[4.4rem] z-50 flex max-h-[72vh] flex-col rounded-xl border border-red-100 bg-white p-2 shadow-xl sm:absolute sm:right-0 sm:top-12 sm:inset-x-auto sm:w-80 sm:max-h-[24rem]"
+                  >
+                    <div className="flex items-center justify-between px-2 py-1">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700">Payment Alerts</p>
+                      <button
+                        type="button"
+                        onClick={() => setNotifOpen(false)}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 sm:hidden"
+                        aria-label="Close notifications"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M6 6l12 12M18 6L6 18" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto">
                       {notifications.length === 0 ? (
                         <p className="px-2 py-3 text-sm text-slate-500">No notifications.</p>
                       ) : (
@@ -136,13 +188,16 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                           <Link
                             key={item._id}
                             href={item.targetPath}
-                            onClick={() => markRead(item._id)}
+                            onClick={() => {
+                              setNotifOpen(false);
+                              markRead(item._id);
+                            }}
                             className={`block rounded-lg px-2 py-2 text-sm hover:bg-red-50 ${
                               item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
                             }`}
                           >
-                            <p className="font-semibold">{item.title || 'Notification'}</p>
-                            <p className="text-xs text-slate-600">{item.message || '-'}</p>
+                            <p className="break-words font-semibold">{item.title || 'Notification'}</p>
+                            <p className="break-words text-xs text-slate-600">{item.message || '-'}</p>
                             <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                           </Link>
                         ))

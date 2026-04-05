@@ -10,6 +10,7 @@ const links = [
   { href: '/admin/students', label: 'Students' },
   { href: '/admin/teachers', label: 'Teachers' },
   { href: '/admin/classes', label: 'Classes' },
+  { href: '/admin/timetable', label: 'Timetable' },
   { href: '/admin/exams', label: 'Exams' },
   { href: '/admin/marks', label: 'Marks' },
   { href: '/admin/fees', label: 'Fees' }

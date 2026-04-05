@@ -148,38 +148,6 @@ export default function StudentUserProfilePage() {
     setEditForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
-  const missingStudentFields = useMemo(() => {
-    const missing = [];
-    if (!String(editForm.name || '').trim()) {
-      missing.push('Name');
-    }
-    if (!String(editForm.email || '').trim()) {
-      missing.push('Email');
-    }
-    if (!String(editForm.admissionNo || '').trim()) {
-      missing.push('Admission No');
-    }
-    if (!String(editForm.classId || '').trim()) {
-      missing.push('Class');
-    }
-    if (!String(editForm.gender || '').trim()) {
-      missing.push('Gender');
-    }
-    if (!String(editForm.dob || '').trim()) {
-      missing.push('Date of Birth');
-    }
-    if (!String(editForm.guardianContact || '').trim()) {
-      missing.push('Guardian Contact');
-    }
-    if (!String(editForm.address || '').trim()) {
-      missing.push('Address');
-    }
-    if (String(editForm.pendingFees || '').trim() === '') {
-      missing.push('Pending Fees');
-    }
-    return missing;
-  }, [editForm]);
-
   const onCancelEdit = () => {
     if (profile?.student) {
       setEditForm(getStudentFormFromProfile(profile.student));
@@ -196,14 +164,62 @@ export default function StudentUserProfilePage() {
       return;
     }
 
-    if (!EMAIL_REGEX.test(String(editForm.email || '').trim())) {
-      setError('Please enter a valid email address.');
-      return;
+    const originalForm = getStudentFormFromProfile(profile.student);
+    const payload = {};
+
+    const nextName = String(editForm.name || '').trim();
+    const nextEmail = String(editForm.email || '').trim();
+    const nextAdmissionNo = String(editForm.admissionNo || '').trim();
+    const nextGuardianContact = String(editForm.guardianContact || '').trim();
+    const nextAddress = String(editForm.address || '').trim();
+
+    if (nextName && nextName !== String(originalForm.name || '').trim()) {
+      payload.name = nextName;
     }
 
-    if (missingStudentFields.length > 0) {
-      setError(`Please complete all mandatory fields: ${missingStudentFields.join(', ')}`);
-      return;
+    if (nextEmail && nextEmail !== String(originalForm.email || '').trim()) {
+      if (!EMAIL_REGEX.test(nextEmail)) {
+        setError('Please enter a valid email address.');
+        return;
+      }
+
+      payload.email = nextEmail;
+    }
+
+    if (nextAdmissionNo && nextAdmissionNo !== String(originalForm.admissionNo || '').trim()) {
+      payload.admissionNo = nextAdmissionNo;
+    }
+
+    if (editForm.classId && editForm.classId !== String(originalForm.classId || '').trim()) {
+      payload.classId = editForm.classId;
+    }
+
+    if (editForm.gender && editForm.gender !== String(originalForm.gender || '').trim()) {
+      payload.gender = editForm.gender;
+    }
+
+    if (editForm.dob && editForm.dob !== String(originalForm.dob || '').trim()) {
+      payload.dob = editForm.dob;
+    }
+
+    if (nextGuardianContact && nextGuardianContact !== String(originalForm.guardianContact || '').trim()) {
+      payload.guardianContact = nextGuardianContact;
+    }
+
+    if (nextAddress && nextAddress !== String(originalForm.address || '').trim()) {
+      payload.address = nextAddress;
+    }
+
+    const pendingFeesText = String(editForm.pendingFees || '').trim();
+    const originalPendingFeesText = String(originalForm.pendingFees || '').trim();
+    if (pendingFeesText && pendingFeesText !== originalPendingFeesText) {
+      const normalizedPendingFees = Number(pendingFeesText);
+      if (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0) {
+        setError('Pending fees must be 0 or greater.');
+        return;
+      }
+
+      payload.pendingFees = normalizedPendingFees;
     }
 
     if (editForm.password && String(editForm.password).length < 6) {
@@ -211,9 +227,13 @@ export default function StudentUserProfilePage() {
       return;
     }
 
-    const normalizedPendingFees = Number(editForm.pendingFees);
-    if (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0) {
-      setError('Pending fees must be 0 or greater.');
+    if (editForm.password) {
+      payload.password = editForm.password;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setMessage('No changes found to update.');
+      setError('');
       return;
     }
 
@@ -222,22 +242,6 @@ export default function StudentUserProfilePage() {
     setMessage('');
 
     try {
-      const payload = {
-        name: String(editForm.name || '').trim(),
-        email: String(editForm.email || '').trim(),
-        admissionNo: String(editForm.admissionNo || '').trim(),
-        classId: editForm.classId,
-        gender: editForm.gender,
-        dob: editForm.dob,
-        guardianContact: String(editForm.guardianContact || '').trim(),
-        address: String(editForm.address || '').trim(),
-        pendingFees: normalizedPendingFees
-      };
-
-      if (editForm.password) {
-        payload.password = editForm.password;
-      }
-
       await put(`/students/${studentRecordId}`, payload, getToken());
       setMessage('Student profile updated successfully.');
       setEditMode(false);
@@ -327,14 +331,14 @@ export default function StudentUserProfilePage() {
           ) : (
             <form onSubmit={onSaveEdit} className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
-                <Input label="Name" value={editForm.name} onChange={onEditChange('name')} required className="h-10" />
-                <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} required className="h-10" />
-                <Input label="Admission No" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} required className="h-10" />
-                <Select label="Class" value={editForm.classId} onChange={onEditChange('classId')} required className="h-10" options={classSelectOptions} />
-                <Select label="Gender" value={editForm.gender} onChange={onEditChange('gender')} required className="h-10" options={genderOptions} />
-                <Input label="Date of Birth" type="date" value={editForm.dob} onChange={onEditChange('dob')} required className="h-10" />
-                <Input label="Guardian Contact" value={editForm.guardianContact} onChange={onEditChange('guardianContact')} required className="h-10" />
-                <Input label="Address" value={editForm.address} onChange={onEditChange('address')} required className="h-10" />
+                <Input label="Name" value={editForm.name} onChange={onEditChange('name')} className="h-10" />
+                <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} className="h-10" />
+                <Input label="Admission No" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} className="h-10" />
+                <Select label="Class" value={editForm.classId} onChange={onEditChange('classId')} className="h-10" options={classSelectOptions} />
+                <Select label="Gender" value={editForm.gender} onChange={onEditChange('gender')} className="h-10" options={genderOptions} />
+                <Input label="Date of Birth" type="date" value={editForm.dob} onChange={onEditChange('dob')} className="h-10" />
+                <Input label="Guardian Contact" value={editForm.guardianContact} onChange={onEditChange('guardianContact')} className="h-10" />
+                <Input label="Address" value={editForm.address} onChange={onEditChange('address')} className="h-10" />
                 <Input
                   label="Pending Fees (INR)"
                   type="number"
@@ -342,7 +346,6 @@ export default function StudentUserProfilePage() {
                   step="0.01"
                   value={editForm.pendingFees}
                   onChange={onEditChange('pendingFees')}
-                  required
                   className="h-10"
                 />
                 <Input
@@ -364,14 +367,6 @@ export default function StudentUserProfilePage() {
                   className="h-10"
                 />
               </div>
-
-              <p
-                className={`rounded-md px-3 py-2 text-xs ${
-                  missingStudentFields.length === 0 ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                }`}
-              >
-                Mandatory fields remaining: {missingStudentFields.length === 0 ? 'None' : missingStudentFields.join(', ')}
-              </p>
 
               <div className="flex gap-2">
                 <button
