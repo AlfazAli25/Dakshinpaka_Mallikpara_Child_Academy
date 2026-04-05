@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
+import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { get, post, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
@@ -10,9 +11,71 @@ import { useToast } from '@/lib/toast-context';
 
 const toId = (value) => String(value?._id || value || '');
 
-const toExamLabel = (exam) => {
+const examIncludesSubject = (exam, subjectId = '') => {
+  const normalizedSubjectId = String(subjectId || '').trim();
+  if (!normalizedSubjectId) {
+    return false;
+  }
+
+  const subjectIds = Array.isArray(exam?.subjects)
+    ? exam.subjects.map((item) => toId(item)).filter(Boolean)
+    : [];
+
+  if (subjectIds.length > 0) {
+    return subjectIds.includes(normalizedSubjectId);
+  }
+
+  const legacySubjectId = toId(exam?.subjectId);
+  return legacySubjectId ? legacySubjectId === normalizedSubjectId : true;
+};
+
+const getExamScheduleForSubject = (exam, subjectId = '') => {
+  const normalizedSubjectId = String(subjectId || '').trim();
+  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
+
+  if (normalizedSubjectId && scheduleRows.length > 0) {
+    const matchedSlot = scheduleRows.find((slot) => toId(slot?.subjectId) === normalizedSubjectId);
+    if (matchedSlot) {
+      return {
+        startDate: matchedSlot?.startDate,
+        endDate: matchedSlot?.endDate
+      };
+    }
+  }
+
+  if (scheduleRows.length > 0) {
+    if (!examIncludesSubject(exam, normalizedSubjectId)) {
+      return { startDate: null, endDate: null };
+    }
+
+    return {
+      startDate: scheduleRows[0]?.startDate,
+      endDate: scheduleRows[0]?.endDate
+    };
+  }
+
+  const fallbackStartDate = exam?.startDate || exam?.examDate || exam?.date;
+  return {
+    startDate: fallbackStartDate,
+    endDate: exam?.endDate || fallbackStartDate
+  };
+};
+
+const isExamConductedForSubject = (exam, subjectId = '') => {
+  const { endDate } = getExamScheduleForSubject(exam, subjectId);
+  const parsedEndDate = endDate ? new Date(endDate) : null;
+
+  if (!parsedEndDate || Number.isNaN(parsedEndDate.getTime())) {
+    return false;
+  }
+
+  return parsedEndDate.getTime() <= Date.now();
+};
+
+const toExamLabel = (exam, subjectId = '') => {
   const name = String(exam?.examName || exam?.description || 'Exam').trim() || 'Exam';
-  const examDate = exam?.examDate || exam?.date;
+  const { startDate } = getExamScheduleForSubject(exam, subjectId);
+  const examDate = startDate || exam?.examDate || exam?.date;
 
   if (!examDate) {
     return name;
@@ -24,6 +87,34 @@ const toExamLabel = (exam) => {
   }
 
   return `${name} (${date.toLocaleDateString()})`;
+};
+
+const deriveCommonMaxMarks = (marks = []) => {
+  const values = marks
+    .map((item) => Number(item?.maxMarks))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (values.length === 0) {
+    return '';
+  }
+
+  return String(values[0]);
+};
+
+const formatPercentage = ({ marksObtained, maxMarks, fallbackPercentage }) => {
+  const obtained = Number(marksObtained);
+  const total = Number(maxMarks);
+
+  if (Number.isFinite(obtained) && Number.isFinite(total) && total > 0) {
+    return `${((obtained / total) * 100).toFixed(2)}%`;
+  }
+
+  const fallback = Number(fallbackPercentage);
+  if (Number.isFinite(fallback)) {
+    return `${fallback.toFixed(2)}%`;
+  }
+
+  return '-';
 };
 
 const buildRows = (students = [], marksByStudentId = new Map()) => {
@@ -38,19 +129,23 @@ const buildRows = (students = [], marksByStudentId = new Map()) => {
         rollNumber: student?.admissionNo || '-',
         markId: existing ? toId(existing) : '',
         marksObtained: existing?.marksObtained !== undefined ? String(existing.marksObtained) : '',
-        maxMarks: existing?.maxMarks !== undefined ? String(existing.maxMarks) : '',
-        remarks: String(existing?.remarks || '')
+        maxMarksFromRecord: existing?.maxMarks !== undefined ? Number(existing.maxMarks) : null,
+        percentageFromRecord: existing?.percentage !== undefined ? Number(existing.percentage) : null
       };
     })
     .sort((left, right) => String(left.rollNumber || '').localeCompare(String(right.rollNumber || '')));
 };
 
-const validateRow = (row) => {
+const validateRow = (row, maxMarksInput) => {
   const rawMarks = String(row.marksObtained || '').trim();
-  const rawMax = String(row.maxMarks || '').trim();
+  const rawMax = String(maxMarksInput || '').trim();
 
-  if (!rawMarks || !rawMax) {
-    return 'Marks obtained and max marks are required';
+  if (!rawMax) {
+    return 'Set max marks once before saving';
+  }
+
+  if (!rawMarks) {
+    return 'Marks obtained is required';
   }
 
   const marks = Number(rawMarks);
@@ -82,6 +177,7 @@ export default function TeacherMarksPage() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedExamId, setSelectedExamId] = useState('');
+  const [maxMarksInput, setMaxMarksInput] = useState('');
 
   const [rows, setRows] = useState([]);
   const [savingStudentId, setSavingStudentId] = useState('');
@@ -169,7 +265,8 @@ export default function TeacherMarksPage() {
       exams.filter(
         (exam) =>
           toId(exam?.classId) === selectedClassId &&
-          toId(exam?.subjectId) === selectedSubjectId
+          examIncludesSubject(exam, selectedSubjectId) &&
+          isExamConductedForSubject(exam, selectedSubjectId)
       ),
     [exams, selectedClassId, selectedSubjectId]
   );
@@ -179,10 +276,10 @@ export default function TeacherMarksPage() {
       { value: '', label: 'Select exam' },
       ...examsForSelection.map((exam) => ({
         value: toId(exam),
-        label: toExamLabel(exam)
+        label: toExamLabel(exam, selectedSubjectId)
       }))
     ],
-    [examsForSelection]
+    [examsForSelection, selectedSubjectId]
   );
 
   useEffect(() => {
@@ -224,9 +321,11 @@ export default function TeacherMarksPage() {
         );
 
         setRows(buildRows(students, marksByStudentId));
+        setMaxMarksInput(deriveCommonMaxMarks(marks));
       } catch (apiError) {
         if (active) {
           setRows([]);
+          setMaxMarksInput('');
           toast.error(apiError.message || 'Failed to load students for marks entry');
         }
       } finally {
@@ -247,17 +346,20 @@ export default function TeacherMarksPage() {
     setSelectedClassId(event.target.value);
     setSelectedSubjectId('');
     setSelectedExamId('');
+    setMaxMarksInput('');
     setRows([]);
   };
 
   const onChangeSubject = (event) => {
     setSelectedSubjectId(event.target.value);
     setSelectedExamId('');
+    setMaxMarksInput('');
     setRows([]);
   };
 
   const onChangeExam = (event) => {
     setSelectedExamId(event.target.value);
+    setMaxMarksInput('');
     setRows([]);
   };
 
@@ -285,7 +387,7 @@ export default function TeacherMarksPage() {
       return;
     }
 
-    const validationMessage = validateRow(targetRow);
+    const validationMessage = validateRow(targetRow, maxMarksInput);
     if (validationMessage) {
       toast.error(validationMessage);
       return;
@@ -305,8 +407,7 @@ export default function TeacherMarksPage() {
       subjectId: selectedSubjectId,
       examId: selectedExamId,
       marksObtained: Number(targetRow.marksObtained),
-      maxMarks: Number(targetRow.maxMarks),
-      remarks: String(targetRow.remarks || '').trim()
+      maxMarks: Number(maxMarksInput)
     };
 
     try {
@@ -323,8 +424,8 @@ export default function TeacherMarksPage() {
                 ...row,
                 markId: persistedMarkId,
                 marksObtained: String(payload.marksObtained),
-                maxMarks: String(payload.maxMarks),
-                remarks: payload.remarks
+                maxMarksFromRecord: payload.maxMarks,
+                percentageFromRecord: Number(response?.data?.percentage)
               }
             : row
         )
@@ -374,6 +475,18 @@ export default function TeacherMarksPage() {
           onChange={onChangeExam}
           disabled={loadingFilters || !selectedClassId || !selectedSubjectId}
         />
+
+        <Input
+          label="Max Marks (for this subject)"
+          type="number"
+          min="1"
+          step="0.01"
+          value={maxMarksInput}
+          onChange={(event) => setMaxMarksInput(event.target.value)}
+          className="h-11"
+          placeholder="Example: 100"
+          disabled={!selectedClassId || !selectedSubjectId || !selectedExamId || loadingStudents}
+        />
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
@@ -384,8 +497,7 @@ export default function TeacherMarksPage() {
                 <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Marks Obtained</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Max Marks</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Remarks</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Percentage</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Action</th>
               </tr>
             </thead>
@@ -393,29 +505,32 @@ export default function TeacherMarksPage() {
               {loadingStudents ? (
                 Array.from({ length: 6 }).map((_, index) => (
                   <tr key={`marks-skeleton-${index}`} className="border-t border-slate-100">
-                    <td className="px-4 py-3" colSpan={6}>
+                    <td className="px-4 py-3" colSpan={5}>
                       <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
                     </td>
                   </tr>
                 ))
               ) : !selectedClassId || !selectedSubjectId || !selectedExamId ? (
                 <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={6}>
-                    Select class, subject, and exam to fetch students.
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
+                    Select class, subject, and conducted exam to fetch students.
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={6}>
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
                     No students found for this class.
                   </td>
                 </tr>
               ) : (
                 rows.map((row, index) => {
-                  const shouldShowInlineError =
-                    String(row.marksObtained || '').trim() !== '' ||
-                    String(row.maxMarks || '').trim() !== '';
-                  const inlineError = shouldShowInlineError ? validateRow(row) : '';
+                  const inlineError = String(row.marksObtained || '').trim() !== '' ? validateRow(row, maxMarksInput) : '';
+                  const effectiveMaxMarks = Number(maxMarksInput || row.maxMarksFromRecord || 0);
+                  const percentageLabel = formatPercentage({
+                    marksObtained: row.marksObtained,
+                    maxMarks: effectiveMaxMarks,
+                    fallbackPercentage: row.percentageFromRecord
+                  });
 
                   return (
                     <tr
@@ -433,27 +548,9 @@ export default function TeacherMarksPage() {
                           onChange={(event) => updateRowField(row.studentId, 'marksObtained', event.target.value)}
                           className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
                         />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="number"
-                          min="1"
-                          step="0.01"
-                          value={row.maxMarks}
-                          onChange={(event) => updateRowField(row.studentId, 'maxMarks', event.target.value)}
-                          className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          value={row.remarks}
-                          onChange={(event) => updateRowField(row.studentId, 'remarks', event.target.value)}
-                          placeholder="Optional remarks"
-                          className="w-56 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-red-600 focus:ring-2 focus:ring-red-100"
-                        />
                         {inlineError ? <p className="mt-1 text-xs text-red-600">{inlineError}</p> : null}
                       </td>
+                      <td className="px-4 py-3 text-slate-700">{percentageLabel}</td>
                       <td className="px-4 py-3">
                         <button
                           type="button"

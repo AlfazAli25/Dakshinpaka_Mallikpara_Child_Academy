@@ -45,14 +45,46 @@ const parseDateValue = (value) => {
   return parsed;
 };
 
-const toDateTimeInputValue = (value) => {
+const toLocalDateInputValue = (value) => {
   const parsed = parseDateValue(value);
   if (!parsed) {
     return '';
   }
 
   const timezoneOffsetMs = parsed.getTimezoneOffset() * 60000;
-  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
+  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
+};
+
+const toLocalTimeInputValue = (value) => {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
+    return '';
+  }
+
+  const timezoneOffsetMs = parsed.getTimezoneOffset() * 60000;
+  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(11, 16);
+};
+
+const getTodayDateInputValue = () => {
+  const now = new Date();
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
+};
+
+const combineDateAndTime = (dateValue, timeValue) => {
+  const normalizedDate = String(dateValue || '').trim();
+  const normalizedTime = String(timeValue || '').trim();
+
+  if (!normalizedDate || !normalizedTime) {
+    return null;
+  }
+
+  const parsed = new Date(`${normalizedDate}T${normalizedTime}`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
 };
 
 const toDateLabel = (value) => {
@@ -143,8 +175,9 @@ const scheduleRowsEqual = (first = [], second = []) => {
     return (
       item.classId === peer.classId &&
       item.subjectId === peer.subjectId &&
-      item.startDate === peer.startDate &&
-      item.endDate === peer.endDate
+      item.examDate === peer.examDate &&
+      item.startTime === peer.startTime &&
+      item.endTime === peer.endTime
     );
   });
 };
@@ -160,6 +193,7 @@ const columns = [
 
 export default function AdminExamsPage() {
   const toast = useToast();
+  const todayDateInput = useMemo(() => getTodayDateInputValue(), []);
 
   const [loadingSetup, setLoadingSetup] = useState(true);
   const [loadingExams, setLoadingExams] = useState(false);
@@ -255,8 +289,9 @@ export default function AdminExamsPage() {
       .map((item) => ({
         classId: classId || String(item.classId || '').trim(),
         subjectId: String(item.subjectId || '').trim(),
-        startDate: toDateTimeInputValue(item.startDate),
-        endDate: toDateTimeInputValue(item.endDate)
+        examDate: toLocalDateInputValue(item.startDate),
+        startTime: toLocalTimeInputValue(item.startDate),
+        endTime: toLocalTimeInputValue(item.endDate)
       }))
       .filter((item) => item.classId && item.subjectId);
 
@@ -529,7 +564,7 @@ export default function AdminExamsPage() {
         };
       }
 
-      const templateSlot = prev.schedule.find((row) => row.classId === classId && row.startDate && row.endDate);
+      const templateSlot = prev.schedule.find((row) => row.classId === classId && row.examDate && row.startTime && row.endTime);
 
       return {
         ...prev,
@@ -538,8 +573,9 @@ export default function AdminExamsPage() {
           {
             classId,
             subjectId,
-            startDate: templateSlot?.startDate || '',
-            endDate: templateSlot?.endDate || ''
+            examDate: templateSlot?.examDate || '',
+            startTime: templateSlot?.startTime || '',
+            endTime: templateSlot?.endTime || ''
           }
         ]
       };
@@ -562,7 +598,7 @@ export default function AdminExamsPage() {
 
   const onCopyTimingToClass = (classId) => {
     setForm((prev) => {
-      const classRows = prev.schedule.filter((row) => row.classId === classId && row.startDate && row.endDate);
+      const classRows = prev.schedule.filter((row) => row.classId === classId && row.examDate && row.startTime && row.endTime);
       if (classRows.length < 2) {
         return prev;
       }
@@ -576,8 +612,9 @@ export default function AdminExamsPage() {
             ? row
             : {
                 ...row,
-                startDate: baseSlot.startDate,
-                endDate: baseSlot.endDate
+                examDate: baseSlot.examDate,
+                startTime: baseSlot.startTime,
+                endTime: baseSlot.endTime
               }
         )
       };
@@ -617,19 +654,23 @@ export default function AdminExamsPage() {
         const subject = subjectMap.get(row.subjectId);
         const subjectLabel = subject?.name || subject?.code || 'subject';
 
-        if (!row.startDate || !row.endDate) {
-          return `Set start and end date-time for ${subjectLabel} (${classLabel})`;
+        if (!row.examDate || !row.startTime || !row.endTime) {
+          return `Set date, start time, and end time for ${subjectLabel} (${classLabel})`;
         }
 
-        const startDate = parseDateValue(row.startDate);
-        const endDate = parseDateValue(row.endDate);
+        if (row.examDate < todayDateInput) {
+          return `Exam date cannot be in the past for ${subjectLabel} (${classLabel})`;
+        }
+
+        const startDate = combineDateAndTime(row.examDate, row.startTime);
+        const endDate = combineDateAndTime(row.examDate, row.endTime);
 
         if (!startDate || !endDate) {
-          return `Invalid schedule date-time for ${subjectLabel} (${classLabel})`;
+          return `Invalid schedule date or time for ${subjectLabel} (${classLabel})`;
         }
 
         if (endDate.getTime() < startDate.getTime()) {
-          return `End date-time must be after start date-time for ${subjectLabel} (${classLabel})`;
+          return `End time must be after start time for ${subjectLabel} (${classLabel})`;
         }
       }
     }
@@ -651,15 +692,15 @@ export default function AdminExamsPage() {
 
     classRows.forEach((row) => {
       const subjectId = String(row.subjectId || '').trim();
-      const startDate = parseDateValue(row.startDate);
-      const endDate = parseDateValue(row.endDate);
+      const startDate = combineDateAndTime(row.examDate, row.startTime);
+      const endDate = combineDateAndTime(row.examDate, row.endTime);
 
       if (!subjectId || !startDate || !endDate) {
-        throw new Error('Each selected subject must have valid schedule date-time');
+        throw new Error('Each selected subject must have valid schedule date and time');
       }
 
       if (endDate.getTime() < startDate.getTime()) {
-        throw new Error('Subject schedule end date-time must be after start date-time');
+        throw new Error('Subject schedule end time must be after start time');
       }
 
       subjectIdSet.add(subjectId);
@@ -935,14 +976,15 @@ export default function AdminExamsPage() {
                                   </label>
 
                                   {isSelected ? (
-                                    <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                                    <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
                                       <label>
-                                        <span className="mb-1 block text-xs font-medium text-slate-600">Start Date & Time</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">Exam Date</span>
                                         <input
-                                          type="datetime-local"
-                                          value={activeSlot?.startDate || ''}
+                                          type="date"
+                                          min={todayDateInput}
+                                          value={activeSlot?.examDate || ''}
                                           onChange={(event) =>
-                                            onUpdateScheduleField(classId, subjectId, 'startDate', event.target.value)
+                                            onUpdateScheduleField(classId, subjectId, 'examDate', event.target.value)
                                           }
                                           className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
                                           required
@@ -950,12 +992,25 @@ export default function AdminExamsPage() {
                                       </label>
 
                                       <label>
-                                        <span className="mb-1 block text-xs font-medium text-slate-600">End Date & Time</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">Start Time</span>
                                         <input
-                                          type="datetime-local"
-                                          value={activeSlot?.endDate || ''}
+                                          type="time"
+                                          value={activeSlot?.startTime || ''}
                                           onChange={(event) =>
-                                            onUpdateScheduleField(classId, subjectId, 'endDate', event.target.value)
+                                            onUpdateScheduleField(classId, subjectId, 'startTime', event.target.value)
+                                          }
+                                          className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                                          required
+                                        />
+                                      </label>
+
+                                      <label>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">End Time</span>
+                                        <input
+                                          type="time"
+                                          value={activeSlot?.endTime || ''}
+                                          onChange={(event) =>
+                                            onUpdateScheduleField(classId, subjectId, 'endTime', event.target.value)
                                           }
                                           className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
                                           required

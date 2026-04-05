@@ -265,6 +265,8 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
 
   const schedule = [];
   const scheduleKeySet = new Set();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
   (Array.isArray(incomingScheduleValues) ? incomingScheduleValues : []).forEach((item, index) => {
     const scheduleClassId = String(item?.classId || classId || '').trim();
@@ -291,8 +293,22 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
       throw createHttpError(400, `Valid end date is required in schedule row ${index + 1}`);
     }
 
-    if (scheduleEndDate.getTime() < scheduleStartDate.getTime()) {
-      throw createHttpError(400, `End date must be greater than or equal to start date in schedule row ${index + 1}`);
+    const scheduleStartDay = new Date(scheduleStartDate);
+    scheduleStartDay.setHours(0, 0, 0, 0);
+
+    if (scheduleStartDay.getTime() < todayStart.getTime()) {
+      throw createHttpError(400, `Exam date cannot be in the past in schedule row ${index + 1}`);
+    }
+
+    const scheduleEndDay = new Date(scheduleEndDate);
+    scheduleEndDay.setHours(0, 0, 0, 0);
+
+    if (scheduleStartDay.getTime() !== scheduleEndDay.getTime()) {
+      throw createHttpError(400, `Start and end time must be on the same exam date in schedule row ${index + 1}`);
+    }
+
+    if (scheduleEndDate.getTime() <= scheduleStartDate.getTime()) {
+      throw createHttpError(400, `End time must be after start time in schedule row ${index + 1}`);
     }
 
     const scheduleKey = `${scheduleClassId}:${scheduleSubjectId}`;

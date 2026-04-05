@@ -160,8 +160,56 @@ const ensureSubjectClassTeacherConsistency = async ({ subjectId, classId, teache
   return subject;
 };
 
+const resolveExamWindowForSubject = ({ exam, classId, subjectId }) => {
+  const normalizedClassId = String(classId || '').trim();
+  const normalizedSubjectId = String(subjectId || '').trim();
+
+  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
+  const scheduleSlot = scheduleRows.find((row) => {
+    const rowSubjectId = toIdString(row?.subjectId);
+    if (rowSubjectId !== normalizedSubjectId) {
+      return false;
+    }
+
+    const rowClassId = toIdString(row?.classId);
+    return !rowClassId || !normalizedClassId || rowClassId === normalizedClassId;
+  });
+
+  const fallbackStartDate = exam?.startDate || exam?.examDate || exam?.date;
+  const fallbackEndDate = exam?.endDate || fallbackStartDate;
+
+  const startDate = scheduleSlot?.startDate || fallbackStartDate;
+  const endDate = scheduleSlot?.endDate || fallbackEndDate;
+
+  const normalizedStartDate = startDate ? new Date(startDate) : null;
+  const normalizedEndDate = endDate ? new Date(endDate) : null;
+
+  return {
+    startDate: normalizedStartDate,
+    endDate: normalizedEndDate
+  };
+};
+
+const ensureExamConductedForSubject = ({ exam, classId, subjectId }) => {
+  const { startDate, endDate } = resolveExamWindowForSubject({ exam, classId, subjectId });
+
+  if (!endDate || Number.isNaN(endDate.getTime())) {
+    throw createHttpError(400, 'Selected exam schedule is invalid');
+  }
+
+  if (startDate && !Number.isNaN(startDate.getTime()) && endDate.getTime() < startDate.getTime()) {
+    throw createHttpError(400, 'Selected exam schedule is invalid');
+  }
+
+  if (endDate.getTime() > Date.now()) {
+    throw createHttpError(400, 'Marks can be entered only after the exam is conducted');
+  }
+};
+
 const ensureExamConsistency = async ({ examId, classId, subjectId }) => {
-  const exam = await Exam.findById(examId).select('_id classId subjectId subjects').lean();
+  const exam = await Exam.findById(examId)
+    .select('_id classId subjectId subjects schedule startDate endDate examDate date status')
+    .lean();
   if (!exam) {
     throw createHttpError(400, 'Invalid exam selected');
   }
@@ -180,6 +228,15 @@ const ensureExamConsistency = async ({ examId, classId, subjectId }) => {
 
   if (normalizedExamSubjectIds.length === 0 && exam.subjectId && toIdString(exam.subjectId) !== String(subjectId || '')) {
     throw createHttpError(400, 'Selected exam does not belong to the selected subject');
+  }
+
+  ensureExamConductedForSubject({ exam, classId, subjectId });
+
+  const overallExamEndDate = exam?.endDate ? new Date(exam.endDate) : null;
+  const overallExamEnded = Boolean(overallExamEndDate && !Number.isNaN(overallExamEndDate.getTime()) && overallExamEndDate.getTime() <= Date.now());
+
+  if (overallExamEnded && String(exam.status || '').trim() !== 'Completed') {
+    await Exam.updateOne({ _id: exam._id }, { $set: { status: 'Completed' } });
   }
 
   return exam;
