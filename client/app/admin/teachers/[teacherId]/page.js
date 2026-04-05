@@ -10,6 +10,7 @@ import { get, post, put } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
 import { useToast } from '@/lib/toast-context';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,6 +29,11 @@ const salaryColumns = [
   { key: 'paidOn', label: 'Paid On' },
   { key: 'paymentMethod', label: 'Method' },
   { key: 'receiptNumber', label: 'Receipt Number' }
+];
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'Via Online', label: 'Via Online' },
+  { value: 'Via Cash', label: 'Via Cash' }
 ];
 
 const getTeacherFormFromProfile = (teacher) => ({
@@ -68,7 +74,7 @@ export default function TeacherProfilePage() {
     password: ''
   });
   const [paying, setPaying] = useState(false);
-  const [form, setForm] = useState({ amount: '', paymentMethod: 'BANK_TRANSFER' });
+  const [form, setForm] = useState({ amount: '', paymentMethod: 'Via Online' });
 
   useEffect(() => {
     if (error) {
@@ -337,7 +343,7 @@ export default function TeacherProfilePage() {
       }, getToken());
 
       setMessage('Salary marked as paid and receipt generated successfully.');
-      setForm({ amount: '', paymentMethod: 'BANK_TRANSFER' });
+      setForm({ amount: '', paymentMethod: 'Via Online' });
       await loadProfile();
     } catch (apiError) {
       setError(apiError.message);
@@ -552,12 +558,12 @@ export default function TeacherProfilePage() {
             required
             className="h-11"
           />
-          <Input
+          <Select
             label="Payment Method"
+            options={PAYMENT_METHOD_OPTIONS}
             value={form.paymentMethod}
             onChange={onChange('paymentMethod')}
             className="h-11"
-            placeholder="BANK_TRANSFER"
           />
         </div>
         <button

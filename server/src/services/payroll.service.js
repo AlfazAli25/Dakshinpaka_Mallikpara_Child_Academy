@@ -100,7 +100,7 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	}
 
 	let remainingAmount = roundAmount(normalizedAmount);
-	const normalizedPaymentMethod = paymentMethod || 'BANK_TRANSFER';
+	const normalizedPaymentMethod = paymentMethod || 'Via Online';
 	const paymentTimestamp = new Date();
 	const affectedPayrollRows = [];
 	const allocations = [];
@@ -180,6 +180,10 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	});
 
 	for (const payroll of affectedPayrollRows) {
+		if (payroll.receiptId) {
+			continue;
+		}
+
 		payroll.receiptId = receipt._id;
 		await payroll.save();
 	}
