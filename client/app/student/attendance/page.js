@@ -31,6 +31,19 @@ const text = {
   }
 };
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function StudentAttendancePage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
@@ -52,7 +65,7 @@ export default function StudentAttendancePage() {
         setRows(
           (response.data || []).map((item) => ({
             id: item._id,
-            date: item.date?.slice(0, 10),
+            date: formatDateValue(item.date),
             status: t.status[item.status] || item.status
           }))
         );

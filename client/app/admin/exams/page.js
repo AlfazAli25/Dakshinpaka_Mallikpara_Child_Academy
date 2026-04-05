@@ -12,7 +12,7 @@ import { useToast } from '@/lib/toast-context';
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
-const ACADEMIC_YEAR_REGEX = /^\d{4}-\d{4}$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
 const DEFAULT_PAGINATION = {
   page: 1,
@@ -96,7 +96,7 @@ const toDateLabel = (value) => {
     return '-';
   }
 
-  return parsed.toLocaleDateString();
+  return parsed.toLocaleDateString('en-GB');
 };
 
 const toDateTimeLabel = (value) => {
@@ -105,7 +105,7 @@ const toDateTimeLabel = (value) => {
     return '-';
   }
 
-  return parsed.toLocaleString();
+  return parsed.toLocaleString('en-GB');
 };
 
 const toExamWindowLabel = (startDate, endDate) => {
@@ -637,7 +637,7 @@ export default function AdminExamsPage() {
     }
 
     if (!ACADEMIC_YEAR_REGEX.test(form.academicYear.trim())) {
-      return 'Academic year must be in YYYY-YYYY format';
+      return 'Academic year must be in YYYY or YYYY-YYYY format';
     }
 
     for (const classId of form.classIds) {

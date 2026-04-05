@@ -36,7 +36,7 @@ const toDateLabel = (date) => {
     return '-';
   }
 
-  return date.toLocaleDateString();
+  return date.toLocaleDateString('en-GB');
 };
 
 const toTimeLabel = (date) => {

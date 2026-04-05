@@ -215,7 +215,7 @@ export default function StudentDashboardPage() {
       return '-';
     }
 
-    return parsed.toLocaleDateString();
+    return parsed.toLocaleDateString('en-GB');
   };
 
   return (

@@ -17,6 +17,19 @@ const gradeColumns = [
   { key: 'remarks', label: 'Remarks' }
 ];
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function TeacherGradesPage() {
   const params = useParams();
   const examId = params?.examId;
@@ -81,7 +94,7 @@ export default function TeacherGradesPage() {
         <p className="text-sm text-slate-700">Exam ID: {exam?._id || examId || '-'}</p>
         <p className="text-sm text-slate-700">Subject: {exam?.subjectId?.name || '-'}</p>
         <p className="text-sm text-slate-700">Class: {formatClassLabel(exam?.classId)}</p>
-        <p className="text-sm text-slate-700">Date: {exam?.date ? String(exam.date).slice(0, 10) : '-'}</p>
+        <p className="text-sm text-slate-700">Date: {formatDateValue(exam?.date)}</p>
         <p className="text-sm text-slate-700">Total Marks: {exam?.totalMarks || 0}</p>
       </InfoCard>
 

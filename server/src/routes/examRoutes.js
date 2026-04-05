@@ -9,7 +9,7 @@ const router = express.Router();
 
 const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
-const ACADEMIC_YEAR_REGEX = /^\d{4}-\d{4}$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
 const validateDateRange = body().custom((value, { req }) => {
   const startInput = req.body.startDate;
@@ -71,7 +71,7 @@ router.post(
     body('subjects.*').isMongoId().withMessage('Invalid subject selected'),
     body('academicYear')
       .matches(ACADEMIC_YEAR_REGEX)
-      .withMessage('Academic year must be in YYYY-YYYY format'),
+      .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
     body('startDate').notEmpty().withMessage('Start date is required'),
     validateDateRange,
     body('status').optional().isIn(EXAM_STATUS).withMessage('Invalid exam status selected')
@@ -119,7 +119,7 @@ router.put(
     body('academicYear')
       .optional()
       .matches(ACADEMIC_YEAR_REGEX)
-      .withMessage('Academic year must be in YYYY-YYYY format'),
+      .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
     validateDateRange,
     body('status').optional().isIn(EXAM_STATUS).withMessage('Invalid exam status selected'),
     ensureUpdatePayload

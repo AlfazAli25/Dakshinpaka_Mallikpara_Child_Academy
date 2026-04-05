@@ -132,7 +132,7 @@ const formatDateLabel = (value) => {
     return '-';
   }
 
-  return parsed.toLocaleDateString();
+  return parsed.toLocaleDateString('en-GB');
 };
 
 const formatTimeLabel = (value) => {

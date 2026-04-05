@@ -35,6 +35,19 @@ const PAYMENT_METHOD_OPTIONS = [
   { value: 'Via Cash', label: 'Via Cash' }
 ];
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
   email: teacher?.userId?.email || '',
@@ -362,7 +375,7 @@ export default function TeacherProfilePage() {
     { label: 'Teacher ID', value: teacher?.teacherId || '-' },
     { label: 'Contact Number', value: teacher?.contactNumber || '-' },
     { label: 'Qualifications', value: teacher?.qualifications || '-' },
-    { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-' },
+    { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString('en-GB') : '-' },
     {
       label: 'Classes',
       value: formatClassLabelList(teacher?.classIds || [])
@@ -585,7 +598,7 @@ export default function TeacherProfilePage() {
             month: item.month,
             amount: `INR ${item.amount || 0}`,
             status: item.status,
-            paidOn: item.paidOn?.slice(0, 10) || '-',
+            paidOn: formatDateValue(item.paidOn),
             paymentMethod: item.paymentMethod || '-'
           }))}
         />
@@ -597,7 +610,7 @@ export default function TeacherProfilePage() {
           <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
             {profile.receipts.map((receipt) => (
               <div key={receipt._id} className="rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-700">{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString()}</p>
+                <p className="text-sm text-slate-700">{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}</p>
                 <p className="text-xs text-slate-600">
                   Monthly Salary: INR {receipt.monthlySalary ?? receipt.amount ?? 0} | Amount Paid: INR {receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0} | Pending Salary: INR {receipt.pendingSalary ?? 0}
                 </p>

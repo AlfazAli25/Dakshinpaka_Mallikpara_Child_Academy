@@ -39,7 +39,7 @@ const formatExamLabel = (exam) => {
     return examName;
   }
 
-  return `${examName} (${date.toLocaleDateString()})`;
+  return `${examName} (${date.toLocaleDateString('en-GB')})`;
 };
 
 const mapMarksToRows = (items, onOpenDelete) =>

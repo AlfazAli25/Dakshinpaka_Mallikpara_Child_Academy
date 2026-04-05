@@ -30,6 +30,15 @@ const toValidDate = (value) => {
   return parsed;
 };
 
+const formatDateValue = (value) => {
+  const parsed = toValidDate(value);
+  if (!parsed) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 const getExamWindow = (exam) => {
   const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
   const slotWindows = scheduleRows
@@ -135,7 +144,7 @@ export default function TeacherDashboardPage() {
             month: item.month,
             amount: `INR ${item.amount || 0}`,
             status: item.status,
-            paidOn: item.paidOn?.slice(0, 10) || '-',
+            paidOn: formatDateValue(item.paidOn),
             paymentMethod: item.status === 'Paid' ? (item.paymentMethod || '-') : '-'
           }))
         );
@@ -284,7 +293,7 @@ export default function TeacherDashboardPage() {
                 { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
                 {
                   label: 'Joining Date',
-                  value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'
+                  value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString('en-GB') : '-'
                 },
                 {
                   label: 'Assigned Classes',
@@ -332,7 +341,7 @@ export default function TeacherDashboardPage() {
             {pendingSalaryConfirmations.map((item) => (
               <div key={item._id} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
                 <p className="text-sm font-semibold text-slate-900">{item.message}</p>
-                <p className="text-xs text-slate-500">Requested: {new Date(item.submittedAt).toLocaleString()}</p>
+                <p className="text-xs text-slate-500">Requested: {new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -389,7 +398,7 @@ export default function TeacherDashboardPage() {
             {receipts.map((receipt) => (
               <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                 <div className="text-sm text-slate-700">
-                  <p>{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString()}</p>
+                  <p>{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}</p>
                   <p className="text-xs text-slate-600">
                     Monthly Salary: INR {receipt.monthlySalary ?? receipt.amount ?? 0} | Amount Paid: INR {receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0} | Pending Salary: INR {receipt.pendingSalary ?? 0}
                   </p>
@@ -401,7 +410,7 @@ export default function TeacherDashboardPage() {
                       `Receipt Number: ${receipt.receiptNumber}`,
                       `Teacher Name: ${receipt.teacherName || '-'}`,
                       `Monthly Salary: INR ${receipt.monthlySalary ?? receipt.amount ?? 0}`,
-                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString()}`,
+                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString('en-GB')}`,
                       `Payment Method: ${receipt.paymentMethod}`,
                       `Amount Paid: INR ${receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0}`,
                       `Pending Salary: INR ${receipt.pendingSalary ?? 0}`,

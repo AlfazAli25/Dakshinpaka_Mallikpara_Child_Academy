@@ -143,7 +143,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                           >
                             <p className="font-semibold">{item.title || 'Notification'}</p>
                             <p className="text-xs text-slate-600">{item.message || '-'}</p>
-                            <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                           </Link>
                         ))
                       )}

@@ -173,7 +173,7 @@ export default function StudentFeesPage() {
             {receipts.map((receipt) => (
               <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                 <p className="text-sm text-slate-700">
-                  {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString()}
+                  {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}
                 </p>
                 <button
                   type="button"
@@ -184,7 +184,7 @@ export default function StudentFeesPage() {
                       `Class: ${receipt.className || '-'}`,
                       `Amount Paid: INR ${receipt.amount}`,
                       `Payment Method: ${receipt.paymentMethod}`,
-                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString()}`,
+                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString('en-GB')}`,
                       `Transaction Reference: ${receipt.transactionReference || '-'}`,
                       `Status: ${receipt.status}`
                     ])

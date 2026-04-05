@@ -86,7 +86,7 @@ const toExamLabel = (exam, subjectId = '') => {
     return name;
   }
 
-  return `${name} (${date.toLocaleDateString()})`;
+  return `${name} (${date.toLocaleDateString('en-GB')})`;
 };
 
 const deriveCommonMaxMarks = (marks = []) => {

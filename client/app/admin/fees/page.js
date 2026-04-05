@@ -395,7 +395,7 @@ export default function AdminFeesPage() {
             studentName: item.studentId?.userId?.name || '-',
             className: formatClassLabel(item.studentId?.classId),
             amount: `INR ${item.amount || 0}`,
-            submittedAt: new Date(item.createdAt).toLocaleString(),
+            submittedAt: new Date(item.createdAt).toLocaleString('en-GB'),
             status: 'Pending'
           }))}
         />

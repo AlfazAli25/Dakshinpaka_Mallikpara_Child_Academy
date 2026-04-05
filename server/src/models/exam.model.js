@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
-const ACADEMIC_YEAR_REGEX = /^\d{4}-\d{4}$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
 const buildAcademicYear = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -118,7 +118,7 @@ examSchema.pre('validate', function preValidateExam(next) {
   this.academicYear = normalizedAcademicYear || buildAcademicYear(this.startDate || this.date || this.examDate || new Date());
 
   if (!ACADEMIC_YEAR_REGEX.test(this.academicYear)) {
-    this.invalidate('academicYear', 'Academic year must be in YYYY-YYYY format');
+    this.invalidate('academicYear', 'Academic year must be in YYYY or YYYY-YYYY format');
   }
 
   if (!this.startDate && this.date) {

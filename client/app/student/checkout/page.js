@@ -26,6 +26,19 @@ const mapVerificationStatus = (status) => {
   return 'PENDING';
 };
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function StudentCheckoutPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
@@ -89,9 +102,15 @@ export default function StudentCheckoutPage() {
       const pendingRows = (feeResponse.data || [])
         .map((item) => {
           const pending = Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0);
+          const dueDateParsed = item.dueDate ? new Date(item.dueDate) : null;
+          const dueDateTimestamp = dueDateParsed && !Number.isNaN(dueDateParsed.getTime())
+            ? dueDateParsed.getTime()
+            : Number.MAX_SAFE_INTEGER;
+
           return {
             id: item._id,
-            dueDate: item.dueDate?.slice(0, 10) || '',
+            dueDate: formatDateValue(item.dueDate),
+            dueDateTimestamp,
             amountDueValue: item.amountDue || 0,
             amountPaidValue: item.amountPaid || 0,
             pendingAmountValue: pending,
@@ -101,15 +120,11 @@ export default function StudentCheckoutPage() {
           };
         })
         .filter((item) => item.pendingAmountValue > 0)
-        .sort((a, b) => {
-          const first = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-          const second = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-          return first - second;
-        });
+        .sort((a, b) => a.dueDateTimestamp - b.dueDateTimestamp);
 
       const paymentRows = (paymentsResponse.data || []).map((item) => ({
         id: item._id,
-        paymentDate: (item.paidAt || item.createdAt || '').slice(0, 10) || '-',
+        paymentDate: formatDateValue(item.paidAt || item.createdAt),
         amount: `INR ${item.amount || 0}`,
         screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
         verificationStatus: mapVerificationStatus(item.paymentStatus)

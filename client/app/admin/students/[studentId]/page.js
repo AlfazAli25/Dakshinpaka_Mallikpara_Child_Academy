@@ -264,7 +264,7 @@ export default function StudentProfilePage() {
           return {
             id: String(item._id || `${item.createdAt || 'payment'}-${index}`),
             timestamp,
-            createdAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString() : '-',
+            createdAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString('en-GB') : '-',
             amount: `INR ${Number(item.amount || 0)}`,
             paymentMethod: toPaymentMode(item.paymentMethod)
           };
@@ -288,7 +288,7 @@ export default function StudentProfilePage() {
     { label: 'Class', value: formatClassLabel(student?.classId) },
     { label: 'Section', value: student?.classId?.section || '-' },
     { label: 'Gender', value: student?.gender || '-' },
-    { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString() : '-' },
+    { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString('en-GB') : '-' },
     { label: 'Guardian Contact', value: student?.guardianContact || '-' },
     { label: 'Email', value: student?.userId?.email || '-' },
     { label: 'Admission No', value: student?.admissionNo || '-' },

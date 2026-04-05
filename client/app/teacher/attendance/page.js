@@ -12,6 +12,19 @@ const columns = [
   { key: 'status', label: 'Status' }
 ];
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function TeacherAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
@@ -32,7 +45,7 @@ export default function TeacherAttendancePage() {
           (response.data || []).map((item) => ({
             id: item._id,
             student: item.studentId?.userId?.name || item.studentId?.admissionNo || '-',
-            date: item.date?.slice(0, 10),
+            date: formatDateValue(item.date),
             status: item.status
           }))
         );
