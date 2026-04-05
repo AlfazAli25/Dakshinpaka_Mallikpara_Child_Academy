@@ -17,8 +17,56 @@ const formatInr = (value) => {
   return `INR ${Number.isFinite(numeric) ? numeric.toLocaleString('en-IN') : '0'}`;
 };
 
+const toValidDate = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const getExamWindow = (exam) => {
+  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
+  const slotWindows = scheduleRows
+    .map((slot) => {
+      const startDate = toValidDate(slot?.startDate);
+      const endDate = toValidDate(slot?.endDate);
+
+      if (!startDate || !endDate) {
+        return null;
+      }
+
+      return { startDate, endDate };
+    })
+    .filter(Boolean);
+
+  if (slotWindows.length > 0) {
+    return {
+      startDate: new Date(Math.min(...slotWindows.map((item) => item.startDate.getTime()))),
+      endDate: new Date(Math.max(...slotWindows.map((item) => item.endDate.getTime())))
+    };
+  }
+
+  const fallbackStartDate = toValidDate(exam?.startDate || exam?.date || exam?.examDate);
+  const fallbackEndDate = toValidDate(exam?.endDate) || fallbackStartDate;
+
+  if (!fallbackStartDate || !fallbackEndDate) {
+    return null;
+  }
+
+  return {
+    startDate: fallbackStartDate,
+    endDate: fallbackEndDate
+  };
+};
+
 const getDefaultStats = () => ([
-  { id: 'upcomingExam', title: 'Upcoming Exam', value: 'No upcoming exam' },
+  { id: 'upcomingExam', title: 'Upcoming Exam', value: 'No Upcoming Exam' },
   { id: 'assignedClasses', title: 'Assigned Classes', value: '0' },
   { id: 'assignedSubjects', title: 'Assigned Subjects', value: '0' }
 ]);
@@ -96,27 +144,38 @@ export default function TeacherDashboardPage() {
         setPaymentNotifications(notificationRes.data?.notifications || []);
 
         const exams = Array.isArray(examsRes.data) ? examsRes.data : [];
-        const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const upcomingExam = exams
+        const nowMs = Date.now();
+
+        const examWindows = exams
           .map((item) => {
-            const examDateValue = item?.startDate || item?.date || item?.examDate;
-            const examDate = examDateValue ? new Date(examDateValue) : null;
-            if (!examDate || Number.isNaN(examDate.getTime())) {
+            const examWindow = getExamWindow(item);
+            if (!examWindow) {
               return null;
             }
 
-            const examName = String(item?.examName || item?.description || 'Exam').trim();
+            const examName = String(item?.examName || item?.description || 'Exam').trim() || 'Exam';
             return {
-              name: examName || 'Exam',
-              date: examDate
+              name: examName,
+              startDate: examWindow.startDate,
+              endDate: examWindow.endDate
             };
           })
-          .filter((item) => item && item.date >= startOfToday)
-          .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
+          .filter(Boolean);
+
+        const ongoingExam = examWindows
+          .filter((item) => nowMs >= item.startDate.getTime() && nowMs <= item.endDate.getTime())
+          .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+        const nextScheduledExam = examWindows
+          .filter((item) => item.startDate.getTime() > nowMs)
+          .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
+
+        const upcomingExamValue = ongoingExam
+          ? 'Ongoing'
+          : nextScheduledExam?.name || 'No Upcoming Exam';
 
         setStats([
-          { id: 'upcomingExam', title: 'Upcoming Exam', value: upcomingExam?.name || 'No upcoming exam' },
+          { id: 'upcomingExam', title: 'Upcoming Exam', value: upcomingExamValue },
           { id: 'assignedClasses', title: 'Assigned Classes', value: String(teacher.classIds?.length || 0) },
           { id: 'assignedSubjects', title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
         ]);
