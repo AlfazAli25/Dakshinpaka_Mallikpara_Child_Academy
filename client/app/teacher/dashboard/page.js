@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
@@ -17,21 +17,23 @@ const formatInr = (value) => {
   return `INR ${Number.isFinite(numeric) ? numeric.toLocaleString('en-IN') : '0'}`;
 };
 
+const getDefaultStats = () => ([
+  { id: 'upcomingExam', title: 'Upcoming Exam', value: 'No upcoming exam' },
+  { id: 'assignedClasses', title: 'Assigned Classes', value: '0' },
+  { id: 'assignedSubjects', title: 'Assigned Subjects', value: '0' }
+]);
+
 export default function TeacherDashboardPage() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState([
-    { title: 'Total Exams', value: '0' },
-    { title: 'Attendance Records', value: '0' },
-    { title: 'Assigned Classes', value: '0' },
-    { title: 'Assigned Subjects', value: '0' }
-  ]);
+  const [stats, setStats] = useState(getDefaultStats());
   const [salaryRows, setSalaryRows] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [paymentNotifications, setPaymentNotifications] = useState([]);
   const [respondingNotificationId, setRespondingNotificationId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const teacherDetailsRef = useRef(null);
 
   const pendingSalaryConfirmations = paymentNotifications.filter(
     (item) =>
@@ -63,20 +65,14 @@ export default function TeacherDashboardPage() {
           setSalaryRows([]);
           setReceipts([]);
           setPaymentNotifications([]);
-          setStats([
-            { title: 'Total Exams', value: '0' },
-            { title: 'Attendance Records', value: '0' },
-            { title: 'Assigned Classes', value: '0' },
-            { title: 'Assigned Subjects', value: '0' }
-          ]);
+          setStats(getDefaultStats());
           return;
         }
 
         setTeacherProfile(teacher);
 
-        const [examsRes, attendanceRes, payrollRes, receiptRes, notificationRes] = await Promise.all([
+        const [examsRes, payrollRes, receiptRes, notificationRes] = await Promise.all([
           get('/exams', token),
-          get('/attendance', token),
           get('/payroll/my/history', token),
           get('/receipts/teacher', token),
           get('/notifications/teacher', token, {
@@ -92,30 +88,43 @@ export default function TeacherDashboardPage() {
             amount: `INR ${item.amount || 0}`,
             status: item.status,
             paidOn: item.paidOn?.slice(0, 10) || '-',
-            paymentMethod: item.paymentMethod || '-'
+            paymentMethod: item.status === 'Paid' ? (item.paymentMethod || '-') : '-'
           }))
         );
 
         setReceipts(receiptRes.data || []);
         setPaymentNotifications(notificationRes.data?.notifications || []);
 
+        const exams = Array.isArray(examsRes.data) ? examsRes.data : [];
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const upcomingExam = exams
+          .map((item) => {
+            const examDate = item?.date ? new Date(item.date) : null;
+            if (!examDate || Number.isNaN(examDate.getTime())) {
+              return null;
+            }
+
+            const examName = String(item?.description || item?.subjectId?.name || item?.subjectId?.code || 'Exam').trim();
+            return {
+              name: examName || 'Exam',
+              date: examDate
+            };
+          })
+          .filter((item) => item && item.date >= startOfToday)
+          .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
+
         setStats([
-          { title: 'Total Exams', value: String(examsRes.data?.length || 0) },
-          { title: 'Attendance Records', value: String(attendanceRes.data?.length || 0) },
-          { title: 'Assigned Classes', value: String(teacher.classIds?.length || 0) },
-          { title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
+          { id: 'upcomingExam', title: 'Upcoming Exam', value: upcomingExam?.name || 'No upcoming exam' },
+          { id: 'assignedClasses', title: 'Assigned Classes', value: String(teacher.classIds?.length || 0) },
+          { id: 'assignedSubjects', title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
         ]);
       } catch (_error) {
         setTeacherProfile(null);
         setSalaryRows([]);
         setReceipts([]);
         setPaymentNotifications([]);
-        setStats([
-          { title: 'Total Exams', value: '0' },
-          { title: 'Attendance Records', value: '0' },
-          { title: 'Assigned Classes', value: '0' },
-          { title: 'Assigned Subjects', value: '0' }
-        ]);
+        setStats(getDefaultStats());
       } finally {
         setLoading(false);
       }
@@ -152,6 +161,16 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  const scrollToTeacherDetails = () => {
+    if (!teacherDetailsRef.current || typeof window === 'undefined') {
+      return;
+    }
+
+    const topOffset = 88;
+    const nextTop = window.scrollY + teacherDetailsRef.current.getBoundingClientRect().top - topOffset;
+    window.scrollTo({ top: Math.max(nextTop, 0), behavior: 'smooth' });
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -159,73 +178,91 @@ export default function TeacherDashboardPage() {
         title="Teacher Dashboard"
         description="Review today's classes, attendance work, and exam tasks at a glance."
       />
-      <div className="grid gap-4 md:grid-cols-4">
-        {stats.map((item) => (
-          <StatCard key={item.title} title={item.title} value={item.value} loading={loading} />
-        ))}
+      <div className="grid gap-4 md:grid-cols-3">
+        {stats.map((item) => {
+          const jumpToDetails = item.id === 'assignedClasses' || item.id === 'assignedSubjects';
+          if (!jumpToDetails) {
+            return <StatCard key={item.id} title={item.title} value={item.value} loading={loading} />;
+          }
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={scrollToTeacherDetails}
+              disabled={loading}
+              className="text-left disabled:cursor-not-allowed"
+              title="Scroll to Teacher Details"
+            >
+              <StatCard title={item.title} value={item.value} loading={loading} />
+            </button>
+          );
+        })}
       </div>
 
-      {loading ? (
-        <InfoCard title="Teacher Details">
-          <div className="space-y-2">
-            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200" />
-          </div>
-        </InfoCard>
-      ) : teacherProfile ? (
-        <InfoCard title="Teacher Details">
-          <DetailsGrid
-            items={[
-              { label: 'Name', value: teacherProfile.userId?.name || '-' },
-              { label: 'Email', value: teacherProfile.userId?.email || '-' },
-              { label: 'Teacher ID', value: teacherProfile.teacherId || '-' },
-              { label: 'Contact Number', value: teacherProfile.contactNumber || '-' },
-              { label: 'Monthly Salary', value: formatInr(teacherProfile.monthlySalary) },
-              { label: 'Total Due Salary', value: formatInr(teacherProfile.pendingSalary) },
-              { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
-              {
-                label: 'Joining Date',
-                value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'
-              },
-              {
-                label: 'Assigned Classes',
-                value: formatClassLabelList(teacherProfile.classIds || [])
-              },
-              {
-                label: 'Assigned Subjects',
-                value: (teacherProfile.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
-              }
-            ]}
-          />
-
-          {(teacherProfile.classIds || []).length > 0 && (
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Class Student List</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {(teacherProfile.classIds || []).map((classItem) => {
-                  const classId = String(classItem?._id || classItem || '');
-                  if (!classId) {
-                    return null;
-                  }
-
-                  return (
-                    <Link
-                      key={classId}
-                      href={`/teacher/classes/${classId}`}
-                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                    >
-                      {formatClassLabel(classItem, 'Class')}
-                    </Link>
-                  );
-                })}
-              </div>
+      <div ref={teacherDetailsRef}>
+        {loading ? (
+          <InfoCard title="Teacher Details">
+            <div className="space-y-2">
+              <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-1/3 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+              <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200" />
             </div>
-          )}
-        </InfoCard>
-      ) : null}
+          </InfoCard>
+        ) : teacherProfile ? (
+          <InfoCard title="Teacher Details">
+            <DetailsGrid
+              items={[
+                { label: 'Name', value: teacherProfile.userId?.name || '-' },
+                { label: 'Email', value: teacherProfile.userId?.email || '-' },
+                { label: 'Teacher ID', value: teacherProfile.teacherId || '-' },
+                { label: 'Contact Number', value: teacherProfile.contactNumber || '-' },
+                { label: 'Monthly Salary', value: formatInr(teacherProfile.monthlySalary) },
+                { label: 'Total Due Salary', value: formatInr(teacherProfile.pendingSalary) },
+                { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
+                {
+                  label: 'Joining Date',
+                  value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString() : '-'
+                },
+                {
+                  label: 'Assigned Classes',
+                  value: formatClassLabelList(teacherProfile.classIds || [])
+                },
+                {
+                  label: 'Assigned Subjects',
+                  value: (teacherProfile.subjects || []).map((item) => item?.code).filter(Boolean).join(', ') || '-'
+                }
+              ]}
+            />
+
+            {(teacherProfile.classIds || []).length > 0 && (
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Class Student List</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(teacherProfile.classIds || []).map((classItem) => {
+                    const classId = String(classItem?._id || classItem || '');
+                    if (!classId) {
+                      return null;
+                    }
+
+                    return (
+                      <Link
+                        key={classId}
+                        href={`/teacher/classes/${classId}`}
+                        className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                      >
+                        {formatClassLabel(classItem, 'Class')}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </InfoCard>
+        ) : null}
+      </div>
 
       {!loading && pendingSalaryConfirmations.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
