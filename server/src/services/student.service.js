@@ -224,6 +224,12 @@ const updateById = async (id, payload = {}) => {
 		return null;
 	}
 
+	if (payload.attendance !== undefined) {
+		const error = new Error('Attendance is auto-calculated and cannot be edited manually');
+		error.statusCode = 400;
+		throw error;
+	}
+
 	const pendingFeesProvided = payload.pendingFees !== undefined;
 
 	const nextAdmissionNo =
@@ -240,7 +246,6 @@ const updateById = async (id, payload = {}) => {
 	const nextAddress =
 		payload.address !== undefined ? String(payload.address || '').trim() : String(student.address || '').trim();
 	const nextPendingFees = payload.pendingFees !== undefined ? Number(payload.pendingFees) : Number(student.pendingFees ?? 0);
-	const nextAttendance = payload.attendance !== undefined ? Number(payload.attendance) : Number(student.attendance ?? 0);
 
 	if (!nextAdmissionNo || !nextClassId || !nextGender || !nextDob || !nextGuardianContact || !nextAddress) {
 		const error = new Error('Student profile must keep all mandatory fields complete');
@@ -250,12 +255,6 @@ const updateById = async (id, payload = {}) => {
 
 	if (!Number.isFinite(nextPendingFees) || nextPendingFees < 0) {
 		const error = new Error('Pending fees must be 0 or greater');
-		error.statusCode = 400;
-		throw error;
-	}
-
-	if (!Number.isFinite(nextAttendance) || nextAttendance < 0 || nextAttendance > 100) {
-		const error = new Error('Attendance must be between 0 and 100');
 		error.statusCode = 400;
 		throw error;
 	}
@@ -330,8 +329,7 @@ const updateById = async (id, payload = {}) => {
 					dob: nextDob,
 					guardianContact: nextGuardianContact,
 					address: nextAddress,
-					pendingFees: nextPendingFees,
-					attendance: nextAttendance
+					pendingFees: nextPendingFees
 				},
 				{ new: true, runValidators: true }
 			),

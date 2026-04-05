@@ -29,7 +29,7 @@ router.put(
 router.delete(
 	'/:id',
 	protect,
-	requireRole(['admin']),
+	requireRole(['admin', 'teacher']),
 	[param('id').isMongoId().withMessage('Invalid attendance id')],
 	validate,
 	controller.deleteAttendance

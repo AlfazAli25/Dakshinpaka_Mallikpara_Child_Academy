@@ -55,8 +55,7 @@ router.put(
 		body('dob').optional().isISO8601().withMessage('Please enter a valid date of birth'),
 		body('guardianContact').optional().notEmpty().withMessage('Guardian contact is required'),
 		body('address').optional().notEmpty().withMessage('Address is required'),
-		body('pendingFees').optional().isFloat({ min: 0 }).withMessage('Pending fees must be 0 or greater'),
-		body('attendance').optional().isFloat({ min: 0, max: 100 }).withMessage('Attendance must be between 0 and 100')
+		body('pendingFees').optional().isFloat({ min: 0 }).withMessage('Pending fees must be 0 or greater')
 	],
 	validate,
 	controller.update

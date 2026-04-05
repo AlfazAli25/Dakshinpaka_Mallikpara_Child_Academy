@@ -74,7 +74,6 @@ const getStudentFormFromProfile = (student) => ({
   guardianContact: student?.guardianContact || '',
   address: student?.address || '',
   pendingFees: student?.pendingFees === 0 || student?.pendingFees ? String(student.pendingFees) : '',
-  attendance: student?.attendance === 0 || student?.attendance ? String(student.attendance) : '',
   password: ''
 });
 
@@ -98,7 +97,6 @@ export default function StudentProfilePage() {
     guardianContact: '',
     address: '',
     pendingFees: '',
-    attendance: '',
     password: ''
   });
 
@@ -179,9 +177,6 @@ export default function StudentProfilePage() {
     if (String(editForm.pendingFees || '').trim() === '') {
       missing.push('Pending Fees');
     }
-    if (String(editForm.attendance || '').trim() === '') {
-      missing.push('Attendance');
-    }
     return missing;
   }, [editForm]);
 
@@ -215,13 +210,8 @@ export default function StudentProfilePage() {
     }
 
     const normalizedPendingFees = Number(editForm.pendingFees);
-    const normalizedAttendance = Number(editForm.attendance);
     if (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0) {
       setError('Pending fees must be 0 or greater.');
-      return;
-    }
-    if (!Number.isFinite(normalizedAttendance) || normalizedAttendance < 0 || normalizedAttendance > 100) {
-      setError('Attendance must be between 0 and 100.');
       return;
     }
 
@@ -239,8 +229,7 @@ export default function StudentProfilePage() {
         dob: editForm.dob,
         guardianContact: String(editForm.guardianContact || '').trim(),
         address: String(editForm.address || '').trim(),
-        pendingFees: normalizedPendingFees,
-        attendance: normalizedAttendance
+        pendingFees: normalizedPendingFees
       };
 
       if (editForm.password) {
@@ -347,15 +336,15 @@ export default function StudentProfilePage() {
                   className="h-10"
                 />
                 <Input
-                  label="Attendance (%)"
+                  label="Attendance (%) - Auto Calculated"
                   type="number"
                   min="0"
                   max="100"
                   step="0.01"
-                  value={editForm.attendance}
-                  onChange={onEditChange('attendance')}
-                  required
-                  className="h-10"
+                  value={Number(student?.attendance || 0)}
+                  disabled
+                  readOnly
+                  className="h-10 bg-slate-100 text-slate-600"
                 />
                 <Input
                   label="Set New Password (optional)"

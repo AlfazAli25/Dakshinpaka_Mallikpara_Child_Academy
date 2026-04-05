@@ -322,13 +322,28 @@ const updateAttendance = asyncHandler(async (req, res) => {
 });
 
 const deleteAttendance = asyncHandler(async (req, res) => {
+	const existing = await attendanceService.findById(req.params.id);
+	if (!existing) {
+		return res.status(404).json({ success: false, message: 'Attendance not found' });
+	}
+
+	if (req.user?.role === 'teacher') {
+		const { teacherId, classIds } = await getTeacherContext(req.user._id);
+		if (!teacherId) {
+			return res.status(403).json({ success: false, message: 'Unauthorized' });
+		}
+
+		const classId = String(existing.classId?._id || existing.classId || '');
+		ensureTeacherClassAccess(classIds, classId);
+	}
+
 	const deleted = await attendanceService.deleteById(req.params.id);
 	if (!deleted) {
 		return res.status(404).json({ success: false, message: 'Attendance not found' });
 	}
 
 	await attendanceService.syncStudentAttendancePercentages({
-		studentIds: [String(deleted.studentId || '')]
+		studentIds: [String(existing.studentId?._id || existing.studentId || deleted.studentId || '')]
 	});
 
 	return res.json({ success: true, message: 'Attendance deleted successfully' });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
-import { get, post, put } from '@/lib/api';
+import { del, get, post, put } from '@/lib/api';
 import { getAuthContext } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -40,6 +40,7 @@ export default function TeacherAttendancePage() {
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingAttendanceId, setDeletingAttendanceId] = useState('');
   const [classRows, setClassRows] = useState([]);
   const [students, setStudents] = useState([]);
   const [historyRows, setHistoryRows] = useState([]);
@@ -389,6 +390,38 @@ export default function TeacherAttendancePage() {
     }
   };
 
+  const onDeleteAttendanceForStudent = async (studentId) => {
+    const attendanceId = String(attendanceIdByStudentId[studentId] || '');
+    if (!attendanceId) {
+      toast.error('No saved attendance found for this student on selected date.');
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm('Delete attendance for this student on the selected date?');
+    if (!confirmed) {
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      toast.error('Session expired. Please login again.');
+      return;
+    }
+
+    setDeletingAttendanceId(attendanceId);
+    try {
+      await del(`/attendance/${attendanceId}`, token);
+      toast.success('Attendance deleted successfully');
+      setReloadKey((prev) => prev + 1);
+    } catch (apiError) {
+      toast.error(apiError.message);
+    } finally {
+      setDeletingAttendanceId('');
+    }
+  };
+
   const showStudentTable = Boolean(selectedClassId && selectedDate);
   const canModifyAttendance = (!hasExistingAttendance || editMode) && selectedDate <= todayInputValue;
 
@@ -524,7 +557,7 @@ export default function TeacherAttendancePage() {
               <button
                 type="button"
                 onClick={onSaveAttendance}
-                disabled={saving || loadingStudents || students.length === 0 || !canModifyAttendance}
+                disabled={saving || loadingStudents || students.length === 0 || !canModifyAttendance || Boolean(deletingAttendanceId)}
                 className="h-10 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving
@@ -555,6 +588,7 @@ export default function TeacherAttendancePage() {
                   <th className="px-4 py-3 font-semibold">Roll Number</th>
                   <th className="px-4 py-3 font-semibold">Student Name</th>
                   <th className="px-4 py-3 font-semibold">Attendance</th>
+                  <th className="px-4 py-3 font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -570,11 +604,14 @@ export default function TeacherAttendancePage() {
                       <td className="px-4 py-3">
                         <div className="h-4 w-10 animate-pulse rounded bg-slate-200" />
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-14 animate-pulse rounded bg-slate-200" />
+                      </td>
                     </tr>
                   ))
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-4 py-6 text-center text-slate-500">
+                    <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
                       No students found for the selected class and section.
                     </td>
                   </tr>
@@ -601,6 +638,22 @@ export default function TeacherAttendancePage() {
                             />
                             <span>{isPresent ? 'Present' : 'Absent'}</span>
                           </label>
+                        </td>
+                        <td className="px-4 py-3">
+                          {attendanceIdByStudentId[studentId] ? (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteAttendanceForStudent(studentId)}
+                              disabled={saving || loadingStudents || Boolean(deletingAttendanceId)}
+                              className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingAttendanceId && deletingAttendanceId === attendanceIdByStudentId[studentId]
+                                ? 'Deleting...'
+                                : 'Delete'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">-</span>
+                          )}
                         </td>
                       </tr>
                     );
