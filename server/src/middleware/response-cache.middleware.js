@@ -25,6 +25,7 @@ const shouldBypassCache = (req) => {
   if (
     path.includes('/auth/') ||
     path.includes('/notifications') ||
+    path.includes('/attendance') ||
     path.includes('/payments') ||
     path.includes('/webhook')
   ) {

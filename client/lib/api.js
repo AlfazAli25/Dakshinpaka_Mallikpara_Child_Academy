@@ -246,6 +246,8 @@ export const get = async (path, token, options = {}) => {
     signal,
     useStaleCacheOnError = true
   } = options;
+  const normalizedPath = String(path || '').toLowerCase();
+  const effectiveCacheTtlMs = normalizedPath.includes('/attendance') ? 0 : cacheTtlMs;
   const cacheKey = `${token || 'public'}::${path}`;
   const staleCacheEntry = getCache.get(cacheKey);
   const canUseInFlightDedupe = !forceRefresh && !signal;
@@ -276,10 +278,10 @@ export const get = async (path, token, options = {}) => {
     }
   )
     .then((data) => {
-      if (cacheTtlMs > 0) {
+      if (effectiveCacheTtlMs > 0) {
         getCache.set(cacheKey, {
           data,
-          expiresAt: Date.now() + cacheTtlMs
+          expiresAt: Date.now() + effectiveCacheTtlMs
         });
       }
       return data;

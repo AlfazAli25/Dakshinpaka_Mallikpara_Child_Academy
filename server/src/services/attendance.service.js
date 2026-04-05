@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Attendance = require('../models/attendance.model');
+const Student = require('../models/student.model');
 
 const ATTENDANCE_STATUS = {
 	PRESENT: 'Present',
@@ -39,6 +41,11 @@ const normalizeAttendanceStatus = (value) =>
 	String(value || '').trim().toLowerCase() === 'present'
 		? ATTENDANCE_STATUS.PRESENT
 		: ATTENDANCE_STATUS.ABSENT;
+
+const normalizeStudentIdList = (studentIds = []) =>
+	[...new Set((Array.isArray(studentIds) ? studentIds : [])
+		.map((item) => String(item || '').trim())
+		.filter((item) => mongoose.Types.ObjectId.isValid(item)))];
 
 const getPagination = ({ page, limit } = {}) => {
 	const safePage = toPositiveInt(page, 1);
@@ -100,6 +107,70 @@ const listAttendance = async ({ filter = {}, page = 1, limit = 50, sort = { date
 	};
 };
 
+const listClassAttendanceHistory = async ({ classId, page = 1, limit = 10 } = {}) => {
+	if (!mongoose.Types.ObjectId.isValid(String(classId || ''))) {
+		const error = new Error('Invalid class selected');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const { page: safePage, limit: safeLimit, skip } = getPagination({ page, limit });
+	const classObjectId = new mongoose.Types.ObjectId(String(classId));
+	const matchStage = { $match: { classId: classObjectId } };
+	const groupStage = {
+		$group: {
+			_id: '$date',
+			totalCount: { $sum: 1 },
+			presentCount: {
+				$sum: {
+					$cond: [{ $eq: ['$status', ATTENDANCE_STATUS.PRESENT] }, 1, 0]
+				}
+			},
+			absentCount: {
+				$sum: {
+					$cond: [{ $eq: ['$status', ATTENDANCE_STATUS.ABSENT] }, 1, 0]
+				}
+			},
+			lastUpdatedAt: { $max: '$updatedAt' }
+		}
+	};
+
+	const [records, totals] = await Promise.all([
+		Attendance.aggregate([
+			matchStage,
+			groupStage,
+			{ $sort: { _id: -1 } },
+			{ $skip: skip },
+			{ $limit: safeLimit },
+			{
+				$project: {
+					_id: 0,
+					date: '$_id',
+					dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$_id', timezone: 'UTC' } },
+					totalCount: 1,
+					presentCount: 1,
+					absentCount: 1,
+					lastUpdatedAt: 1
+				}
+			}
+		]),
+		Attendance.aggregate([matchStage, groupStage, { $count: 'total' }])
+	]);
+
+	const total = Number(totals[0]?.total || 0);
+	const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+
+	return {
+		records,
+		pagination: {
+			page: safePage,
+			limit: safeLimit,
+			total,
+			totalPages
+		}
+	};
+};
+
 const findExistingByStudentDate = async ({ studentIds = [], dates = [] } = {}) => {
 	if (!Array.isArray(studentIds) || studentIds.length === 0 || !Array.isArray(dates) || dates.length === 0) {
 		return [];
@@ -131,6 +202,58 @@ const updateById = async (id, payload = {}) =>
 
 const deleteById = async (id) => Attendance.findByIdAndDelete(id).lean();
 
+const syncStudentAttendancePercentages = async ({ studentIds = [] } = {}) => {
+	const normalizedStudentIds = normalizeStudentIdList(studentIds);
+	if (normalizedStudentIds.length === 0) {
+		return;
+	}
+
+	const objectIds = normalizedStudentIds.map((item) => new mongoose.Types.ObjectId(item));
+	const stats = await Attendance.aggregate([
+		{ $match: { studentId: { $in: objectIds } } },
+		{
+			$group: {
+				_id: '$studentId',
+				totalCount: { $sum: 1 },
+				presentCount: {
+					$sum: {
+						$cond: [{ $eq: ['$status', ATTENDANCE_STATUS.PRESENT] }, 1, 0]
+					}
+				}
+			}
+		}
+	]);
+
+	const statsByStudentId = new Map(
+		stats.map((item) => [
+			String(item._id),
+			{
+				totalCount: Number(item.totalCount || 0),
+				presentCount: Number(item.presentCount || 0)
+			}
+		])
+	);
+
+	const bulkOps = objectIds.map((studentId) => {
+		const stat = statsByStudentId.get(String(studentId));
+		const totalCount = Number(stat?.totalCount || 0);
+		const presentCount = Number(stat?.presentCount || 0);
+		const attendancePercentage =
+			totalCount > 0 ? Number(((presentCount / totalCount) * 100).toFixed(2)) : 0;
+
+		return {
+			updateOne: {
+				filter: { _id: studentId },
+				update: { $set: { attendance: attendancePercentage } }
+			}
+		};
+	});
+
+	if (bulkOps.length > 0) {
+		await Student.bulkWrite(bulkOps, { ordered: false });
+	}
+};
+
 module.exports = {
 	ATTENDANCE_STATUS,
 	normalizeAttendanceDate,
@@ -139,8 +262,10 @@ module.exports = {
 	findAll,
 	findById,
 	listAttendance,
+	listClassAttendanceHistory,
 	findExistingByStudentDate,
 	markAttendanceBulk,
 	updateById,
-	deleteById
+	deleteById,
+	syncStudentAttendancePercentages
 };

@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
-import { get, post } from '@/lib/api';
+import { get, post, put } from '@/lib/api';
 import { getAuthContext } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
 const STUDENT_PAGE_SIZE = 50;
+const HISTORY_PAGE_SIZE = 8;
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -21,6 +22,19 @@ const getTodayInputValue = () => {
 const toClassNameKey = (classItem) => String(classItem?.name || '').trim();
 const toSectionKey = (classItem) => String(classItem?.section || '').trim();
 
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function TeacherAttendancePage() {
   const toast = useToast();
   const [loadingClasses, setLoadingClasses] = useState(true);
@@ -28,12 +42,22 @@ export default function TeacherAttendancePage() {
   const [saving, setSaving] = useState(false);
   const [classRows, setClassRows] = useState([]);
   const [students, setStudents] = useState([]);
+  const [historyRows, setHistoryRows] = useState([]);
   const [presentByStudentId, setPresentByStudentId] = useState({});
+  const [attendanceIdByStudentId, setAttendanceIdByStudentId] = useState({});
+  const [hasExistingAttendance, setHasExistingAttendance] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [pendingEditDateKey, setPendingEditDateKey] = useState('');
   const [selectedClassName, setSelectedClassName] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [selectedDate, setSelectedDate] = useState(getTodayInputValue());
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyHasNextPage, setHistoryHasNextPage] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const todayInputValue = getTodayInputValue();
 
   const classNameOptions = useMemo(() => {
     const uniqueNames = [...new Set(classRows.map((item) => toClassNameKey(item)).filter(Boolean))];
@@ -113,10 +137,64 @@ export default function TeacherAttendancePage() {
   }, [selectedClassId, selectedDate]);
 
   useEffect(() => {
+    setHistoryPage(1);
+  }, [selectedClassId]);
+
+  useEffect(() => {
+    const loadAttendanceHistory = async () => {
+      if (!selectedClassId) {
+        setHistoryRows([]);
+        setHistoryHasNextPage(false);
+        return;
+      }
+
+      setLoadingHistory(true);
+      try {
+        const { token } = getAuthContext();
+        if (!token) {
+          setHistoryRows([]);
+          setHistoryHasNextPage(false);
+          return;
+        }
+
+        const response = await get(
+          `/attendance?classId=${selectedClassId}&page=${historyPage}&limit=${HISTORY_PAGE_SIZE}`,
+          token,
+          {
+            forceRefresh: true,
+            cacheTtlMs: 0
+          }
+        );
+
+        const rows = Array.isArray(response.data) ? response.data : [];
+        const pagination = response.pagination || {};
+
+        setHistoryRows(rows);
+        if (Number.isFinite(Number(pagination.totalPages)) && Number(pagination.totalPages) > 0) {
+          setHistoryHasNextPage(Number(historyPage) < Number(pagination.totalPages));
+        } else {
+          setHistoryHasNextPage(rows.length === HISTORY_PAGE_SIZE);
+        }
+      } catch (_error) {
+        setHistoryRows([]);
+        setHistoryHasNextPage(false);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+    loadAttendanceHistory();
+  }, [selectedClassId, historyPage, reloadKey]);
+
+  useEffect(() => {
     const loadStudentsAndAttendance = async () => {
       if (!selectedClassId || !selectedDate) {
         setStudents([]);
         setPresentByStudentId({});
+        setAttendanceIdByStudentId({});
+        setHasExistingAttendance(false);
+        setEditMode(false);
+        setPendingEditDateKey('');
         setHasNextPage(false);
         return;
       }
@@ -127,6 +205,10 @@ export default function TeacherAttendancePage() {
         if (!token) {
           setStudents([]);
           setPresentByStudentId({});
+          setAttendanceIdByStudentId({});
+          setHasExistingAttendance(false);
+          setEditMode(false);
+          setPendingEditDateKey('');
           setHasNextPage(false);
           return;
         }
@@ -144,8 +226,15 @@ export default function TeacherAttendancePage() {
 
         const studentRows = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
         const attendanceRows = Array.isArray(attendanceResponse.data) ? attendanceResponse.data : [];
+        const attendanceIdMap = {};
         const attendanceByStudentId = new Map(
-          attendanceRows.map((item) => [String(item.studentId?._id || item.studentId || ''), item])
+          attendanceRows.map((item) => {
+            const studentId = String(item.studentId?._id || item.studentId || '');
+            if (studentId && item._id) {
+              attendanceIdMap[studentId] = String(item._id);
+            }
+            return [studentId, item];
+          })
         );
 
         const nextPresenceMap = {};
@@ -158,10 +247,26 @@ export default function TeacherAttendancePage() {
 
         setStudents(studentRows);
         setPresentByStudentId(nextPresenceMap);
+        setAttendanceIdByStudentId(attendanceIdMap);
+        setHasExistingAttendance(attendanceRows.length > 0);
+        const shouldAutoEnableEdit =
+          Boolean(pendingEditDateKey) &&
+          String(pendingEditDateKey) === String(selectedDate) &&
+          attendanceRows.length > 0 &&
+          selectedDate <= todayInputValue;
+
+        setEditMode(shouldAutoEnableEdit);
+        if (pendingEditDateKey) {
+          setPendingEditDateKey('');
+        }
         setHasNextPage(studentRows.length === STUDENT_PAGE_SIZE);
       } catch (_error) {
         setStudents([]);
         setPresentByStudentId({});
+        setAttendanceIdByStudentId({});
+        setHasExistingAttendance(false);
+        setEditMode(false);
+        setPendingEditDateKey('');
         setHasNextPage(false);
       } finally {
         setLoadingStudents(false);
@@ -169,7 +274,7 @@ export default function TeacherAttendancePage() {
     };
 
     loadStudentsAndAttendance();
-  }, [selectedClassId, selectedDate, page]);
+  }, [selectedClassId, selectedDate, page, reloadKey]);
 
   const onTogglePresent = (studentId, checked) => {
     setPresentByStudentId((prev) => ({
@@ -178,7 +283,35 @@ export default function TeacherAttendancePage() {
     }));
   };
 
+  const onOpenHistoryDate = (dateKey) => {
+    const normalizedDateKey = String(dateKey || '').trim();
+    if (!normalizedDateKey) {
+      return;
+    }
+
+    if (normalizedDateKey > todayInputValue) {
+      toast.error('Attendance cannot be marked for future date');
+      return;
+    }
+
+    if (normalizedDateKey === selectedDate) {
+      if (hasExistingAttendance) {
+        setEditMode(true);
+      }
+      return;
+    }
+
+    setPendingEditDateKey(normalizedDateKey);
+    setSelectedDate(normalizedDateKey);
+    setPage(1);
+  };
+
   const onSaveAttendance = async () => {
+    if (selectedDate > todayInputValue) {
+      toast.error('Attendance cannot be marked for future date');
+      return;
+    }
+
     if (!selectedClassId) {
       toast.error('Class must be selected');
       return;
@@ -212,8 +345,39 @@ export default function TeacherAttendancePage() {
 
     setSaving(true);
     try {
-      await post('/attendance', payload, token);
-      toast.success('Attendance saved successfully');
+      if (hasExistingAttendance) {
+        if (!editMode) {
+          toast.error('Attendance already saved. Click Edit Attendance to modify.');
+          return;
+        }
+
+        const recordsWithIds = payload.map((item) => ({
+          ...item,
+          attendanceId: attendanceIdByStudentId[item.studentId] || ''
+        }));
+        const updates = recordsWithIds.filter((item) => item.attendanceId);
+        const creates = recordsWithIds
+          .filter((item) => !item.attendanceId)
+          .map(({ attendanceId, ...rest }) => rest);
+
+        if (updates.length > 0) {
+          await Promise.all(
+            updates.map(({ attendanceId, ...rest }) => put(`/attendance/${attendanceId}`, rest, token))
+          );
+        }
+
+        if (creates.length > 0) {
+          await post('/attendance', creates, token);
+        }
+
+        toast.success('Attendance updated successfully');
+      } else {
+        await post('/attendance', payload, token);
+        toast.success('Attendance saved successfully');
+      }
+
+      setEditMode(false);
+      setReloadKey((prev) => prev + 1);
     } catch (apiError) {
       if (apiError?.statusCode === 409) {
         toast.error('Attendance already marked for this date');
@@ -226,6 +390,7 @@ export default function TeacherAttendancePage() {
   };
 
   const showStudentTable = Boolean(selectedClassId && selectedDate);
+  const canModifyAttendance = (!hasExistingAttendance || editMode) && selectedDate <= todayInputValue;
 
   return (
     <div className="space-y-5">
@@ -258,24 +423,130 @@ export default function TeacherAttendancePage() {
             type="date"
             value={selectedDate}
             onChange={(event) => setSelectedDate(event.target.value)}
+            max={todayInputValue}
             className="h-11"
           />
         </div>
       </div>
 
-      {showStudentTable && (
+      {selectedClassId && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Attendance Table</h3>
+            <h3 className="text-base font-semibold text-slate-900">Attendance History</h3>
+          </div>
+
+          {loadingHistory ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`attendance-history-loading-${index}`} className="h-14 animate-pulse rounded-lg bg-slate-100" />
+              ))}
+            </div>
+          ) : historyRows.length === 0 ? (
+            <p className="text-sm text-slate-500">No saved attendance dates for this class yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {historyRows.map((item, index) => {
+                const dateKey = String(item.dateKey || '');
+                const isSelected = dateKey && dateKey === selectedDate;
+                return (
+                  <button
+                    key={`${dateKey || 'history'}-${index}`}
+                    type="button"
+                    onClick={() => onOpenHistoryDate(dateKey)}
+                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left ${
+                      isSelected
+                        ? 'border-red-300 bg-red-50'
+                        : 'border-slate-200 bg-white hover:border-red-200 hover:bg-red-50/40'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{formatDateValue(item.date)}</p>
+                      <p className="text-xs text-slate-600">
+                        Present: {Number(item.presentCount || 0)} | Absent: {Number(item.absentCount || 0)}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-red-700">Open & Edit</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={onSaveAttendance}
-              disabled={saving || loadingStudents || students.length === 0}
-              className="h-10 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={historyPage <= 1 || loadingHistory}
+              onClick={() => setHistoryPage((prev) => Math.max(prev - 1, 1))}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? 'Saving...' : 'Save Attendance'}
+              Previous
+            </button>
+            <span className="text-xs text-slate-500">Page {historyPage}</span>
+            <button
+              type="button"
+              disabled={!historyHasNextPage || loadingHistory}
+              onClick={() => setHistoryPage((prev) => prev + 1)}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Next
             </button>
           </div>
+        </div>
+      )}
+
+      {showStudentTable && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-base font-semibold text-slate-900">Attendance Table</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              {hasExistingAttendance && !editMode && (
+                <button
+                  type="button"
+                  onClick={() => setEditMode(true)}
+                  disabled={loadingStudents || saving || selectedDate > todayInputValue}
+                  className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Edit Attendance
+                </button>
+              )}
+
+              {hasExistingAttendance && editMode && (
+                <button
+                  type="button"
+                  onClick={() => setEditMode(false)}
+                  disabled={saving}
+                  className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel Edit
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={onSaveAttendance}
+                disabled={saving || loadingStudents || students.length === 0 || !canModifyAttendance}
+                className="h-10 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving
+                  ? hasExistingAttendance
+                    ? 'Updating...'
+                    : 'Saving...'
+                  : hasExistingAttendance
+                    ? editMode
+                      ? 'Update Attendance'
+                      : 'Attendance Saved'
+                    : 'Save Attendance'}
+              </button>
+            </div>
+          </div>
+
+          {selectedDate > todayInputValue && (
+            <p className="mb-3 text-sm text-amber-700">Attendance cannot be marked for future date.</p>
+          )}
+
+          {hasExistingAttendance && !editMode && selectedDate <= todayInputValue && (
+            <p className="mb-3 text-sm text-slate-600">Attendance already saved for this date. Click Edit Attendance to modify.</p>
+          )}
 
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -283,7 +554,7 @@ export default function TeacherAttendancePage() {
                 <tr>
                   <th className="px-4 py-3 font-semibold">Roll Number</th>
                   <th className="px-4 py-3 font-semibold">Student Name</th>
-                  <th className="px-4 py-3 font-semibold">Present</th>
+                  <th className="px-4 py-3 font-semibold">Attendance</th>
                 </tr>
               </thead>
               <tbody>
@@ -324,6 +595,7 @@ export default function TeacherAttendancePage() {
                             <input
                               type="checkbox"
                               checked={isPresent}
+                              disabled={saving || loadingStudents || !canModifyAttendance}
                               onChange={(event) => onTogglePresent(studentId, event.target.checked)}
                               className="h-4 w-4 rounded border-slate-300 text-red-700 focus:ring-red-200"
                             />

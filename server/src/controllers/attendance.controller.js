@@ -4,6 +4,19 @@ const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
 
 const isValidObjectId = (value) => /^[a-f\d]{24}$/i.test(String(value || ''));
+const getTodayAttendanceDate = () => attendanceService.normalizeAttendanceDate(new Date());
+
+const ensureDateIsNotFuture = (normalizedDate) => {
+	if (!(normalizedDate instanceof Date)) {
+		return;
+	}
+
+	if (normalizedDate.getTime() > getTodayAttendanceDate().getTime()) {
+		const error = new Error('Attendance cannot be marked for future date');
+		error.statusCode = 400;
+		throw error;
+	}
+};
 
 const getTeacherContext = async (userId) => {
 	const teacher = await Teacher.findOne({ userId }).select('_id classIds').lean();
@@ -121,6 +134,10 @@ const markAttendance = asyncHandler(async (req, res) => {
 	ensureNoDuplicatePairsInPayload(rows);
 
 	for (const row of rows) {
+		ensureDateIsNotFuture(row.date);
+	}
+
+	for (const row of rows) {
 		ensureTeacherClassAccess(classIds, row.classId);
 	}
 
@@ -145,6 +162,10 @@ const markAttendance = asyncHandler(async (req, res) => {
 				status: row.status,
 				markedBy: req.user._id
 			}))
+		});
+
+		await attendanceService.syncStudentAttendancePercentages({
+			studentIds: rows.map((row) => row.studentId)
 		});
 
 		return res.status(201).json({
@@ -188,8 +209,8 @@ const getAttendanceByClassAndDate = asyncHandler(async (req, res) => {
 	const classId = String(req.query?.classId || '').trim();
 	const date = req.query?.date;
 
-	if (!classId || !date) {
-		return res.status(400).json({ success: false, message: 'classId and date are required' });
+	if (!classId) {
+		return res.status(400).json({ success: false, message: 'classId is required' });
 	}
 
 	if (!isValidObjectId(classId)) {
@@ -203,6 +224,21 @@ const getAttendanceByClassAndDate = asyncHandler(async (req, res) => {
 		}
 
 		ensureTeacherClassAccess(classIds, classId);
+	}
+
+	if (!date) {
+		const listResult = await attendanceService.listClassAttendanceHistory({
+			classId,
+			page,
+			limit
+		});
+
+		return res.json({
+			success: true,
+			data: listResult.records,
+			pagination: listResult.pagination,
+			mode: 'history'
+		});
 	}
 
 	const normalizedDate = attendanceService.normalizeAttendanceDate(date);
@@ -241,6 +277,7 @@ const updateAttendance = asyncHandler(async (req, res) => {
 	const nextClassId = req.body?.classId ? String(req.body.classId) : existingClassId;
 	const nextDate = req.body?.date ? attendanceService.normalizeAttendanceDate(req.body.date) : attendanceService.normalizeAttendanceDate(existing.date);
 	const nextStatus = attendanceService.normalizeAttendanceStatus(req.body?.status || existing.status);
+	ensureDateIsNotFuture(nextDate);
 
 	if (!isValidObjectId(nextStudentId) || !isValidObjectId(nextClassId)) {
 		return res.status(400).json({ success: false, message: 'Invalid student or class selected' });
@@ -268,6 +305,13 @@ const updateAttendance = asyncHandler(async (req, res) => {
 			return res.status(404).json({ success: false, message: 'Attendance not found' });
 		}
 
+		await attendanceService.syncStudentAttendancePercentages({
+			studentIds: [
+				String(existing.studentId?._id || existing.studentId || ''),
+				nextStudentId
+			]
+		});
+
 		return res.json({ success: true, data: updated });
 	} catch (error) {
 		if (attendanceService.isDuplicateAttendanceError(error)) {
@@ -282,6 +326,10 @@ const deleteAttendance = asyncHandler(async (req, res) => {
 	if (!deleted) {
 		return res.status(404).json({ success: false, message: 'Attendance not found' });
 	}
+
+	await attendanceService.syncStudentAttendancePercentages({
+		studentIds: [String(deleted.studentId || '')]
+	});
 
 	return res.json({ success: true, message: 'Attendance deleted successfully' });
 });
