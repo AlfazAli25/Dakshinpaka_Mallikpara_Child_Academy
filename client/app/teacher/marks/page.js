@@ -181,6 +181,7 @@ export default function TeacherMarksPage() {
 
   const [rows, setRows] = useState([]);
   const [savingStudentId, setSavingStudentId] = useState('');
+  const [savingAll, setSavingAll] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -376,6 +377,50 @@ export default function TeacherMarksPage() {
     );
   };
 
+  const persistRowMark = async (targetRow, token) => {
+    const payload = {
+      studentId: targetRow.studentId,
+      classId: selectedClassId,
+      subjectId: selectedSubjectId,
+      examId: selectedExamId,
+      marksObtained: Number(targetRow.marksObtained),
+      maxMarks: Number(maxMarksInput)
+    };
+
+    try {
+      const response = targetRow.markId
+        ? await put(`/marks/${targetRow.markId}`, payload, token)
+        : await post('/marks', payload, token);
+
+      const persistedMarkId = toId(response?.data) || targetRow.markId;
+      const persistedPercentage = Number(response?.data?.percentage);
+
+      setRows((prev) =>
+        prev.map((row) =>
+          row.studentId === targetRow.studentId
+            ? {
+                ...row,
+                markId: persistedMarkId,
+                marksObtained: String(payload.marksObtained),
+                maxMarksFromRecord: payload.maxMarks,
+                percentageFromRecord: Number.isFinite(persistedPercentage)
+                  ? persistedPercentage
+                  : row.percentageFromRecord
+              }
+            : row
+        )
+      );
+
+      return { ok: true };
+    } catch (apiError) {
+      if (apiError?.statusCode === 409) {
+        return { ok: false, message: 'Marks already entered' };
+      }
+
+      return { ok: false, message: apiError.message || 'Failed to save marks' };
+    }
+  };
+
   const onSaveRow = async (studentId) => {
     const targetRow = rows.find((row) => row.studentId === studentId);
     if (!targetRow) {
@@ -401,44 +446,74 @@ export default function TeacherMarksPage() {
 
     setSavingStudentId(studentId);
 
-    const payload = {
-      studentId,
-      classId: selectedClassId,
-      subjectId: selectedSubjectId,
-      examId: selectedExamId,
-      marksObtained: Number(targetRow.marksObtained),
-      maxMarks: Number(maxMarksInput)
-    };
-
     try {
-      const response = targetRow.markId
-        ? await put(`/marks/${targetRow.markId}`, payload, token)
-        : await post('/marks', payload, token);
-
-      const persistedMarkId = toId(response?.data) || targetRow.markId;
-
-      setRows((prev) =>
-        prev.map((row) =>
-          row.studentId === studentId
-            ? {
-                ...row,
-                markId: persistedMarkId,
-                marksObtained: String(payload.marksObtained),
-                maxMarksFromRecord: payload.maxMarks,
-                percentageFromRecord: Number(response?.data?.percentage)
-              }
-            : row
-        )
-      );
-
-      toast.success('Marks saved successfully');
-    } catch (apiError) {
-      if (apiError?.statusCode === 409) {
-        toast.error('Marks already entered');
+      const result = await persistRowMark(targetRow, token);
+      if (result.ok) {
+        toast.success('Marks saved successfully');
       } else {
-        toast.error(apiError.message || 'Failed to save marks');
+        toast.error(result.message);
       }
     } finally {
+      setSavingStudentId('');
+    }
+  };
+
+  const onSaveAllRows = async () => {
+    if (!selectedClassId || !selectedSubjectId || !selectedExamId) {
+      toast.error('Please select class, subject, and exam before saving marks');
+      return;
+    }
+
+    const rowsToSave = rows.filter((row) => String(row.marksObtained || '').trim() !== '');
+    if (rowsToSave.length === 0) {
+      toast.error('Enter marks for at least one student before using Save All');
+      return;
+    }
+
+    for (const row of rowsToSave) {
+      const validationMessage = validateRow(row, maxMarksInput);
+      if (validationMessage) {
+        toast.error(`${validationMessage} (${row.studentName})`);
+        return;
+      }
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      toast.error('Session expired. Please login again.');
+      return;
+    }
+
+    setSavingAll(true);
+
+    try {
+      let successCount = 0;
+      const failures = [];
+
+      for (const row of rowsToSave) {
+        setSavingStudentId(row.studentId);
+        const result = await persistRowMark(row, token);
+
+        if (result.ok) {
+          successCount += 1;
+        } else {
+          failures.push({
+            studentName: row.studentName,
+            message: result.message
+          });
+        }
+      }
+
+      if (failures.length === 0) {
+        toast.success(`Marks saved for ${successCount} student${successCount === 1 ? '' : 's'}`);
+      } else {
+        const firstFailure = failures[0];
+        toast.error(
+          `Saved ${successCount} student${successCount === 1 ? '' : 's'}, failed ${failures.length}. ${firstFailure.studentName}: ${firstFailure.message}`
+        );
+      }
+    } finally {
+      setSavingAll(false);
       setSavingStudentId('');
     }
   };
@@ -498,7 +573,26 @@ export default function TeacherMarksPage() {
                 <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Marks Obtained</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Percentage</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Action</th>
+                <th className="px-4 py-3 font-semibold text-red-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Actions</span>
+                    <button
+                      type="button"
+                      onClick={onSaveAllRows}
+                      disabled={
+                        savingAll ||
+                        loadingStudents ||
+                        !selectedClassId ||
+                        !selectedSubjectId ||
+                        !selectedExamId ||
+                        rows.length === 0
+                      }
+                      className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {savingAll ? 'Saving All...' : 'Save All'}
+                    </button>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -555,7 +649,7 @@ export default function TeacherMarksPage() {
                         <button
                           type="button"
                           onClick={() => onSaveRow(row.studentId)}
-                          disabled={savingStudentId === row.studentId}
+                          disabled={savingAll || savingStudentId === row.studentId}
                           className="rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {savingStudentId === row.studentId

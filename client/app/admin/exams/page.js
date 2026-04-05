@@ -208,7 +208,6 @@ export default function AdminExamsPage() {
 
   const [search, setSearch] = useState('');
   const [filterClassId, setFilterClassId] = useState('');
-  const [filterAcademicYear, setFilterAcademicYear] = useState('');
 
   const [examRecords, setExamRecords] = useState([]);
   const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
@@ -416,10 +415,6 @@ export default function AdminExamsPage() {
         query.set('classId', filterClassId);
       }
 
-      if (filterAcademicYear.trim()) {
-        query.set('academicYear', filterAcademicYear.trim());
-      }
-
       const response = await get(`/exams?${query.toString()}`, getToken());
 
       setExamRecords(Array.isArray(response.data) ? response.data : []);
@@ -446,13 +441,13 @@ export default function AdminExamsPage() {
 
   useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [search, filterClassId, filterAcademicYear]);
+  }, [search, filterClassId]);
 
   useEffect(() => {
     loadExams(pagination.page).catch((apiError) => {
       toast.error(apiError.message || 'Failed to load exams');
     });
-  }, [pagination.page, search, filterClassId, filterAcademicYear]);
+  }, [pagination.page, search, filterClassId]);
 
   useEffect(() => {
     const validClassIdSet = new Set(allClassIds);
@@ -846,15 +841,6 @@ export default function AdminExamsPage() {
         eyebrow="Administration"
         title="Exam Management"
         description="Create meaningful class-wise exam plans with subject-level schedule and clear date-time slots."
-        rightSlot={
-          <button
-            type="button"
-            onClick={clearForm}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-          >
-            Create New
-          </button>
-        }
       />
 
       <form onSubmit={onSubmitExam} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1068,7 +1054,7 @@ export default function AdminExamsPage() {
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2">
           <Input
             label="Search Exam"
             value={search}
@@ -1083,14 +1069,6 @@ export default function AdminExamsPage() {
             onChange={(event) => setFilterClassId(event.target.value)}
             className="h-11"
             options={[{ value: '', label: 'All classes' }, ...classOptions]}
-          />
-
-          <Input
-            label="Filter by Academic Year"
-            value={filterAcademicYear}
-            onChange={(event) => setFilterAcademicYear(event.target.value)}
-            className="h-11"
-            placeholder="2026-2027"
           />
         </div>
       </div>
