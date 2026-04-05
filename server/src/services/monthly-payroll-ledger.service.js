@@ -441,12 +441,11 @@ const applyManualPendingSalaryOverride = async ({
 	});
 
 	const payrollByMonth = new Map(sortedRows.map((item) => [normalizeMonthKey(item.month), item]));
-	const affectedMonths = listTrailingMonthStarts({ monthCount: pendingChunks.length, anchorDate: targetMonth });
 	const monthPendingMap = new Map();
 
-	for (let index = 0; index < affectedMonths.length; index += 1) {
-		// Assign current month first, then walk backward for remaining pending salary.
-		const monthKey = getMonthKey(affectedMonths[affectedMonths.length - 1 - index]);
+	for (let index = 0; index < pendingChunks.length; index += 1) {
+		// Distribute from current month backward: current gets the first (largest) chunk.
+		const monthKey = getMonthKey(addMonths(targetMonth, -index));
 		monthPendingMap.set(monthKey, toAmount(pendingChunks[index] || 0));
 	}
 
