@@ -8,6 +8,7 @@ const Receipt = require('../models/receipt.model');
 const Notification = require('../models/notification.model');
 const Attendance = require('../models/attendance.model');
 const Grade = require('../models/grade.model');
+const Marks = require('../models/marks.model');
 const createCrudService = require('./crud.service');
 const { isValidEmail } = require('../utils/validation');
 const { ensureMonthlyFeesForStudent, applyManualPendingFeesOverride } = require('./monthly-fee-ledger.service');
@@ -446,7 +447,8 @@ const deleteLinkedStudentData = async (student) => {
 		Receipt.deleteMany({ studentId: student._id }),
 		Notification.deleteMany({ studentId: student._id }),
 		Attendance.deleteMany({ studentId: student._id }),
-		Grade.deleteMany({ studentId: student._id })
+		Grade.deleteMany({ studentId: student._id }),
+		Marks.deleteMany({ studentId: student._id })
 	]);
 
 	await Student.findByIdAndDelete(student._id);

@@ -63,15 +63,13 @@ export default function StudentResultsPage() {
           return;
         }
 
-        const response = await get('/student/results', token);
+        const response = await get(`/marks/student/${student._id}?page=1&limit=500`, token);
         setRows(
           (response.data || []).map((item) => ({
             id: item._id,
-            subject: item.examId?.subjectId?.name || '-',
-            marks: `${item.marksObtained}/${item.examId?.totalMarks || 0}`,
-            grade: toGradeLabel(
-              item.examId?.totalMarks > 0 ? (Number(item.marksObtained || 0) / Number(item.examId.totalMarks)) * 100 : NaN
-            ),
+            subject: item.subjectId?.name || '-',
+            marks: `${item.marksObtained}/${item.maxMarks || 0}`,
+            grade: item.grade || toGradeLabel(item.percentage),
             remarks: item.remarks || '-'
           }))
         );

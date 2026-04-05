@@ -9,6 +9,7 @@ const links = [
   { href: '/teacher/dashboard', label: 'Dashboard' },
   { href: '/teacher/attendance', label: 'Attendance' },
   { href: '/teacher/exams', label: 'Exams' },
+  { href: '/teacher/marks', label: 'Marks' },
   { href: '/teacher/timetable', label: 'Timetable' }
 ];
 

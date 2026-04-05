@@ -401,6 +401,13 @@ const create = async (payload) => {
 			joiningDate: parsedJoiningDate
 		});
 
+		if (validAssignments.subjectIds.length > 0) {
+			await Subject.updateMany(
+				{ _id: { $in: validAssignments.subjectIds } },
+				{ $set: { teacherId: user._id } }
+			);
+		}
+
 		await applyManualPendingSalaryOverride({
 			teacherId: teacher._id,
 			targetPendingSalary: normalizedPendingSalary,
@@ -490,6 +497,13 @@ const updateById = async (id, payload = {}) => {
 		conflictCheckSubjectIds: nextSubjects.filter((subjectId) => !currentSubjectSet.has(subjectId))
 	});
 
+	const previousSubjectIds = normalizeIdArray(teacher.subjects || []);
+	const previousSubjectIdSet = new Set(previousSubjectIds);
+	const nextSubjectIds = normalizeIdArray(validAssignments.subjectIds || []);
+	const nextSubjectIdSet = new Set(nextSubjectIds);
+	const removedSubjectIds = previousSubjectIds.filter((subjectId) => !nextSubjectIdSet.has(subjectId));
+	const addedSubjectIds = nextSubjectIds.filter((subjectId) => !previousSubjectIdSet.has(subjectId));
+
 	if (nextTeacherId !== String(teacher.teacherId || '').trim()) {
 		const existingTeacherId = await Teacher.findOne({ teacherId: nextTeacherId, _id: { $ne: teacher._id } });
 		if (existingTeacherId) {
@@ -561,6 +575,22 @@ const updateById = async (id, payload = {}) => {
 		await User.findByIdAndUpdate(teacher.userId, userUpdates, { new: true, runValidators: true });
 	}
 
+	if (teacher.userId) {
+		if (removedSubjectIds.length > 0) {
+			await Subject.updateMany(
+				{ _id: { $in: removedSubjectIds }, teacherId: teacher.userId },
+				{ $unset: { teacherId: 1 } }
+			);
+		}
+
+		if (addedSubjectIds.length > 0) {
+			await Subject.updateMany(
+				{ _id: { $in: addedSubjectIds } },
+				{ $set: { teacherId: teacher.userId } }
+			);
+		}
+	}
+
 	if (pendingSalaryProvided) {
 		await applyManualPendingSalaryOverride({
 			teacherId: teacher._id,
@@ -627,6 +657,7 @@ const deleteById = async (id) => {
 	await Promise.all([
 		Payroll.deleteMany({ teacherId: teacher._id }),
 		Receipt.deleteMany({ teacherId: teacher._id }),
+		Subject.updateMany({ teacherId: teacher.userId }, { $unset: { teacherId: 1 } }),
 		Attendance.updateMany({ markedBy: teacher._id }, { $unset: { markedBy: 1 } }),
 		ClassModel.updateMany({ classTeacher: teacher._id }, { $unset: { classTeacher: 1 } }),
 		Timetable.updateMany(

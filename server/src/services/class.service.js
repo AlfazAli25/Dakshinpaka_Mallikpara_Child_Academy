@@ -5,6 +5,7 @@ const Student = require('../models/student.model');
 const Exam = require('../models/exam.model');
 const Timetable = require('../models/timetable.model');
 const Teacher = require('../models/teacher.model');
+const Marks = require('../models/marks.model');
 
 const base = createCrudService(ClassModel);
 
@@ -302,14 +303,15 @@ const deleteById = async (id) => {
 		return null;
 	}
 
-	const [linkedStudent, linkedExam, linkedTimetable] = await Promise.all([
+	const [linkedStudent, linkedExam, linkedTimetable, linkedMarks] = await Promise.all([
 		Student.findOne({ classId: classRecord._id }).select('_id'),
 		Exam.findOne({ classId: classRecord._id }).select('_id'),
-		Timetable.findOne({ classId: classRecord._id }).select('_id')
+		Timetable.findOne({ classId: classRecord._id }).select('_id'),
+		Marks.findOne({ classId: classRecord._id }).select('_id')
 	]);
 
-	if (linkedStudent || linkedExam || linkedTimetable) {
-		const error = new Error('Cannot delete class with linked students, exams, or timetable records');
+	if (linkedStudent || linkedExam || linkedTimetable || linkedMarks) {
+		const error = new Error('Cannot delete class with linked students, exams, timetable records, or marks');
 		error.statusCode = 400;
 		throw error;
 	}

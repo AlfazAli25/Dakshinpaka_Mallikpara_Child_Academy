@@ -5,6 +5,7 @@ const subjectSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     code: { type: String, trim: true, default: '' },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     normalizedName: { type: String, required: true, trim: true, lowercase: true, select: false },
     normalizedCode: { type: String, trim: true, uppercase: true, default: '', select: false }
   },
@@ -20,6 +21,7 @@ subjectSchema.pre('validate', function preValidateSubject(next) {
 });
 
 subjectSchema.index({ classId: 1, normalizedName: 1 }, { unique: true });
+subjectSchema.index({ classId: 1, teacherId: 1 });
 subjectSchema.index(
   { classId: 1, normalizedCode: 1 },
   {

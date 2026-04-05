@@ -95,7 +95,12 @@ const create = asyncHandler(async (req, res) => {
 		}
 	}
 
-	const item = await examService.create(req.body);
+	const item = await examService.create({
+		...req.body,
+		examName: req.body?.examName || req.body?.description || 'Exam',
+		examDate: req.body?.examDate || req.body?.date,
+		createdBy: req.user?._id
+	});
 	return res.status(201).json({ success: true, data: item });
 });
 

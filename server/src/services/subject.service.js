@@ -3,6 +3,7 @@ const ClassModel = require('../models/class.model');
 const Teacher = require('../models/teacher.model');
 const Exam = require('../models/exam.model');
 const Timetable = require('../models/timetable.model');
+const Marks = require('../models/marks.model');
 
 let legacyLinksSynced = false;
 
@@ -48,7 +49,8 @@ const buildDuplicateError = (error) => {
 const normalizeSubjectPayload = (payload = {}) => ({
 	name: String(payload.name || '').trim(),
 	code: String(payload.code || '').trim().toUpperCase(),
-	classId: payload.classId
+	classId: payload.classId,
+	teacherId: payload.teacherId || undefined
 });
 
 const ensureClassExists = async (classId) => {
@@ -104,6 +106,7 @@ const updateById = async (id, payload = {}) => {
 
 	const nextName = payload.name !== undefined ? String(payload.name || '').trim() : String(subject.name || '').trim();
 	const nextCode = payload.code !== undefined ? String(payload.code || '').trim().toUpperCase() : String(subject.code || '').trim();
+	const nextTeacherId = payload.teacherId !== undefined ? payload.teacherId || undefined : subject.teacherId || undefined;
 
 	if (!nextName) {
 		const error = new Error('Subject name is required');
@@ -116,7 +119,8 @@ const updateById = async (id, payload = {}) => {
 			subject._id,
 			{
 				name: nextName,
-				code: nextCode
+				code: nextCode,
+				teacherId: nextTeacherId
 			},
 			{ new: true, runValidators: true }
 		);
@@ -133,13 +137,14 @@ const deleteById = async (id) => {
 		return null;
 	}
 
-	const [linkedExam, linkedTimetable] = await Promise.all([
+	const [linkedExam, linkedTimetable, linkedMarks] = await Promise.all([
 		Exam.findOne({ subjectId: subject._id }).select('_id'),
-		Timetable.findOne({ 'schedule.subjectId': subject._id }).select('_id')
+		Timetable.findOne({ 'schedule.subjectId': subject._id }).select('_id'),
+		Marks.findOne({ subjectId: subject._id }).select('_id')
 	]);
 
-	if (linkedExam || linkedTimetable) {
-		const error = new Error('Cannot delete subject linked to exam or timetable records');
+	if (linkedExam || linkedTimetable || linkedMarks) {
+		const error = new Error('Cannot delete subject linked to exam, timetable, or marks records');
 		error.statusCode = 400;
 		throw error;
 	}
