@@ -11,6 +11,11 @@ import { get } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 
+const formatInr = (value) => {
+  const numeric = Number(value);
+  return `INR ${Number.isFinite(numeric) ? numeric.toLocaleString('en-IN') : '0'}`;
+};
+
 export default function TeacherDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([
@@ -133,7 +138,8 @@ export default function TeacherDashboardPage() {
               { label: 'Email', value: teacherProfile.userId?.email || '-' },
               { label: 'Teacher ID', value: teacherProfile.teacherId || '-' },
               { label: 'Contact Number', value: teacherProfile.contactNumber || '-' },
-              { label: 'Department', value: teacherProfile.department || '-' },
+              { label: 'Monthly Salary', value: formatInr(teacherProfile.monthlySalary) },
+              { label: 'Total Due Salary', value: formatInr(teacherProfile.pendingSalary) },
               { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
               {
                 label: 'Joining Date',
@@ -208,19 +214,23 @@ export default function TeacherDashboardPage() {
           <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
             {receipts.map((receipt) => (
               <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-700">
-                  {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString()}
-                </p>
+                <div className="text-sm text-slate-700">
+                  <p>{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-600">
+                    Monthly Salary: INR {receipt.monthlySalary ?? receipt.amount ?? 0} | Amount Paid: INR {receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0} | Pending Salary: INR {receipt.pendingSalary ?? 0}
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
                     downloadTextFile(`${receipt.receiptNumber}.txt`, [
                       `Receipt Number: ${receipt.receiptNumber}`,
                       `Teacher Name: ${receipt.teacherName || '-'}`,
-                      `Salary Amount: INR ${receipt.amount}`,
+                      `Monthly Salary: INR ${receipt.monthlySalary ?? receipt.amount ?? 0}`,
                       `Payment Date: ${new Date(receipt.paymentDate).toLocaleString()}`,
                       `Payment Method: ${receipt.paymentMethod}`,
-                      `Pending Salary Cleared: INR ${receipt.pendingSalaryCleared || 0}`,
+                      `Amount Paid: INR ${receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0}`,
+                      `Pending Salary: INR ${receipt.pendingSalary ?? 0}`,
                       `Status: ${receipt.status}`
                     ])
                   }

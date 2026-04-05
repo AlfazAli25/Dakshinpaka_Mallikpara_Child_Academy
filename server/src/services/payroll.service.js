@@ -152,26 +152,9 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 		throw error;
 	}
 
-	const normalizedPendingSalaryCleared = totalAllocatedAmount;
+	const normalizedAmountPaid = roundAmount(totalAllocatedAmount);
 
 	const primaryPayroll = affectedPayrollRows[0];
-	const receipt = await createSalaryReceipt({
-		teacher,
-		payroll: {
-			_id: primaryPayroll._id,
-			paidOn: paymentTimestamp,
-			receiptId: undefined
-		},
-		amount: totalAllocatedAmount,
-		paymentMethod: normalizedPaymentMethod,
-		generatedBy: adminUserId,
-		pendingSalaryCleared: roundAmount(normalizedPendingSalaryCleared)
-	});
-
-	for (const payroll of affectedPayrollRows) {
-		payroll.receiptId = receipt._id;
-		await payroll.save();
-	}
 
 	const remainingPendingRows = await Payroll.find({ teacherId: teacher._id, status: 'Pending' }).select('amount');
 	const remainingPendingSalary = roundAmount(
@@ -179,6 +162,27 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	);
 	teacher.pendingSalary = remainingPendingSalary;
 	await teacher.save();
+
+	const receipt = await createSalaryReceipt({
+		teacher,
+		payroll: {
+			_id: primaryPayroll._id,
+			paidOn: paymentTimestamp,
+			receiptId: undefined
+		},
+		amount: normalizedAmountPaid,
+		amountPaid: normalizedAmountPaid,
+		monthlySalary: roundAmount(Number(teacher.monthlySalary || 0)),
+		pendingSalary: remainingPendingSalary,
+		paymentMethod: normalizedPaymentMethod,
+		generatedBy: adminUserId,
+		pendingSalaryCleared: normalizedAmountPaid
+	});
+
+	for (const payroll of affectedPayrollRows) {
+		payroll.receiptId = receipt._id;
+		await payroll.save();
+	}
 
 	await createActionLog({
 		actorId: adminUserId,
@@ -188,7 +192,7 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 		metadata: {
 			teacherId: String(teacher._id),
 			month: payrollMonth || undefined,
-			amount: totalAllocatedAmount,
+			amount: normalizedAmountPaid,
 			totalPendingBefore: totalPendingAmount,
 			totalPendingAfter: remainingPendingSalary,
 			allocations,
@@ -204,7 +208,7 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 		allocations,
 		totalPendingBefore: totalPendingAmount,
 		totalPendingAfter: remainingPendingSalary,
-		amountApplied: totalAllocatedAmount
+		amountApplied: normalizedAmountPaid
 	};
 };
 

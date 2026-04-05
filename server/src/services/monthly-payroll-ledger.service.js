@@ -445,7 +445,8 @@ const applyManualPendingSalaryOverride = async ({
 	const monthPendingMap = new Map();
 
 	for (let index = 0; index < affectedMonths.length; index += 1) {
-		const monthKey = getMonthKey(affectedMonths[index]);
+		// Assign current month first, then walk backward for remaining pending salary.
+		const monthKey = getMonthKey(affectedMonths[affectedMonths.length - 1 - index]);
 		monthPendingMap.set(monthKey, toAmount(pendingChunks[index] || 0));
 	}
 

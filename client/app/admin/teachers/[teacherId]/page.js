@@ -593,8 +593,9 @@ export default function TeacherProfilePage() {
           <div className="mt-3 max-h-[260px] space-y-2 overflow-y-auto pr-1">
             {profile.receipts.map((receipt) => (
               <div key={receipt._id} className="rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-700">
-                  {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString()}
+                <p className="text-sm text-slate-700">{receipt.receiptNumber} - {new Date(receipt.paymentDate).toLocaleDateString()}</p>
+                <p className="text-xs text-slate-600">
+                  Monthly Salary: INR {receipt.monthlySalary ?? receipt.amount ?? 0} | Amount Paid: INR {receipt.amountPaid ?? receipt.pendingSalaryCleared ?? receipt.amount ?? 0} | Pending Salary: INR {receipt.pendingSalary ?? 0}
                 </p>
               </div>
             ))}
