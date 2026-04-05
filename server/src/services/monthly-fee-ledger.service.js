@@ -67,6 +67,36 @@ const calculateFeePendingAmount = (fee) => {
 	return toAmount(Math.max(amountDue - amountPaid, 0));
 };
 
+const needsPendingDistributionRebalance = (fees = []) => {
+	const pendingRows = fees
+		.map((fee) => ({ pendingAmount: calculateFeePendingAmount(fee) }))
+		.filter((row) => row.pendingAmount > EPSILON);
+
+	if (pendingRows.length === 0) {
+		return false;
+	}
+
+	const partialPendingRows = pendingRows
+		.map((row, index) => ({ ...row, index }))
+		.filter((row) => !areAmountsEqual(row.pendingAmount, MONTHLY_FEE_AMOUNT));
+
+	if (partialPendingRows.length > 1) {
+		return true;
+	}
+
+	if (partialPendingRows.length === 1 && partialPendingRows[0].index !== 0) {
+		return true;
+	}
+
+	for (let index = 1; index < pendingRows.length; index += 1) {
+		if (!areAmountsEqual(pendingRows[index].pendingAmount, MONTHLY_FEE_AMOUNT)) {
+			return true;
+		}
+	}
+
+	return false;
+};
+
 const deriveFeeStatus = ({ amountDue, amountPaid }) => {
 	const normalizedAmountPaid = Math.max(toAmount(amountPaid), 0);
 
@@ -249,18 +279,33 @@ const ensureMonthlyFeesForStudent = async ({ studentId, session, anchorDate = ne
 		}
 	}
 
-	const freshFees = await withSession(
-		Fee.find({ studentId: student._id }).select('amountDue amountPaid'),
+	let refreshedFees = await withSession(
+		Fee.find({ studentId: student._id }).sort({ dueDate: 1, createdAt: 1 }),
 		session
 	);
-	const ledgerPending = toAmount(freshFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
+
+	if (needsPendingDistributionRebalance(refreshedFees)) {
+		const rebalanceTargetPending = toAmount(
+			refreshedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0)
+		);
+
+		refreshedFees = await applyManualPendingFeesOverride({
+			studentId: student._id,
+			targetPendingFees: rebalanceTargetPending,
+			session,
+			anchorDate,
+			skipEnsure: true
+		});
+	}
+
+	const ledgerPending = toAmount(refreshedFees.reduce((sum, fee) => sum + calculateFeePendingAmount(fee), 0));
 
 	if (!areAmountsEqual(student.pendingFees || 0, ledgerPending)) {
 		student.pendingFees = ledgerPending;
 		await student.save({ session });
 	}
 
-	return withSession(Fee.find({ studentId: student._id }).sort({ dueDate: 1, createdAt: 1 }), session);
+	return refreshedFees;
 };
 
 const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, session, anchorDate = new Date(), skipEnsure = false }) => {
