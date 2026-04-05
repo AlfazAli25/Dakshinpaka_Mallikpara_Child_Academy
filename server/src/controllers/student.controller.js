@@ -7,13 +7,41 @@ const Teacher = require('../models/teacher.model');
 const base = createCrudController(studentService, 'Student');
 
 const list = asyncHandler(async (req, res) => {
+	const query = req.query || {};
+	const requestedClassId = String(query.classId || '').trim();
+	const queryWithoutClassId = { ...query };
+	delete queryWithoutClassId.classId;
+
 	if (req.user?.role === 'admin') {
-		const data = await studentService.findAll(req.query || {});
+		const filter = requestedClassId ? { ...queryWithoutClassId, classId: requestedClassId } : queryWithoutClassId;
+		const data = await studentService.findAll(filter);
 		return res.json({ success: true, data });
 	}
 
 	if (req.user?.role === 'student') {
 		const data = await studentService.findAll({ userId: req.user._id });
+		return res.json({ success: true, data });
+	}
+
+	if (req.user?.role === 'teacher') {
+		const teacher = await Teacher.findOne({ userId: req.user._id }).select('classIds');
+		const assignedClassIds = (Array.isArray(teacher?.classIds) ? teacher.classIds : [])
+			.map((value) => String(value || ''))
+			.filter(Boolean);
+
+		if (assignedClassIds.length === 0) {
+			return res.json({ success: true, data: [] });
+		}
+
+		const assignedClassSet = new Set(assignedClassIds);
+		if (requestedClassId && !assignedClassSet.has(requestedClassId)) {
+			return res.status(403).json({ success: false, message: 'Forbidden' });
+		}
+
+		const filter = requestedClassId
+			? { ...queryWithoutClassId, classId: requestedClassId }
+			: { ...queryWithoutClassId, classId: { $in: assignedClassIds } };
+		const data = await studentService.findAll(filter);
 		return res.json({ success: true, data });
 	}
 
