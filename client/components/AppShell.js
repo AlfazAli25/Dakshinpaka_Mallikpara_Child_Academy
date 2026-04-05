@@ -7,7 +7,7 @@ import Sidebar from './Sidebar';
 import { get, post } from '@/lib/api';
 import { clearSession, getToken, getUser } from '@/lib/session';
 
-export default function AppShell({ title, links, children }) {
+export default function AppShell({ title, links, children, sidebarExtra = null }) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -167,7 +167,13 @@ export default function AppShell({ title, links, children }) {
       </div>
 
       <div className="flex min-h-[calc(100vh-65px)]">
-        <Sidebar title={title} links={links} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+        <Sidebar
+          title={title}
+          links={links}
+          mobileOpen={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          extraContent={sidebarExtra}
+        />
         <main className="smooth-enter w-full flex-1 overflow-x-hidden p-4 md:p-7">{children}</main>
       </div>
     </div>
