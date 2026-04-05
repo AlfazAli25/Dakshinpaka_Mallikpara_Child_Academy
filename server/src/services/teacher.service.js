@@ -43,6 +43,21 @@ const mapTeacherCreateDuplicateError = (error, { normalizedEmail = '', normalize
 		].map((key) => String(key || '').toLowerCase())
 	);
 	const duplicateMessage = String(error?.message || '').toLowerCase();
+	const hasMonthContext = duplicateKeys.has('month') || duplicateMessage.includes('month_1');
+
+	if (
+		hasMonthContext &&
+		(
+			duplicateKeys.has('staffid') ||
+			duplicateKeys.has('teacherid') ||
+			duplicateMessage.includes('index: staffid_1_month_1') ||
+			duplicateMessage.includes('index: teacherid_1_month_1')
+		)
+	) {
+		const retryError = new Error('Teacher registration is being processed in parallel. Please try again.');
+		retryError.statusCode = 409;
+		return retryError;
+	}
 
 	const duplicateEmailValue = String(keyValue.email || '').toLowerCase().trim();
 	if (
@@ -55,8 +70,8 @@ const mapTeacherCreateDuplicateError = (error, { normalizedEmail = '', normalize
 
 	const duplicateTeacherIdValue = String(keyValue.teacherId || keyValue.teacherid || '').trim();
 	if (
-		duplicateKeys.has('teacherid') ||
-		duplicateMessage.includes('index: teacherid_1') ||
+		(!hasMonthContext && duplicateKeys.has('teacherid')) ||
+		(duplicateMessage.includes('index: teacherid_1') && !duplicateMessage.includes('index: teacherid_1_month_1')) ||
 		(duplicateTeacherIdValue && duplicateTeacherIdValue === normalizedTeacherId)
 	) {
 		return createConflictError('Teacher ID already in use');
@@ -66,7 +81,7 @@ const mapTeacherCreateDuplicateError = (error, { normalizedEmail = '', normalize
 		return createConflictError('Teacher account already exists for this user');
 	}
 
-	return createConflictError('Teacher information already exists');
+	return null;
 };
 
 const normalizeIdArray = (value) => {

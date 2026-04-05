@@ -10,7 +10,187 @@ const allTeachersSyncState = {
 	lastCompletedAt: 0
 };
 
+let ensurePayrollIndexesPromise = null;
+
 const withSession = (query, session) => (session ? query.session(session) : query);
+
+const isMongoDuplicateKeyError = (error) =>
+	Number(error?.code || 0) === 11000 ||
+	(error?.writeErrors || []).some((item) => Number(item?.code || 0) === 11000);
+
+const isIgnorableIndexManagementError = (error) => {
+	const code = Number(error?.code || 0);
+	const codeName = String(error?.codeName || '').toLowerCase();
+	const message = String(error?.message || '').toLowerCase();
+
+	if ([13, 26, 27, 68, 85, 86].includes(code)) {
+		return true;
+	}
+
+	if (['unauthorized', 'indexnotfound', 'indexkeyspecconflict', 'indexoptionsconflict'].includes(codeName)) {
+		return true;
+	}
+
+	return (
+		message.includes('not authorized') ||
+		message.includes('index not found') ||
+		(message.includes('index') && message.includes('already exists'))
+	);
+};
+
+const hasExactIndexKey = (indexKey = {}, expectedKey = {}) => {
+	const indexKeys = Object.keys(indexKey || {});
+	const expectedKeys = Object.keys(expectedKey || {});
+	if (indexKeys.length !== expectedKeys.length) {
+		return false;
+	}
+
+	return expectedKeys.every((key) => indexKey[key] === expectedKey[key]);
+};
+
+const hasSparseOrPartialFilter = (index = {}, fieldName) =>
+	Boolean(
+		index.sparse ||
+		(index.partialFilterExpression && Object.prototype.hasOwnProperty.call(index.partialFilterExpression, fieldName))
+	);
+
+const ensurePayrollIndexes = async () => {
+	if (ensurePayrollIndexesPromise) {
+		return ensurePayrollIndexesPromise;
+	}
+
+	ensurePayrollIndexesPromise = (async () => {
+		let indexes = [];
+		try {
+			indexes = await Payroll.collection.indexes();
+		} catch (error) {
+			if (isIgnorableIndexManagementError(error)) {
+				return;
+			}
+
+			throw error;
+		}
+
+		const legacyStaffMonthUniqueIndexes = indexes.filter(
+			(index) =>
+				index?.unique &&
+				hasExactIndexKey(index?.key, { staffId: 1, month: 1 }) &&
+				!hasSparseOrPartialFilter(index, 'staffId')
+		);
+
+		for (const index of legacyStaffMonthUniqueIndexes) {
+			if (!index?.name) {
+				continue;
+			}
+
+			try {
+				await Payroll.collection.dropIndex(index.name);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+
+		const legacyTeacherMonthUniqueIndexes = indexes.filter(
+			(index) =>
+				index?.unique &&
+				hasExactIndexKey(index?.key, { teacherId: 1, month: 1 }) &&
+				!hasSparseOrPartialFilter(index, 'teacherId')
+		);
+
+		for (const index of legacyTeacherMonthUniqueIndexes) {
+			if (!index?.name) {
+				continue;
+			}
+
+			try {
+				await Payroll.collection.dropIndex(index.name);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+
+		try {
+			indexes = await Payroll.collection.indexes();
+		} catch (error) {
+			if (isIgnorableIndexManagementError(error)) {
+				return;
+			}
+
+			throw error;
+		}
+
+		const hasSafeStaffMonthUniqueIndex = indexes.some(
+			(index) =>
+				index?.unique &&
+				hasExactIndexKey(index?.key, { staffId: 1, month: 1 }) &&
+				hasSparseOrPartialFilter(index, 'staffId')
+		);
+
+		if (!hasSafeStaffMonthUniqueIndex) {
+			try {
+				await Payroll.collection.createIndex(
+					{ staffId: 1, month: 1 },
+					{ unique: true, sparse: true, name: 'staffId_1_month_1' }
+				);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+
+		const hasSafeTeacherMonthUniqueIndex = indexes.some(
+			(index) =>
+				index?.unique &&
+				hasExactIndexKey(index?.key, { teacherId: 1, month: 1 }) &&
+				hasSparseOrPartialFilter(index, 'teacherId')
+		);
+
+		if (!hasSafeTeacherMonthUniqueIndex) {
+			try {
+				await Payroll.collection.createIndex(
+					{ teacherId: 1, month: 1 },
+					{ unique: true, sparse: true, name: 'teacherId_1_month_1' }
+				);
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+	})().catch((error) => {
+		ensurePayrollIndexesPromise = null;
+		throw error;
+	});
+
+	return ensurePayrollIndexesPromise;
+};
+
+const isPayrollMonthDuplicateError = (error) => {
+	if (!isMongoDuplicateKeyError(error)) {
+		return false;
+	}
+
+	const keyPattern = error?.keyPattern || {};
+	const keyValue = error?.keyValue || {};
+	const duplicateMessage = String(error?.message || '').toLowerCase();
+	const duplicateKeys = new Set(
+		[
+			...Object.keys(keyPattern || {}),
+			...Object.keys(keyValue || {})
+		].map((key) => String(key || '').toLowerCase())
+	);
+
+	const hasMonthKey = duplicateKeys.has('month') || duplicateMessage.includes('month_1');
+	const hasTeacherKey = duplicateKeys.has('teacherid') || duplicateMessage.includes('teacherid_1');
+	const hasStaffKey = duplicateKeys.has('staffid') || duplicateMessage.includes('staffid_1');
+
+	return hasMonthKey && (hasTeacherKey || hasStaffKey || Boolean(keyValue.month));
+};
 
 const getMonthStartDate = (value = new Date()) => {
 	const date = value instanceof Date ? value : new Date(value);
@@ -179,6 +359,8 @@ const applyManualPendingSalaryOverride = async ({
 		return [];
 	}
 
+	await ensurePayrollIndexes();
+
 	const teacher = await withSession(
 		Teacher.findById(teacherId).select('_id joiningDate createdAt monthlySalary pendingSalary'),
 		session
@@ -207,13 +389,13 @@ const applyManualPendingSalaryOverride = async ({
 
 	const targetMonth = getMonthStartDate(anchorDate);
 	const startMonth = getTeacherPayrollStartMonth(teacher);
-	const distributionMonths = listMonthStartsInRange({ fromDate: startMonth, toDate: targetMonth });
-	const maxSupportedPendingSalary = toAmount(distributionMonths.length * normalizedMonthlyAmount);
+	let distributionMonths = listMonthStartsInRange({ fromDate: startMonth, toDate: targetMonth });
+	const pendingChunks = splitIntoMonthlyChunks(normalizedTargetPending, normalizedMonthlyAmount);
+	const requiredPendingMonths = pendingChunks.length;
 
-	if (normalizedTargetPending > maxSupportedPendingSalary + EPSILON) {
-		const error = new Error('Pending salary exceeds supported range from joining month to current month');
-		error.statusCode = 400;
-		throw error;
+	if (requiredPendingMonths > distributionMonths.length) {
+		const expandedStartMonth = addMonths(targetMonth, -(requiredPendingMonths - 1));
+		distributionMonths = listMonthStartsInRange({ fromDate: expandedStartMonth, toDate: targetMonth });
 	}
 
 	const payrollRows = skipEnsure
@@ -232,7 +414,6 @@ const applyManualPendingSalaryOverride = async ({
 	});
 
 	const payrollByMonth = new Map(sortedRows.map((item) => [normalizeMonthKey(item.month), item]));
-	const pendingChunks = splitIntoMonthlyChunks(normalizedTargetPending, normalizedMonthlyAmount);
 	const affectedMonths = listTrailingMonthStarts({ monthCount: pendingChunks.length, anchorDate: targetMonth });
 	const monthPendingMap = new Map();
 
@@ -264,9 +445,26 @@ const applyManualPendingSalaryOverride = async ({
 				payroll.processedByAdmin = undefined;
 				payroll.receiptId = undefined;
 			}
-			await payroll.save({ session });
-			payrollByMonth.set(monthKey, payroll);
-			continue;
+
+			try {
+				await payroll.save({ session });
+				payrollByMonth.set(monthKey, payroll);
+				continue;
+			} catch (error) {
+				if (!isPayrollMonthDuplicateError(error)) {
+					throw error;
+				}
+
+				payroll = await withSession(
+					Payroll.findOne({ teacherId: teacher._id, month: monthKey }),
+					session
+				);
+				if (!payroll) {
+					throw error;
+				}
+
+				payrollByMonth.set(monthKey, payroll);
+			}
 		}
 
 		payroll.month = monthKey;
@@ -321,6 +519,8 @@ const ensureMonthlyPayrollForTeacher = async ({ teacherId, session, anchorDate =
 	if (!teacherId) {
 		return [];
 	}
+
+	await ensurePayrollIndexes();
 
 	const teacher = await withSession(
 		Teacher.findById(teacherId).select('_id joiningDate createdAt monthlySalary pendingSalary'),

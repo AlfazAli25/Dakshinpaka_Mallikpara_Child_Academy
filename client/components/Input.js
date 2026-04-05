@@ -10,7 +10,8 @@ export default function Input({
 
   const handleWheel = (event) => {
     if (isNumberInput && document.activeElement === event.currentTarget) {
-      event.preventDefault();
+      // Blur to stop browser wheel from incrementing/decrementing number inputs.
+      event.currentTarget.blur();
     }
 
     if (typeof onWheel === 'function') {
