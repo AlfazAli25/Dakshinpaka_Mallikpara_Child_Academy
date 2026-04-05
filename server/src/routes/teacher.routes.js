@@ -23,7 +23,7 @@ router.post(
 		body('monthlySalary').isFloat({ gt: 0 }).withMessage('Monthly salary must be greater than zero'),
 		body('pendingSalary').optional().isFloat({ min: 0 }).withMessage('Pending salary must be 0 or greater'),
 		body('department').optional().notEmpty().withMessage('Department is required'),
-		body('qualifications').optional().notEmpty().withMessage('Qualifications are required'),
+		body('qualifications').notEmpty().withMessage('Qualifications are required'),
 		body('joiningDate').optional().isISO8601().withMessage('Please enter a valid joining date'),
 		body('classIds').isArray({ min: 1 }).withMessage('Select at least one class'),
 		body('classIds.*').isMongoId().withMessage('Invalid class selected'),

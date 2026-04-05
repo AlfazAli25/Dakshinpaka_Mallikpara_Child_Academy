@@ -29,6 +29,7 @@ const getInitialTeacherForm = () => ({
   email: '',
   password: '',
   contactNumber: '',
+  qualifications: '',
   monthlySalary: '',
   pendingSalary: '0',
   classIds: [],
@@ -219,6 +220,10 @@ export default function AdminTeachersPage() {
   const onCreate = async (event) => {
     event.preventDefault();
 
+    if (loading) {
+      return;
+    }
+
     if (!EMAIL_REGEX.test(String(form.email || '').trim())) {
       setError('Please enter a valid email address.');
       setMessage('');
@@ -227,6 +232,12 @@ export default function AdminTeachersPage() {
 
     if (!CONTACT_REGEX.test(String(form.contactNumber || '').trim())) {
       setError('Contact number must contain only digits (7 to 15 digits).');
+      setMessage('');
+      return;
+    }
+
+    if (!String(form.qualifications || '').trim()) {
+      setError('Qualifications are required.');
       setMessage('');
       return;
     }
@@ -272,6 +283,7 @@ export default function AdminTeachersPage() {
           email: String(form.email || '').trim(),
           password: form.password,
           contactNumber: String(form.contactNumber || '').trim(),
+          qualifications: String(form.qualifications || '').trim(),
           monthlySalary: monthlySalaryValue,
           pendingSalary: pendingSalaryValue,
           classIds: form.classIds,
@@ -352,6 +364,14 @@ export default function AdminTeachersPage() {
             onChange={onChange('password')}
             required
             className="h-11"
+          />
+          <Input
+            label={requiredLabel('Qualifications')}
+            value={form.qualifications}
+            onChange={onChange('qualifications')}
+            required
+            className="h-11"
+            placeholder="e.g. B.Ed, M.Sc"
           />
           <Input
             label={requiredLabel('Monthly Salary')}

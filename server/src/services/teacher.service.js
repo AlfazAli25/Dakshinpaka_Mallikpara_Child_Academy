@@ -21,6 +21,54 @@ const TEACHER_POPULATE = [
 
 const CONTACT_NUMBER_REGEX = /^\d{7,15}$/;
 
+const isMongoDuplicateKeyError = (error) => Number(error?.code || 0) === 11000;
+
+const createConflictError = (message) => {
+	const error = new Error(message);
+	error.statusCode = 409;
+	return error;
+};
+
+const mapTeacherCreateDuplicateError = (error, { normalizedEmail = '', normalizedTeacherId = '' } = {}) => {
+	if (!isMongoDuplicateKeyError(error)) {
+		return null;
+	}
+
+	const keyPattern = error?.keyPattern || {};
+	const keyValue = error?.keyValue || {};
+	const duplicateKeys = new Set(
+		[
+			...Object.keys(keyPattern || {}),
+			...Object.keys(keyValue || {})
+		].map((key) => String(key || '').toLowerCase())
+	);
+	const duplicateMessage = String(error?.message || '').toLowerCase();
+
+	const duplicateEmailValue = String(keyValue.email || '').toLowerCase().trim();
+	if (
+		duplicateKeys.has('email') ||
+		duplicateMessage.includes('index: email_1') ||
+		(duplicateEmailValue && duplicateEmailValue === normalizedEmail)
+	) {
+		return createConflictError('Email already in use');
+	}
+
+	const duplicateTeacherIdValue = String(keyValue.teacherId || keyValue.teacherid || '').trim();
+	if (
+		duplicateKeys.has('teacherid') ||
+		duplicateMessage.includes('index: teacherid_1') ||
+		(duplicateTeacherIdValue && duplicateTeacherIdValue === normalizedTeacherId)
+	) {
+		return createConflictError('Teacher ID already in use');
+	}
+
+	if (duplicateKeys.has('userid') || duplicateMessage.includes('index: userid_1')) {
+		return createConflictError('Teacher account already exists for this user');
+	}
+
+	return createConflictError('Teacher information already exists');
+};
+
 const normalizeIdArray = (value) => {
 	if (!Array.isArray(value)) {
 		return [];
@@ -220,7 +268,7 @@ const create = async (payload) => {
 	const normalizedPendingSalary =
 		pendingSalary === undefined || pendingSalary === null || String(pendingSalary).trim() === '' ? 0 : Number(pendingSalary);
 	const normalizedDepartment = withFallbackText(department, 'Not Assigned');
-	const normalizedQualifications = withFallbackText(qualifications, 'Not Provided');
+	const normalizedQualifications = String(qualifications || '').trim();
 	const normalizedClassIds = normalizeIdArray(classIds);
 	const normalizedSubjects = normalizeIdArray(subjects);
 	const parsedJoiningDate = joiningDate ? new Date(joiningDate) : new Date();
@@ -230,12 +278,13 @@ const create = async (payload) => {
 		!email ||
 		!password ||
 		!normalizedContactNumber ||
+		!normalizedQualifications ||
 		!Number.isFinite(normalizedMonthlySalary) ||
 		normalizedClassIds.length === 0 ||
 		normalizedSubjects.length === 0
 	) {
 		const error = new Error(
-			'All teacher details are required: name, email, password, contact number, monthly salary, classes, and subjects'
+			'All teacher details are required: name, email, password, contact number, qualifications, monthly salary, classes, and subjects'
 		);
 		error.statusCode = 400;
 		throw error;
@@ -289,12 +338,25 @@ const create = async (payload) => {
 	}
 
 	const passwordHash = await bcrypt.hash(password, 10);
-	const user = await User.create({
-		name: String(name).trim(),
-		email: normalizedEmail,
-		passwordHash,
-		role: 'teacher'
-	});
+	let user;
+	try {
+		user = await User.create({
+			name: String(name).trim(),
+			email: normalizedEmail,
+			passwordHash,
+			role: 'teacher'
+		});
+	} catch (error) {
+		const mappedError = mapTeacherCreateDuplicateError(error, {
+			normalizedEmail,
+			normalizedTeacherId
+		});
+		if (mappedError) {
+			throw mappedError;
+		}
+
+		throw error;
+	}
 
 	try {
 		const teacher = await Teacher.create({
@@ -321,6 +383,15 @@ const create = async (payload) => {
 	} catch (error) {
 		await Teacher.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
+
+		const mappedError = mapTeacherCreateDuplicateError(error, {
+			normalizedEmail,
+			normalizedTeacherId
+		});
+		if (mappedError) {
+			throw mappedError;
+		}
+
 		throw error;
 	}
 };

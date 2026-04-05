@@ -54,7 +54,7 @@ export default function TeacherProfilePage() {
     password: ''
   });
   const [paying, setPaying] = useState(false);
-  const [form, setForm] = useState({ month: '', amount: '', paymentMethod: 'BANK_TRANSFER', pendingSalaryCleared: '' });
+  const [form, setForm] = useState({ amount: '', paymentMethod: 'BANK_TRANSFER' });
 
   useEffect(() => {
     if (error) {
@@ -294,14 +294,12 @@ export default function TeacherProfilePage() {
 
     try {
       await post(`/payroll/teacher/${teacherId}/pay`, {
-        month: form.month || undefined,
         amount: Number(form.amount),
-        paymentMethod: form.paymentMethod,
-        pendingSalaryCleared: form.pendingSalaryCleared ? Number(form.pendingSalaryCleared) : undefined
+        paymentMethod: form.paymentMethod
       }, getToken());
 
       setMessage('Salary marked as paid and receipt generated successfully.');
-      setForm({ month: '', amount: '', paymentMethod: 'BANK_TRANSFER', pendingSalaryCleared: '' });
+      setForm({ amount: '', paymentMethod: 'BANK_TRANSFER' });
       await loadProfile();
     } catch (apiError) {
       setError(apiError.message);
@@ -320,6 +318,7 @@ export default function TeacherProfilePage() {
     { label: 'Email', value: teacher?.userId?.email || '-' },
     { label: 'Teacher ID', value: teacher?.teacherId || '-' },
     { label: 'Contact Number', value: teacher?.contactNumber || '-' },
+    { label: 'Qualifications', value: teacher?.qualifications || '-' },
     { label: 'Joining Date', value: teacher?.joiningDate ? new Date(teacher.joiningDate).toLocaleDateString() : '-' },
     {
       label: 'Classes',
@@ -478,23 +477,25 @@ export default function TeacherProfilePage() {
 
       <form onSubmit={onPaySalary} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Pay Salary</h3>
-        <p className="mb-4 text-sm text-slate-600">Mark teacher salary as paid and generate receipt automatically.</p>
+        <p className="mb-2 text-sm text-slate-600">
+          Payment is automatically allocated to oldest pending salary months first.
+        </p>
+        <p className="mb-4 text-xs text-slate-500">Current pending due: INR {profile.salaryStatus?.totalPending || 0}</p>
         <div className="grid gap-3 md:grid-cols-2">
-          <Input label="Month (YYYY-MM)" value={form.month} onChange={onChange('month')} className="h-11" placeholder="2026-03" />
-          <Input label="Salary Amount" type="number" value={form.amount} onChange={onChange('amount')} required className="h-11" />
+          <Input
+            label="Amount To Pay"
+            type="number"
+            value={form.amount}
+            onChange={onChange('amount')}
+            required
+            className="h-11"
+          />
           <Input
             label="Payment Method"
             value={form.paymentMethod}
             onChange={onChange('paymentMethod')}
             className="h-11"
             placeholder="BANK_TRANSFER"
-          />
-          <Input
-            label="Pending Salary Cleared"
-            type="number"
-            value={form.pendingSalaryCleared}
-            onChange={onChange('pendingSalaryCleared')}
-            className="h-11"
           />
         </div>
         <button
