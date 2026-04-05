@@ -369,7 +369,7 @@ export default function TeacherProfilePage() {
     },
     {
       label: 'Subjects',
-      value: (teacher?.subjects || []).map((item) => item?.name).filter(Boolean).join(', ') || '-'
+      value: (teacher?.subjects || []).map((item) => item?.code || item?.name).filter(Boolean).join(', ') || '-'
     }
   ];
 

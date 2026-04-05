@@ -25,10 +25,10 @@ router.post(
 		body('department').optional().notEmpty().withMessage('Department is required'),
 		body('qualifications').notEmpty().withMessage('Qualifications are required'),
 		body('joiningDate').optional().isISO8601().withMessage('Please enter a valid joining date'),
-		body('classIds').isArray({ min: 1 }).withMessage('Select at least one class'),
-		body('classIds.*').isMongoId().withMessage('Invalid class selected'),
-		body('subjects').isArray({ min: 1 }).withMessage('Select at least one subject'),
-		body('subjects.*').isMongoId().withMessage('Invalid subject selected')
+		body('classIds').optional().isArray().withMessage('Class list must be an array'),
+		body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
+		body('subjects').optional().isArray().withMessage('Subject list must be an array'),
+		body('subjects.*').optional().isMongoId().withMessage('Invalid subject selected')
 	],
 	validate,
 	controller.create
@@ -48,9 +48,9 @@ router.put(
 		body('department').optional().notEmpty().withMessage('Department is required'),
 		body('qualifications').optional().notEmpty().withMessage('Qualifications are required'),
 		body('joiningDate').optional().isISO8601().withMessage('Please enter a valid joining date'),
-		body('classIds').optional().isArray({ min: 1 }).withMessage('Select at least one class'),
+		body('classIds').optional().isArray().withMessage('Class list must be an array'),
 		body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
-		body('subjects').optional().isArray({ min: 1 }).withMessage('Select at least one subject'),
+		body('subjects').optional().isArray().withMessage('Subject list must be an array'),
 		body('subjects.*').optional().isMongoId().withMessage('Invalid subject selected')
 	],
 	validate,

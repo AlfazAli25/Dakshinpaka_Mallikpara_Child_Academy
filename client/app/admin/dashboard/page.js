@@ -10,8 +10,31 @@ import { getToken } from '@/lib/session';
 const DEFAULT_STATS = [
   { title: 'Total Students', value: '0' },
   { title: 'Total Teachers', value: '0' },
-  { title: 'Upcoming Exams', value: '0' }
+  { title: 'Upcoming Exam', value: 'No upcoming exam' }
 ];
+
+const getUpcomingExamName = (exams) => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const upcomingExam = (Array.isArray(exams) ? exams : [])
+    .map((item) => {
+      const examDate = item?.date ? new Date(item.date) : null;
+      if (!examDate || Number.isNaN(examDate.getTime())) {
+        return null;
+      }
+
+      const examName = String(item?.description || item?.subjectId?.name || item?.subjectId?.code || 'Exam').trim();
+      return {
+        name: examName || 'Exam',
+        date: examDate
+      };
+    })
+    .filter((item) => item && item.date >= startOfToday)
+    .sort((left, right) => left.date.getTime() - right.date.getTime())[0];
+
+  return upcomingExam?.name || 'No upcoming exam';
+};
 
 const fetchAdminDashboardStats = async () => {
   const token = getToken();
@@ -25,12 +48,12 @@ const fetchAdminDashboardStats = async () => {
     get('/exams', token)
   ]);
 
-  const upcomingExams = (examsRes.data || []).filter((exam) => new Date(exam.date).getTime() >= Date.now()).length;
+  const upcomingExamName = getUpcomingExamName(examsRes.data || []);
 
   return [
     { title: 'Total Students', value: String(studentsRes.data?.length || 0) },
     { title: 'Total Teachers', value: String(teachersRes.data?.length || 0) },
-    { title: 'Upcoming Exams', value: String(upcomingExams) }
+    { title: 'Upcoming Exam', value: upcomingExamName }
   ];
 };
 

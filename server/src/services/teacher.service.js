@@ -161,19 +161,34 @@ const ensureValidAssignments = async ({
 	excludeTeacherId = null,
 	conflictCheckSubjectIds
 }) => {
-	const normalizedClassIds = normalizeIdArray(classIds);
+	let normalizedClassIds = normalizeIdArray(classIds);
 	const normalizedSubjectIds = normalizeIdArray(subjectIds);
 
-	if (normalizedClassIds.length === 0 || normalizedSubjectIds.length === 0) {
-		const error = new Error('Select at least one class and one subject for this teacher');
-		error.statusCode = 400;
-		throw error;
+	if (normalizedClassIds.length === 0 && normalizedSubjectIds.length === 0) {
+		return {
+			classIds: [],
+			subjectIds: []
+		};
 	}
 
-	const [classRows, subjectRows] = await Promise.all([
-		ClassModel.find({ _id: { $in: normalizedClassIds } }).select('_id'),
-		Subject.find({ _id: { $in: normalizedSubjectIds } }).select('_id classId name')
-	]);
+	let subjectRows = [];
+	if (normalizedSubjectIds.length > 0) {
+		subjectRows = await Subject.find({ _id: { $in: normalizedSubjectIds } }).select('_id classId name');
+
+		if (subjectRows.length !== normalizedSubjectIds.length) {
+			const error = new Error('One or more selected subjects are invalid');
+			error.statusCode = 400;
+			throw error;
+		}
+
+		if (normalizedClassIds.length === 0) {
+			normalizedClassIds = await deriveClassIdsFromSubjects(normalizedSubjectIds);
+		}
+	}
+
+	const classRows = normalizedClassIds.length > 0
+		? await ClassModel.find({ _id: { $in: normalizedClassIds } }).select('_id')
+		: [];
 
 	if (classRows.length !== normalizedClassIds.length) {
 		const error = new Error('One or more selected classes are invalid');
@@ -181,10 +196,11 @@ const ensureValidAssignments = async ({
 		throw error;
 	}
 
-	if (subjectRows.length !== normalizedSubjectIds.length) {
-		const error = new Error('One or more selected subjects are invalid');
-		error.statusCode = 400;
-		throw error;
+	if (normalizedSubjectIds.length === 0) {
+		return {
+			classIds: classRows.map((item) => item._id),
+			subjectIds: []
+		};
 	}
 
 	const missingClassSubjectIds = subjectRows
@@ -294,12 +310,10 @@ const create = async (payload) => {
 		!password ||
 		!normalizedContactNumber ||
 		!normalizedQualifications ||
-		!Number.isFinite(normalizedMonthlySalary) ||
-		normalizedClassIds.length === 0 ||
-		normalizedSubjects.length === 0
+		!Number.isFinite(normalizedMonthlySalary)
 	) {
 		const error = new Error(
-			'All teacher details are required: name, email, password, contact number, qualifications, monthly salary, classes, and subjects'
+			'All teacher details are required: name, email, password, contact number, qualifications, and monthly salary'
 		);
 		error.statusCode = 400;
 		throw error;

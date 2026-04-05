@@ -19,7 +19,7 @@ const columns = [
   { key: 'name', label: 'Name' },
   { key: 'contactNumber', label: 'Contact' },
   { key: 'classes', label: 'Classes' },
-  { key: 'subjectCount', label: 'Subjects' },
+  { key: 'subjectCodes', label: 'Subject Codes' },
   { key: 'email', label: 'Email' },
   { key: 'actions', label: 'Actions' }
 ];
@@ -124,7 +124,8 @@ export default function AdminTeachersPage() {
             name: item.userId?.name,
             contactNumber: item.contactNumber || '-',
             classes: formatClassLabelList(item.classIds || []),
-            subjectCount: String((item.subjects || []).length || 0),
+            subjectCodes:
+              (item.subjects || []).map((subject) => subject?.code || subject?.name).filter(Boolean).join(', ') || '-',
             email: item.userId?.email
           };
 
@@ -259,18 +260,6 @@ export default function AdminTeachersPage() {
       return;
     }
 
-    if (form.classIds.length === 0) {
-      setError('Please select at least one class for this teacher.');
-      setMessage('');
-      return;
-    }
-
-    if (form.subjects.length === 0) {
-      setError('Please select at least one subject for this teacher.');
-      setMessage('');
-      return;
-    }
-
     setLoading(true);
     setMessage('');
     setError('');
@@ -344,7 +333,7 @@ export default function AdminTeachersPage() {
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Teacher</h3>
-        <p className="mb-4 text-sm text-slate-600">Assign classes first, then pick subjects from those classes only.</p>
+        <p className="mb-4 text-sm text-slate-600">Class and subject assignment is optional during registration. You can assign them now or later.</p>
         <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
@@ -392,9 +381,9 @@ export default function AdminTeachersPage() {
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-800">Classes <span className="text-red-600">*</span></p>
+          <p className="text-sm font-medium text-slate-800">Classes</p>
           {classOptions.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No classes found. Add classes before registering teachers.</p>
+            <p className="mt-1 text-xs text-amber-700">No classes found. You can register now and assign classes later.</p>
           ) : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {classOptions.map((classOption) => (
@@ -413,7 +402,7 @@ export default function AdminTeachersPage() {
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-800">Subjects <span className="text-red-600">*</span></p>
+          <p className="text-sm font-medium text-slate-800">Subjects</p>
           {form.classIds.length === 0 ? (
             <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
           ) : availableSubjects.length === 0 ? (
