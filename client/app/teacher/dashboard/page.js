@@ -7,9 +7,10 @@ import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
-import { get } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
+import { useToast } from '@/lib/toast-context';
 
 const formatInr = (value) => {
   const numeric = Number(value);
@@ -17,6 +18,7 @@ const formatInr = (value) => {
 };
 
 export default function TeacherDashboardPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState([
     { title: 'Total Exams', value: '0' },
@@ -27,6 +29,15 @@ export default function TeacherDashboardPage() {
   const [salaryRows, setSalaryRows] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [teacherProfile, setTeacherProfile] = useState(null);
+  const [paymentNotifications, setPaymentNotifications] = useState([]);
+  const [respondingNotificationId, setRespondingNotificationId] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const pendingSalaryConfirmations = paymentNotifications.filter(
+    (item) =>
+      item.notificationType === 'TEACHER_SALARY_PAYMENT_CONFIRMATION' &&
+      String(item?.metadata?.status || '').toUpperCase() === 'PENDING'
+  );
 
   const downloadTextFile = (filename, lines) => {
     const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
@@ -51,6 +62,7 @@ export default function TeacherDashboardPage() {
           setTeacherProfile(null);
           setSalaryRows([]);
           setReceipts([]);
+          setPaymentNotifications([]);
           setStats([
             { title: 'Total Exams', value: '0' },
             { title: 'Attendance Records', value: '0' },
@@ -62,11 +74,15 @@ export default function TeacherDashboardPage() {
 
         setTeacherProfile(teacher);
 
-        const [examsRes, attendanceRes, payrollRes, receiptRes] = await Promise.all([
+        const [examsRes, attendanceRes, payrollRes, receiptRes, notificationRes] = await Promise.all([
           get('/exams', token),
           get('/attendance', token),
           get('/payroll/my/history', token),
-          get('/receipts/teacher', token)
+          get('/receipts/teacher', token),
+          get('/notifications/teacher', token, {
+            forceRefresh: true,
+            cacheTtlMs: 0
+          })
         ]);
 
         setSalaryRows(
@@ -76,12 +92,12 @@ export default function TeacherDashboardPage() {
             amount: `INR ${item.amount || 0}`,
             status: item.status,
             paidOn: item.paidOn?.slice(0, 10) || '-',
-            paymentMethod: item.paymentMethod || '-',
-            receiptNumber: item.receiptId?.receiptNumber || '-'
+            paymentMethod: item.paymentMethod || '-'
           }))
         );
 
         setReceipts(receiptRes.data || []);
+        setPaymentNotifications(notificationRes.data?.notifications || []);
 
         setStats([
           { title: 'Total Exams', value: String(examsRes.data?.length || 0) },
@@ -93,6 +109,7 @@ export default function TeacherDashboardPage() {
         setTeacherProfile(null);
         setSalaryRows([]);
         setReceipts([]);
+        setPaymentNotifications([]);
         setStats([
           { title: 'Total Exams', value: '0' },
           { title: 'Attendance Records', value: '0' },
@@ -105,7 +122,35 @@ export default function TeacherDashboardPage() {
     };
 
     load();
-  }, []);
+  }, [refreshKey]);
+
+  const onRespondSalaryConfirmation = async (notificationId, decision) => {
+    const { token } = getAuthContext();
+    if (!token || !notificationId) {
+      return;
+    }
+
+    setRespondingNotificationId(notificationId);
+    try {
+      const response = await post(
+        `/notifications/teacher/${notificationId}/respond`,
+        { decision },
+        token
+      );
+
+      toast.success(
+        response.message ||
+          (decision === 'YES'
+            ? 'Salary payment confirmed successfully.'
+            : 'Payment mismatch reported to admin.')
+      );
+      setRefreshKey((prev) => prev + 1);
+    } catch (apiError) {
+      toast.error(apiError.message);
+    } finally {
+      setRespondingNotificationId('');
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -182,6 +227,39 @@ export default function TeacherDashboardPage() {
         </InfoCard>
       ) : null}
 
+      {!loading && pendingSalaryConfirmations.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <h3 className="text-lg font-semibold text-amber-900">Payment Confirmation Required</h3>
+          <p className="mt-1 text-sm text-amber-800">Please confirm whether you received these salary payments.</p>
+          <div className="mt-3 space-y-2">
+            {pendingSalaryConfirmations.map((item) => (
+              <div key={item._id} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
+                <p className="text-sm font-semibold text-slate-900">{item.message}</p>
+                <p className="text-xs text-slate-500">Requested: {new Date(item.submittedAt).toLocaleString()}</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onRespondSalaryConfirmation(item._id, 'YES')}
+                    disabled={respondingNotificationId === item._id}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {respondingNotificationId === item._id ? 'Processing...' : 'Yes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRespondSalaryConfirmation(item._id, 'NO')}
+                    disabled={respondingNotificationId === item._id}
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {respondingNotificationId === item._id ? 'Processing...' : 'No'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <h3 className="mb-2 text-base font-semibold text-slate-900">Salary History</h3>
         <Table
@@ -190,8 +268,7 @@ export default function TeacherDashboardPage() {
             { key: 'amount', label: 'Amount' },
             { key: 'status', label: 'Status' },
             { key: 'paidOn', label: 'Paid On' },
-            { key: 'paymentMethod', label: 'Method' },
-            { key: 'receiptNumber', label: 'Receipt Number' }
+            { key: 'paymentMethod', label: 'Method' }
           ]}
           rows={salaryRows}
           loading={loading}

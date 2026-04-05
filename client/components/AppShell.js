@@ -141,7 +141,8 @@ export default function AppShell({ title, links, children }) {
                               item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
                             }`}
                           >
-                            <p className="font-semibold">{item.studentName || 'Student'}: Payment submitted</p>
+                            <p className="font-semibold">{item.title || 'Notification'}</p>
+                            <p className="text-xs text-slate-600">{item.message || '-'}</p>
                             <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString()}</p>
                           </Link>
                         ))

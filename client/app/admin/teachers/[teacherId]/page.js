@@ -27,8 +27,7 @@ const salaryColumns = [
   { key: 'amount', label: 'Amount' },
   { key: 'status', label: 'Status' },
   { key: 'paidOn', label: 'Paid On' },
-  { key: 'paymentMethod', label: 'Method' },
-  { key: 'receiptNumber', label: 'Receipt Number' }
+  { key: 'paymentMethod', label: 'Method' }
 ];
 
 const PAYMENT_METHOD_OPTIONS = [
@@ -337,12 +336,12 @@ export default function TeacherProfilePage() {
     setMessage('');
 
     try {
-      await post(`/payroll/teacher/${teacherId}/pay`, {
+      const response = await post(`/payroll/teacher/${teacherId}/pay`, {
         amount: Number(form.amount),
         paymentMethod: form.paymentMethod
       }, getToken());
 
-      setMessage('Salary marked as paid and receipt generated successfully.');
+      setMessage(response.message || 'Salary payment request sent to teacher for confirmation.');
       setForm({ amount: '', paymentMethod: 'Via Online' });
       await loadProfile();
     } catch (apiError) {
@@ -546,7 +545,7 @@ export default function TeacherProfilePage() {
       <form onSubmit={onPaySalary} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Pay Salary</h3>
         <p className="mb-2 text-sm text-slate-600">
-          Payment is automatically allocated to oldest pending salary months first.
+          A confirmation request is sent to the teacher first. After teacher confirms, payment is allocated to oldest pending salary months first.
         </p>
         <p className="mb-4 text-xs text-slate-500">Current pending due: INR {profile.salaryStatus?.totalPending || 0}</p>
         <div className="grid gap-3 md:grid-cols-2">
@@ -571,7 +570,7 @@ export default function TeacherProfilePage() {
           disabled={paying}
           className="mt-4 h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {paying ? 'Processing...' : 'Mark Salary Paid'}
+          {paying ? 'Sending...' : 'Send Payment Request'}
         </button>
       </form>
 
@@ -587,8 +586,7 @@ export default function TeacherProfilePage() {
             amount: `INR ${item.amount || 0}`,
             status: item.status,
             paidOn: item.paidOn?.slice(0, 10) || '-',
-            paymentMethod: item.paymentMethod || '-',
-            receiptNumber: item.receiptId?.receiptNumber || '-'
+            paymentMethod: item.paymentMethod || '-'
           }))}
         />
       </div>

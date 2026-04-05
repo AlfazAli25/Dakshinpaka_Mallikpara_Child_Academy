@@ -1,5 +1,6 @@
 const Payroll = require('../models/payroll.model');
 const Teacher = require('../models/teacher.model');
+const Notification = require('../models/notification.model');
 const createCrudService = require('./crud.service');
 const { createSalaryReceipt } = require('./receipt.service');
 const { createActionLog } = require('./action-log.service');
@@ -61,7 +62,7 @@ const getPendingPayrollRowsForTeacher = async ({ teacherId }) => {
 	};
 };
 
-const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod, adminUserId }) => {
+const finalizeTeacherSalaryPaymentByAdmin = async ({ teacherId, amount, month, paymentMethod, adminUserId }) => {
 	const teacher = await Teacher.findById(teacherId).populate('userId');
 	if (!teacher) {
 		const error = new Error('Teacher record not found');
@@ -216,6 +217,102 @@ const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod
 	};
 };
 
+const payTeacherSalaryByAdmin = async ({ teacherId, amount, month, paymentMethod, adminUserId }) => {
+	const teacher = await Teacher.findById(teacherId).populate('userId');
+	if (!teacher) {
+		const error = new Error('Teacher record not found');
+		error.statusCode = 404;
+		throw error;
+	}
+
+	const normalizedAmount = roundAmount(amount);
+	if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+		const error = new Error('Amount must be greater than zero');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const payrollMonth = month ? normalizeMonth(month) : '';
+	await ensureMonthlyPayrollForTeacher({
+		teacherId: teacher._id,
+		anchorDate: (payrollMonth ? getMonthDateFromKey(payrollMonth) : null) || new Date(),
+		monthlyAmount: teacher.monthlySalary
+	});
+
+	const { totalPendingAmount } = await getPendingPayrollRowsForTeacher({ teacherId: teacher._id });
+	if (totalPendingAmount <= 0) {
+		const error = new Error('No pending monthly salary found for this teacher');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (normalizedAmount > totalPendingAmount) {
+		const error = new Error(`Amount cannot exceed pending salary (INR ${totalPendingAmount})`);
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const normalizedPaymentMethod = String(paymentMethod || 'Via Online').trim() || 'Via Online';
+	const pendingConfirmation = await Notification.findOne({
+		recipientRole: 'teacher',
+		notificationType: 'TEACHER_SALARY_PAYMENT_CONFIRMATION',
+		teacherId: teacher._id,
+		'metadata.status': 'PENDING'
+	}).select('_id');
+
+	if (pendingConfirmation) {
+		const error = new Error('A salary confirmation request is already pending for this teacher');
+		error.statusCode = 409;
+		throw error;
+	}
+
+	const teacherName = String(teacher?.userId?.name || teacher?.teacherId || 'Teacher').trim();
+	const now = new Date();
+	const notification = await Notification.create({
+		recipientRole: 'teacher',
+		notificationType: 'TEACHER_SALARY_PAYMENT_CONFIRMATION',
+		teacherId: teacher._id,
+		teacherName,
+		adminId: adminUserId,
+		title: 'Salary payment confirmation',
+		message: `Admin paid you INR ${normalizedAmount}. Did you get the amount?`,
+		targetPath: '/teacher/dashboard',
+		submittedAt: now,
+		status: 'UNREAD',
+		metadata: {
+			status: 'PENDING',
+			amount: normalizedAmount,
+			paymentMethod: normalizedPaymentMethod,
+			month: payrollMonth || '',
+			requestedAt: now.toISOString()
+		}
+	});
+
+	await createActionLog({
+		actorId: adminUserId,
+		action: 'TEACHER_SALARY_PAYMENT_CONFIRMATION_REQUESTED',
+		module: 'PAYROLL',
+		entityId: String(notification._id),
+		metadata: {
+			teacherId: String(teacher._id),
+			amount: normalizedAmount,
+			paymentMethod: normalizedPaymentMethod,
+			month: payrollMonth || undefined
+		}
+	});
+
+	return {
+		confirmationRequested: true,
+		notificationId: String(notification._id),
+		teacherId: String(teacher._id),
+		teacherName,
+		amountRequested: normalizedAmount,
+		totalPendingBefore: totalPendingAmount,
+		paymentMethod: normalizedPaymentMethod,
+		month: payrollMonth || undefined
+	};
+};
+
 const getTeacherSalaryHistoryForAdmin = async ({ teacherId }) => {
 	await ensureMonthlyPayrollForTeacher({ teacherId });
 	return Payroll.find({ teacherId }).populate('teacherId processedByAdmin receiptId').sort({ month: -1, createdAt: -1 });
@@ -241,6 +338,7 @@ module.exports = {
 	findAll,
 	findById,
 	payTeacherSalaryByAdmin,
+	finalizeTeacherSalaryPaymentByAdmin,
 	getTeacherSalaryHistoryForAdmin,
 	getTeacherSalaryHistoryByUser
 };

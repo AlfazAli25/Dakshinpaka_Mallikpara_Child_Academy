@@ -5,7 +5,7 @@ const payrollService = require('../services/payroll.service');
 const base = createCrudController(payrollService, 'Payroll');
 
 const payTeacherSalary = asyncHandler(async (req, res) => {
-	const paymentResult = await payrollService.payTeacherSalaryByAdmin({
+	const paymentRequest = await payrollService.payTeacherSalaryByAdmin({
 		teacherId: req.params.teacherId,
 		amount: req.body?.amount,
 		month: req.body?.month,
@@ -15,14 +15,8 @@ const payTeacherSalary = asyncHandler(async (req, res) => {
 
 	res.status(201).json({
 		success: true,
-		message: 'Teacher salary marked as paid and receipt generated',
-		data: paymentResult?.payroll,
-		summary: {
-			amountApplied: paymentResult?.amountApplied || 0,
-			totalPendingBefore: paymentResult?.totalPendingBefore || 0,
-			totalPendingAfter: paymentResult?.totalPendingAfter || 0,
-			allocations: paymentResult?.allocations || []
-		}
+		message: 'Salary payment request sent to teacher for confirmation',
+		data: paymentRequest
 	});
 });
 
