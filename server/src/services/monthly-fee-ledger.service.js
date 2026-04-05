@@ -309,10 +309,13 @@ const applyManualPendingFeesOverride = async ({ studentId, targetPendingFees, se
 	const targetMonthKeys = new Set(distributionMonths.map((monthDate) => getMonthKey(monthDate)));
 	const feeByMonthKey = new Map(sortedFees.map((fee) => [fee.monthKey, fee]));
 	const affectedMonths = listTrailingMonthStarts({ monthCount: pendingChunks.length, anchorDate: targetEndMonth });
+	const newestFirstAffectedMonths = [...affectedMonths].reverse();
 	const monthPendingMap = new Map();
 
-	for (let index = 0; index < affectedMonths.length; index += 1) {
-		const monthKey = getMonthKey(affectedMonths[index]);
+	// Allocate full pending months from current month backwards.
+	// Any remainder then naturally lands on the oldest pending month.
+	for (let index = 0; index < newestFirstAffectedMonths.length; index += 1) {
+		const monthKey = getMonthKey(newestFirstAffectedMonths[index]);
 		monthPendingMap.set(monthKey, toAmount(pendingChunks[index] || 0));
 	}
 

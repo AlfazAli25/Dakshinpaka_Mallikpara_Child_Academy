@@ -19,6 +19,8 @@ const MAX_LIMIT = 100;
 const EXAM_POPULATE = [
   { path: 'classId', select: 'name section' },
   { path: 'subjects', select: 'name code classId teacherId' },
+  { path: 'schedule.classId', select: 'name section' },
+  { path: 'schedule.subjectId', select: 'name code classId teacherId' },
   { path: 'createdBy', select: 'name email role' }
 ];
 
@@ -250,6 +252,66 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     throw createHttpError(400, 'Academic year must be in YYYY-YYYY format');
   }
 
+  const incomingScheduleValues =
+    payload.schedule !== undefined
+      ? payload.schedule
+      : Array.isArray(existingExam?.schedule)
+        ? existingExam.schedule
+        : [];
+
+  if (incomingScheduleValues !== undefined && incomingScheduleValues !== null && !Array.isArray(incomingScheduleValues)) {
+    throw createHttpError(400, 'Schedule must be an array');
+  }
+
+  const schedule = [];
+  const scheduleKeySet = new Set();
+
+  (Array.isArray(incomingScheduleValues) ? incomingScheduleValues : []).forEach((item, index) => {
+    const scheduleClassId = String(item?.classId || classId || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(scheduleClassId)) {
+      throw createHttpError(400, `Invalid class in schedule row ${index + 1}`);
+    }
+
+    if (scheduleClassId !== classId) {
+      throw createHttpError(400, 'Schedule entries must belong to the selected class');
+    }
+
+    const scheduleSubjectId = String(item?.subjectId || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(scheduleSubjectId)) {
+      throw createHttpError(400, `Invalid subject in schedule row ${index + 1}`);
+    }
+
+    const scheduleStartDate = normalizeDateValue(item?.startDate);
+    if (!scheduleStartDate) {
+      throw createHttpError(400, `Valid start date is required in schedule row ${index + 1}`);
+    }
+
+    const scheduleEndDate = normalizeDateValue(item?.endDate);
+    if (!scheduleEndDate) {
+      throw createHttpError(400, `Valid end date is required in schedule row ${index + 1}`);
+    }
+
+    if (scheduleEndDate.getTime() < scheduleStartDate.getTime()) {
+      throw createHttpError(400, `End date must be greater than or equal to start date in schedule row ${index + 1}`);
+    }
+
+    const scheduleKey = `${scheduleClassId}:${scheduleSubjectId}`;
+    if (scheduleKeySet.has(scheduleKey)) {
+      throw createHttpError(400, 'Duplicate schedule entry for selected subject');
+    }
+
+    scheduleKeySet.add(scheduleKey);
+    schedule.push({
+      classId: scheduleClassId,
+      subjectId: scheduleSubjectId,
+      startDate: scheduleStartDate,
+      endDate: scheduleEndDate
+    });
+  });
+
+  const scheduleStartMs = schedule.length > 0 ? Math.min(...schedule.map((item) => item.startDate.getTime())) : 0;
+  const scheduleEndMs = schedule.length > 0 ? Math.max(...schedule.map((item) => item.endDate.getTime())) : 0;
+
   const startDateRaw =
     payload.startDate !== undefined
       ? payload.startDate
@@ -257,7 +319,11 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
         ? payload.date
         : existingExam?.startDate || existingExam?.date;
 
-  const startDate = normalizeDateValue(startDateRaw);
+  let startDate = normalizeDateValue(startDateRaw);
+  if (!startDate && schedule.length > 0) {
+    startDate = new Date(scheduleStartMs);
+  }
+
   if (!startDate) {
     throw createHttpError(400, 'Valid start date is required');
   }
@@ -269,9 +335,21 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     endDateValue = existingExam?.endDate;
   }
 
-  const endDate = normalizeDateValue(endDateValue);
+  let endDate = normalizeDateValue(endDateValue);
   if (endDateValue !== undefined && endDateValue !== null && String(endDateValue).trim() !== '' && !endDate) {
     throw createHttpError(400, 'Invalid end date selected');
+  }
+
+  if (!endDate && schedule.length > 0) {
+    endDate = new Date(scheduleEndMs);
+  }
+
+  if (schedule.length > 0 && startDate.getTime() > scheduleStartMs) {
+    startDate = new Date(scheduleStartMs);
+  }
+
+  if (schedule.length > 0 && (!endDate || endDate.getTime() < scheduleEndMs)) {
+    endDate = new Date(scheduleEndMs);
   }
 
   if (endDate && endDate.getTime() < startDate.getTime()) {
@@ -287,7 +365,7 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
           ? [existingExam.subjectId]
           : [];
 
-  const subjectIds = normalizeObjectIdArray(incomingSubjectValues);
+  const subjectIds = normalizeObjectIdArray([...incomingSubjectValues, ...schedule.map((item) => item.subjectId)]);
 
   if (subjectIds.length === 0) {
     throw createHttpError(400, 'Select at least one subject');
@@ -326,11 +404,21 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     throw createHttpError(400, 'Selected subjects must belong to the selected class');
   }
 
+  if (schedule.length > 0) {
+    const scheduleSubjectIdSet = new Set(schedule.map((item) => item.subjectId));
+    const subjectWithoutSchedule = subjectIds.find((subjectId) => !scheduleSubjectIdSet.has(subjectId));
+
+    if (subjectWithoutSchedule) {
+      throw createHttpError(400, 'Every selected subject must have a schedule row');
+    }
+  }
+
   return {
     examName,
     examType,
     classId,
     subjects: subjectIds,
+    schedule,
     academicYear,
     startDate,
     endDate: endDate || undefined,

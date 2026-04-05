@@ -27,6 +27,48 @@ const normalizeObjectIdArray = (items = []) => {
   );
 };
 
+const normalizeDateValue = (value) => {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const normalizeScheduleEntries = (items = [], defaultClassId = '') => {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  const uniqueRows = new Map();
+
+  items.forEach((item) => {
+    const classId = String(item?.classId || defaultClassId || '').trim();
+    const subjectId = String(item?.subjectId || '').trim();
+    const startDate = normalizeDateValue(item?.startDate);
+    const endDate = normalizeDateValue(item?.endDate);
+
+    if (!classId || !subjectId || !startDate || !endDate) {
+      return;
+    }
+
+    if (endDate.getTime() < startDate.getTime()) {
+      return;
+    }
+
+    const key = `${classId}:${subjectId}`;
+    uniqueRows.set(key, {
+      classId,
+      subjectId,
+      startDate,
+      endDate
+    });
+  });
+
+  return Array.from(uniqueRows.values());
+};
+
 const examSchema = new mongoose.Schema(
   {
     examName: { type: String, required: true, trim: true },
@@ -37,6 +79,14 @@ const examSchema = new mongoose.Schema(
     },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
     subjects: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Subject' }],
+    schedule: [
+      {
+        classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class', required: true },
+        subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject', required: true },
+        startDate: { type: Date, required: true },
+        endDate: { type: Date, required: true }
+      }
+    ],
     academicYear: {
       type: String,
       required: true,
@@ -87,6 +137,34 @@ examSchema.pre('validate', function preValidateExam(next) {
     this.examDate = this.startDate;
   }
 
+  const normalizedSchedule = normalizeScheduleEntries(this.schedule || [], this.classId);
+  this.schedule = normalizedSchedule;
+
+  if (normalizedSchedule.length > 0) {
+    const rootClassId = String(this.classId || '').trim();
+    const mismatch = rootClassId
+      ? normalizedSchedule.find((item) => String(item.classId || '') !== rootClassId)
+      : null;
+
+    if (mismatch) {
+      this.invalidate('schedule', 'All schedule entries must belong to the selected class');
+    }
+
+    const scheduleSubjectIds = normalizeObjectIdArray(normalizedSchedule.map((item) => item.subjectId));
+    const minScheduleStartMs = Math.min(...normalizedSchedule.map((item) => new Date(item.startDate).getTime()));
+    const maxScheduleEndMs = Math.max(...normalizedSchedule.map((item) => new Date(item.endDate).getTime()));
+
+    if (!this.startDate) {
+      this.startDate = new Date(minScheduleStartMs);
+    }
+
+    if (!this.endDate) {
+      this.endDate = new Date(maxScheduleEndMs);
+    }
+
+    this.subjects = normalizeObjectIdArray([...(this.subjects || []), ...scheduleSubjectIds]);
+  }
+
   const normalizedSubjects = normalizeObjectIdArray(this.subjects || []);
   this.subjects = normalizedSubjects;
 
@@ -122,5 +200,6 @@ examSchema.index({ examName: 1, classId: 1, academicYear: 1 }, { unique: true })
 examSchema.index({ classId: 1, startDate: 1 });
 examSchema.index({ classId: 1, status: 1, startDate: 1 });
 examSchema.index({ subjects: 1, startDate: 1 });
+examSchema.index({ classId: 1, 'schedule.subjectId': 1, 'schedule.startDate': 1 });
 
 module.exports = mongoose.model('Exam', examSchema);
