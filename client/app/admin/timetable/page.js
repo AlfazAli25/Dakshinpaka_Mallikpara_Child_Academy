@@ -46,7 +46,7 @@ const getInitialForm = () => {
   };
 };
 
-const requiredFormFields = ['classId', 'section', 'day', 'periodNumber', 'subjectId', 'teacherId', 'startTime', 'endTime'];
+const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId', 'teacherId', 'startTime', 'endTime'];
 
 const getTeacherLabel = (teacher) => {
   const name = String(teacher?.userId?.name || '').trim();
@@ -120,31 +120,6 @@ export default function AdminTimetablePage() {
     [classes]
   );
 
-  const sectionOptions = useMemo(() => {
-    const availableSections = new Set();
-
-    if (selectedClassSection) {
-      availableSections.add(selectedClassSection);
-    }
-
-    rows.forEach((item) => {
-      const rowSection = normalizeSection(item?.section);
-      if (rowSection) {
-        availableSections.add(rowSection);
-      }
-    });
-
-    const values = Array.from(availableSections);
-
-    return [
-      { value: '', label: 'Select section' },
-      ...values.map((value) => ({
-        value,
-        label: value
-      }))
-    ];
-  }, [rows, selectedClassSection]);
-
   const subjectOptions = useMemo(() => {
     const classSubjects = subjects.filter((item) => toId(item?.classId) === form.classId);
 
@@ -165,45 +140,47 @@ export default function AdminTimetablePage() {
     return map;
   }, [subjects]);
 
-  const teacherOptions = useMemo(() => {
-    const selectedSubject = subjectById.get(form.subjectId);
-    const directTeacherUserId = toId(selectedSubject?.teacherId);
-    const seenTeacherUserIds = new Set();
-    const options = [];
-
-    const pushTeacher = (teacher) => {
-      const teacherUserId = toId(teacher?.userId);
-      if (!teacherUserId || seenTeacherUserIds.has(teacherUserId)) {
-        return;
-      }
-
-      seenTeacherUserIds.add(teacherUserId);
-      options.push({
-        value: teacherUserId,
-        label: getTeacherLabel(teacher)
-      });
-    };
-
-    if (form.subjectId) {
-      if (directTeacherUserId) {
-        const directTeacher = teachers.find((item) => toId(item?.userId) === directTeacherUserId);
-        if (directTeacher) {
-          pushTeacher(directTeacher);
-        }
-      }
-
-      teachers
-        .filter((item) => (Array.isArray(item?.subjects) ? item.subjects : []).some((subject) => toId(subject) === form.subjectId))
-        .forEach(pushTeacher);
+  const assignedTeacher = useMemo(() => {
+    if (!form.subjectId) {
+      return {
+        teacherUserId: '',
+        label: 'Select subject first'
+      };
     }
 
-    return [
-      {
-        value: '',
-        label: form.subjectId ? 'Select teacher' : 'Select subject first'
-      },
-      ...options
-    ];
+    const selectedSubject = subjectById.get(form.subjectId);
+    const directTeacherUserId = toId(selectedSubject?.teacherId);
+
+    if (directTeacherUserId) {
+      const directTeacher = teachers.find((item) => toId(item?.userId) === directTeacherUserId);
+      if (directTeacher) {
+        return {
+          teacherUserId: directTeacherUserId,
+          label: getTeacherLabel(directTeacher)
+        };
+      }
+
+      return {
+        teacherUserId: directTeacherUserId,
+        label: 'Assigned teacher'
+      };
+    }
+
+    const fallbackTeacher = teachers.find((item) => (
+      (Array.isArray(item?.subjects) ? item.subjects : []).some((subject) => toId(subject) === form.subjectId)
+    ));
+
+    if (fallbackTeacher) {
+      return {
+        teacherUserId: toId(fallbackTeacher?.userId),
+        label: getTeacherLabel(fallbackTeacher)
+      };
+    }
+
+    return {
+      teacherUserId: '',
+      label: 'No teacher assigned for this subject'
+    };
   }, [form.subjectId, subjectById, teachers]);
 
   const dayOptions = useMemo(
@@ -211,53 +188,10 @@ export default function AdminTimetablePage() {
     []
   );
 
-  const usedPeriodNumbers = useMemo(() => {
-    const used = new Set();
-
-    rows.forEach((row) => {
-      if (toId(row?.classId) !== form.classId) {
-        return;
-      }
-
-      if (normalizeSection(row?.section) !== normalizeSection(form.section)) {
-        return;
-      }
-
-      if (String(row?.day || '') !== form.day) {
-        return;
-      }
-
-      const rowId = toId(row);
-      if (editingId && rowId === editingId) {
-        return;
-      }
-
-      const rowPeriodNumber = Number(row?.periodNumber);
-      if (Number.isInteger(rowPeriodNumber)) {
-        used.add(rowPeriodNumber);
-      }
-    });
-
-    return used;
-  }, [rows, form.classId, form.section, form.day, editingId]);
-
-  const periodOptions = useMemo(() => {
-    const selectedPeriodNumber = Number(form.periodNumber);
-    const availablePeriods = TIMETABLE_PERIODS.filter((periodNumber) => (
-      (editingId && periodNumber === selectedPeriodNumber) || !usedPeriodNumbers.has(periodNumber)
-    ));
-
-    if (availablePeriods.length === 0) {
-      return [{ value: '', label: 'No periods available for selected day' }];
-    }
-
-    return availablePeriods.map((periodNumber) => ({
-      value: String(periodNumber),
-      label: `Period ${periodNumber}`
-    }));
-  }, [form.periodNumber, usedPeriodNumbers, editingId]);
-
-  const noPeriodsAvailable = periodOptions.length === 1 && !periodOptions[0]?.value;
+  const periodOptions = useMemo(
+    () => TIMETABLE_PERIODS.map((periodNumber) => ({ value: String(periodNumber), label: `Period ${periodNumber}` })),
+    []
+  );
 
   const gridRows = useMemo(() => buildTimetableGrid(rows, TIMETABLE_PERIODS), [rows]);
 
@@ -355,53 +289,17 @@ export default function AdminTimetablePage() {
   }, [classes, form.classId]);
 
   useEffect(() => {
-    if (!form.subjectId) {
-      return;
-    }
-
-    const hasSelectedTeacher = teacherOptions.some((option) => option.value === form.teacherId);
-    if (hasSelectedTeacher) {
-      return;
-    }
-
-    const selectedSubject = subjectById.get(form.subjectId);
-    const directTeacherUserId = toId(selectedSubject?.teacherId);
-    const fallbackTeacherUserId = teacherOptions[1]?.value || '';
-
-    setForm((prev) => ({
-      ...prev,
-      teacherId: directTeacherUserId || fallbackTeacherUserId
-    }));
-  }, [form.subjectId, form.teacherId, subjectById, teacherOptions]);
-
-  useEffect(() => {
-    const hasSelectedPeriod = periodOptions.some((option) => option.value === form.periodNumber && option.value);
-    if (hasSelectedPeriod) {
-      return;
-    }
-
-    const firstAvailablePeriod = periodOptions.find((option) => option.value)?.value || '';
-    const firstAvailableSlot = getPeriodTimeSlot(firstAvailablePeriod);
-    const nextStartTime = firstAvailableSlot?.startTime || '';
-    const nextEndTime = firstAvailableSlot?.endTime || '';
-
     setForm((prev) => {
-      if (
-        prev.periodNumber === firstAvailablePeriod
-        && prev.startTime === nextStartTime
-        && prev.endTime === nextEndTime
-      ) {
+      if (prev.teacherId === assignedTeacher.teacherUserId) {
         return prev;
       }
 
       return {
         ...prev,
-        periodNumber: firstAvailablePeriod,
-        startTime: nextStartTime,
-        endTime: nextEndTime
+        teacherId: assignedTeacher.teacherUserId
       };
     });
-  }, [form.periodNumber, periodOptions]);
+  }, [assignedTeacher.teacherUserId]);
 
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
@@ -415,13 +313,6 @@ export default function AdminTimetablePage() {
           section: normalizeSection(nextClass?.section),
           subjectId: '',
           teacherId: ''
-        };
-      }
-
-      if (field === 'section') {
-        return {
-          ...prev,
-          section: normalizeSection(nextValue)
         };
       }
 
@@ -510,6 +401,12 @@ export default function AdminTimetablePage() {
   const onSaveTimetable = async (event) => {
     event.preventDefault();
 
+    const effectiveSection = normalizeSection(form.section || selectedClassSection);
+    if (!effectiveSection) {
+      toast.error('Selected class has no section configured');
+      return;
+    }
+
     const missingField = requiredFormFields.find((field) => !String(form[field] || '').trim());
     if (missingField) {
       toast.error('All required fields must be filled');
@@ -532,7 +429,7 @@ export default function AdminTimetablePage() {
 
       const payload = {
         classId: form.classId,
-        section: form.section,
+        section: effectiveSection,
         day: form.day,
         periodNumber: Number(form.periodNumber),
         subjectId: form.subjectId,
@@ -615,7 +512,7 @@ export default function AdminTimetablePage() {
       <PageHeader
         eyebrow="Administration"
         title="Timetable Management"
-        description="Create, edit, and manage class timetable slots by class, section, day, and period."
+        description="Create, edit, and manage class timetable slots by class, day, and period."
       />
 
       <form onSubmit={onSaveTimetable} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
@@ -626,15 +523,6 @@ export default function AdminTimetablePage() {
             onChange={onFieldChange('classId')}
             options={classOptions}
             disabled={saving || loadingSetup}
-            required
-          />
-
-          <Select
-            label="Section"
-            value={form.section}
-            onChange={onFieldChange('section')}
-            options={sectionOptions}
-            disabled={saving || loadingSetup || !form.classId}
             required
           />
 
@@ -652,7 +540,7 @@ export default function AdminTimetablePage() {
             value={form.periodNumber}
             onChange={onFieldChange('periodNumber')}
             options={periodOptions}
-            disabled={saving || noPeriodsAvailable}
+            disabled={saving}
             required
           />
 
@@ -665,23 +553,28 @@ export default function AdminTimetablePage() {
             required
           />
 
-          <Select
-            label="Teacher"
-            value={form.teacherId}
-            onChange={onFieldChange('teacherId')}
-            options={teacherOptions}
-            disabled={saving || !form.subjectId}
+          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Teacher</p>
+            <p className="text-sm font-semibold text-slate-900">{assignedTeacher.label}</p>
+          </div>
+
+          <Input
+            label="Start Time"
+            type="time"
+            value={form.startTime}
+            onChange={onFieldChange('startTime')}
+            disabled={saving || !form.periodNumber}
             required
           />
 
-          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
-            <p className="mb-1.5 text-sm font-medium text-slate-700">Time Slot</p>
-            {form.startTime && form.endTime ? (
-              <p className="text-sm font-semibold text-slate-900">{form.startTime} - {form.endTime}</p>
-            ) : (
-              <p className="text-sm text-slate-500">Select an available period to auto-set the time slot.</p>
-            )}
-          </div>
+          <Input
+            label="End Time"
+            type="time"
+            value={form.endTime}
+            onChange={onFieldChange('endTime')}
+            disabled={saving || !form.periodNumber}
+            required
+          />
 
           <Input
             label="Room Number"
@@ -741,7 +634,7 @@ export default function AdminTimetablePage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={TIMETABLE_PERIODS.length + 1} className="px-4 py-6 text-center text-slate-500">
-                    No timetable entries found for this class and section.
+                    No timetable entries found for this class.
                   </td>
                 </tr>
               ) : (

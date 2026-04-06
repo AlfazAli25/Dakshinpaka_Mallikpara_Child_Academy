@@ -40,7 +40,7 @@ const createToastId = () => {
 
 function ToastViewport({ toasts, onDismiss }) {
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[90] flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2">
+    <div className="pointer-events-none fixed left-1/2 top-4 z-[90] flex w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 flex-col gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}

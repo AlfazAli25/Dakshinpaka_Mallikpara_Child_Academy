@@ -368,7 +368,7 @@ export default function StudentLayout({ children }) {
       </AppShell>
 
       {showPendingFeeWarning ? (
-        <div className="pointer-events-none fixed right-4 top-20 z-[95] w-[calc(100vw-2rem)] max-w-md">
+        <div className="pointer-events-none fixed left-1/2 top-20 z-[95] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2">
           <div className="pointer-events-auto overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-red-50 shadow-2xl animate-fade-up">
             <div className="flex items-start justify-between gap-3 border-b border-amber-100 px-4 py-3">
               <div className="flex items-start gap-2">

@@ -44,7 +44,23 @@ const timetableSchema = new mongoose.Schema(
       match: TIME_24H_REGEX,
       validate: {
         validator(value) {
-          return toMinutes(value) > toMinutes(this.startTime);
+          let startTime = this?.startTime;
+
+          if (typeof this?.get === 'function') {
+            startTime = this.get('startTime') || startTime;
+          }
+
+          if (!startTime && typeof this?.getUpdate === 'function') {
+            const update = this.getUpdate() || {};
+            startTime = update.startTime || update?.$set?.startTime || update?.$setOnInsert?.startTime || startTime;
+          }
+
+          // If startTime is not present in this validation context, defer to service-level validation.
+          if (!startTime) {
+            return true;
+          }
+
+          return toMinutes(value) > toMinutes(startTime);
         },
         message: 'End time must be after start time'
       }
