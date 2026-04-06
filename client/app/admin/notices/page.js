@@ -79,17 +79,23 @@ export default function AdminNoticesPage() {
 
     try {
       const token = getToken();
-      const [classResponse, noticeResponse] = await Promise.all([
+      const [classResult, noticeResult] = await Promise.allSettled([
         get('/classes', token, { forceRefresh: true, cacheTtlMs: 0 }),
-        get('/notices?page=1&limit=200', token, { forceRefresh: true, cacheTtlMs: 0 })
+        get('/notices?page=1&limit=100', token, { forceRefresh: true, cacheTtlMs: 0 })
       ]);
 
-      setClasses(Array.isArray(classResponse?.data) ? classResponse.data : []);
-      setNotices(Array.isArray(noticeResponse?.data) ? noticeResponse.data : []);
-    } catch (apiError) {
-      toast.error(apiError.message || 'Failed to load notices');
-      setClasses([]);
-      setNotices([]);
+      if (classResult.status === 'fulfilled') {
+        setClasses(Array.isArray(classResult.value?.data) ? classResult.value.data : []);
+      } else {
+        toast.error(classResult.reason?.message || 'Failed to load classes');
+      }
+
+      if (noticeResult.status === 'fulfilled') {
+        setNotices(Array.isArray(noticeResult.value?.data) ? noticeResult.value.data : []);
+      } else {
+        setNotices([]);
+        toast.error(noticeResult.reason?.message || 'Failed to load notices');
+      }
     } finally {
       setLoading(false);
     }
