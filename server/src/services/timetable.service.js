@@ -413,21 +413,44 @@ const resolveTeacherUserId = async (teacherIdOrUserId) => {
 	return toIdString(linkedUser._id);
 };
 
-const ensureTeacherAssignedToSubject = async ({ teacherUserId, subject }) => {
-	const normalizedSubjectTeacherId = toIdString(subject?.teacherId);
-	const normalizedSubjectId = toIdString(subject?._id);
-
-	if (normalizedSubjectTeacherId) {
-		if (normalizedSubjectTeacherId !== teacherUserId) {
-			throw createHttpError(403, ERROR_MESSAGES.subjectNotAssignedToTeacher);
-		}
-		return;
+const resolveTeacherReferenceToUserId = async (teacherReferenceId) => {
+	const normalizedTeacherReferenceId = toIdString(teacherReferenceId);
+	if (!normalizedTeacherReferenceId || !mongoose.Types.ObjectId.isValid(normalizedTeacherReferenceId)) {
+		return '';
 	}
 
-	const teacherProfile = await Teacher.findOne({ userId: teacherUserId }).select('subjects').lean();
+	const teacherUser = await User.findById(normalizedTeacherReferenceId).select('_id role').lean();
+	if (teacherUser) {
+		return teacherUser.role === 'teacher' ? toIdString(teacherUser._id) : '';
+	}
+
+	const teacherProfile = await Teacher.findById(normalizedTeacherReferenceId).select('userId').lean();
+	if (teacherProfile?.userId && mongoose.Types.ObjectId.isValid(teacherProfile.userId)) {
+		return toIdString(teacherProfile.userId);
+	}
+
+	return '';
+};
+
+const ensureTeacherAssignedToSubject = async ({ teacherUserId, subject }) => {
+	const normalizedSubjectId = toIdString(subject?._id);
+	const normalizedStoredSubjectTeacherId = toIdString(subject?.teacherId);
+
+	const [resolvedSubjectTeacherUserId, teacherProfile] = await Promise.all([
+		resolveTeacherReferenceToUserId(subject?.teacherId),
+		Teacher.findOne({ userId: teacherUserId }).select('_id subjects').lean()
+	]);
+
+	const isTeacherMappedDirectlyOnSubject = Boolean(resolvedSubjectTeacherUserId) && resolvedSubjectTeacherUserId === teacherUserId;
 	const assignedSubjectIds = new Set((teacherProfile?.subjects || []).map((item) => toIdString(item)).filter(Boolean));
-	if (!assignedSubjectIds.has(normalizedSubjectId)) {
+	const isSubjectPresentInTeacherProfile = assignedSubjectIds.has(normalizedSubjectId);
+
+	if (!isTeacherMappedDirectlyOnSubject && !isSubjectPresentInTeacherProfile) {
 		throw createHttpError(403, ERROR_MESSAGES.subjectNotAssignedToTeacher);
+	}
+
+	if (normalizedStoredSubjectTeacherId !== teacherUserId) {
+		await Subject.findByIdAndUpdate(normalizedSubjectId, { $set: { teacherId: teacherUserId } });
 	}
 };
 

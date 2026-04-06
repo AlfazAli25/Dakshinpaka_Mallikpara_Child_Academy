@@ -1,6 +1,8 @@
+const mongoose = require('mongoose');
 const Subject = require('../models/subject.model');
 const ClassModel = require('../models/class.model');
 const Teacher = require('../models/teacher.model');
+const User = require('../models/user.model');
 const Exam = require('../models/exam.model');
 const Timetable = require('../models/timetable.model');
 const Marks = require('../models/marks.model');
@@ -53,6 +55,46 @@ const normalizeSubjectPayload = (payload = {}) => ({
 	teacherId: payload.teacherId || undefined
 });
 
+const resolveTeacherUserId = async (teacherIdValue) => {
+	if (teacherIdValue === undefined || teacherIdValue === null || String(teacherIdValue).trim() === '') {
+		return undefined;
+	}
+
+	const normalizedTeacherId = String(teacherIdValue).trim();
+	if (!mongoose.Types.ObjectId.isValid(normalizedTeacherId)) {
+		const error = new Error('Teacher is invalid');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	const teacherUser = await User.findById(normalizedTeacherId).select('_id role').lean();
+	if (teacherUser) {
+		if (teacherUser.role !== 'teacher') {
+			const error = new Error('Teacher is invalid');
+			error.statusCode = 400;
+			throw error;
+		}
+
+		return teacherUser._id;
+	}
+
+	const teacherProfile = await Teacher.findById(normalizedTeacherId).select('userId').lean();
+	if (!teacherProfile?.userId) {
+		const error = new Error('Teacher not found');
+		error.statusCode = 404;
+		throw error;
+	}
+
+	const linkedUser = await User.findById(teacherProfile.userId).select('_id role').lean();
+	if (!linkedUser || linkedUser.role !== 'teacher') {
+		const error = new Error('Teacher is invalid');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	return linkedUser._id;
+};
+
 const ensureClassExists = async (classId) => {
 	const classRecord = await ClassModel.findById(classId).select('_id');
 	if (!classRecord) {
@@ -74,6 +116,7 @@ const findById = async (id) => {
 
 const create = async (payload = {}) => {
 	const normalized = normalizeSubjectPayload(payload);
+	normalized.teacherId = await resolveTeacherUserId(normalized.teacherId);
 
 	if (!normalized.name || !normalized.classId) {
 		const error = new Error('Subject name and class are required');
@@ -106,7 +149,8 @@ const updateById = async (id, payload = {}) => {
 
 	const nextName = payload.name !== undefined ? String(payload.name || '').trim() : String(subject.name || '').trim();
 	const nextCode = payload.code !== undefined ? String(payload.code || '').trim().toUpperCase() : String(subject.code || '').trim();
-	const nextTeacherId = payload.teacherId !== undefined ? payload.teacherId || undefined : subject.teacherId || undefined;
+	const nextTeacherIdRaw = payload.teacherId !== undefined ? payload.teacherId || undefined : subject.teacherId || undefined;
+	const nextTeacherId = await resolveTeacherUserId(nextTeacherIdRaw);
 
 	if (!nextName) {
 		const error = new Error('Subject name is required');
