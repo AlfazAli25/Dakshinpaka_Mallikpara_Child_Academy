@@ -17,14 +17,12 @@ import {
 import { useToast } from '@/lib/toast-context';
 
 const PERIOD_TIME_SLOTS = Object.freeze({
-  1: { startTime: '10:00', endTime: '10:15' },
-  2: { startTime: '10:16', endTime: '10:30' },
-  3: { startTime: '10:31', endTime: '10:45' },
-  4: { startTime: '10:46', endTime: '11:00' },
-  5: { startTime: '11:01', endTime: '11:15' },
-  6: { startTime: '11:16', endTime: '11:30' },
-  7: { startTime: '11:31', endTime: '11:45' },
-  8: { startTime: '11:46', endTime: '12:00' }
+  1: { startTime: '11:00', endTime: '11:40' },
+  2: { startTime: '11:50', endTime: '12:30' },
+  3: { startTime: '12:40', endTime: '13:20' },
+  4: { startTime: '14:00', endTime: '14:40' },
+  5: { startTime: '14:50', endTime: '15:30' },
+  6: { startTime: '15:40', endTime: '16:20' }
 });
 
 const getPeriodTimeSlot = (periodNumber) => PERIOD_TIME_SLOTS[Number(periodNumber)] || null;
@@ -46,7 +44,7 @@ const getInitialForm = () => {
   };
 };
 
-const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId', 'startTime', 'endTime'];
+const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId'];
 
 const CONFLICT_MESSAGES = Object.freeze({
   teacherConflict: 'Teacher already has a class at this time',
@@ -229,6 +227,11 @@ export default function AdminTimetablePage() {
     []
   );
 
+  const selectedPeriodTimeSlot = useMemo(
+    () => getPeriodTimeSlot(form.periodNumber),
+    [form.periodNumber]
+  );
+
   const gridRows = useMemo(() => buildTimetableGrid(rows, TIMETABLE_PERIODS), [rows]);
 
   const loadSetupData = async () => {
@@ -337,6 +340,24 @@ export default function AdminTimetablePage() {
     });
   }, [assignedTeacher.teacherUserId]);
 
+  useEffect(() => {
+    if (!selectedPeriodTimeSlot) {
+      return;
+    }
+
+    setForm((prev) => {
+      if (prev.startTime === selectedPeriodTimeSlot.startTime && prev.endTime === selectedPeriodTimeSlot.endTime) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        startTime: selectedPeriodTimeSlot.startTime,
+        endTime: selectedPeriodTimeSlot.endTime
+      };
+    });
+  }, [selectedPeriodTimeSlot]);
+
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
 
@@ -386,8 +407,8 @@ export default function AdminTimetablePage() {
     setEditingId('');
   };
 
-  const hasTeacherConflict = async () => {
-    const { teacherId, day, periodNumber, startTime, endTime } = form;
+  const hasTeacherConflict = async ({ startTime, endTime }) => {
+    const { teacherId, day, periodNumber } = form;
     if (!teacherId || !day) {
       return { hasConflict: false, message: '' };
     }
@@ -468,7 +489,16 @@ export default function AdminTimetablePage() {
       return;
     }
 
-    if (toMinutes(form.startTime) >= toMinutes(form.endTime)) {
+    const effectivePeriodTimeSlot = getPeriodTimeSlot(form.periodNumber);
+    if (!effectivePeriodTimeSlot) {
+      toast.error('Invalid period selected');
+      return;
+    }
+
+    const effectiveStartTime = effectivePeriodTimeSlot.startTime;
+    const effectiveEndTime = effectivePeriodTimeSlot.endTime;
+
+    if (toMinutes(effectiveStartTime) >= toMinutes(effectiveEndTime)) {
       toast.error('Start time must be before end time');
       return;
     }
@@ -482,7 +512,10 @@ export default function AdminTimetablePage() {
         return;
       }
 
-      const teacherConflict = await hasTeacherConflict();
+      const teacherConflict = await hasTeacherConflict({
+        startTime: effectiveStartTime,
+        endTime: effectiveEndTime
+      });
       if (teacherConflict.hasConflict) {
         toast.error(teacherConflict.message);
         return;
@@ -495,8 +528,8 @@ export default function AdminTimetablePage() {
         periodNumber: Number(form.periodNumber),
         subjectId: form.subjectId,
         teacherId: form.teacherId,
-        startTime: form.startTime,
-        endTime: form.endTime,
+        startTime: effectiveStartTime,
+        endTime: effectiveEndTime,
         roomNumber: String(form.roomNumber || '').trim() || undefined
       };
 
@@ -518,16 +551,19 @@ export default function AdminTimetablePage() {
   };
 
   const onEditRow = (row) => {
+    const periodNumber = String(row?.periodNumber || TIMETABLE_PERIODS[0]);
+    const selectedPeriodSlot = getPeriodTimeSlot(periodNumber);
+
     setEditingId(toId(row));
     setForm({
       classId: toId(row?.classId),
       section: normalizeSection(row?.section),
       day: String(row?.day || TIMETABLE_DAYS[0]),
-      periodNumber: String(row?.periodNumber || TIMETABLE_PERIODS[0]),
+      periodNumber,
       subjectId: toId(row?.subjectId),
       teacherId: toId(row?.teacherId),
-      startTime: String(row?.startTime || ''),
-      endTime: String(row?.endTime || ''),
+      startTime: selectedPeriodSlot?.startTime || String(row?.startTime || ''),
+      endTime: selectedPeriodSlot?.endTime || String(row?.endTime || ''),
       roomNumber: String(row?.roomNumber || '')
     });
   };
@@ -614,23 +650,14 @@ export default function AdminTimetablePage() {
             <p className="text-sm font-semibold text-slate-900">{assignedTeacher.label}</p>
           </div>
 
-          <Input
-            label="Start Time"
-            type="time"
-            value={form.startTime}
-            onChange={onFieldChange('startTime')}
-            disabled={saving || !form.periodNumber}
-            required
-          />
-
-          <Input
-            label="End Time"
-            type="time"
-            value={form.endTime}
-            onChange={onFieldChange('endTime')}
-            disabled={saving || !form.periodNumber}
-            required
-          />
+          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Time (Auto from period)</p>
+            <p className="text-sm font-semibold text-slate-900">
+              {selectedPeriodTimeSlot
+                ? `${selectedPeriodTimeSlot.startTime} - ${selectedPeriodTimeSlot.endTime}`
+                : 'Select a period'}
+            </p>
+          </div>
 
           <Input
             label="Room Number"

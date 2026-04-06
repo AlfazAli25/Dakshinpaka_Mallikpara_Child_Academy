@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TIME_24H_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const MIN_PERIOD_NUMBER = 1;
-const MAX_PERIOD_NUMBER = 8;
+const MAX_PERIOD_NUMBER = 6;
 
 const toMinutes = (value) => {
   if (!TIME_24H_REGEX.test(String(value || ''))) {

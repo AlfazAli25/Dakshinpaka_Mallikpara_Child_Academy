@@ -1,5 +1,5 @@
 export const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-export const TIMETABLE_PERIODS = [1, 2, 3, 4, 5, 6, 7, 8];
+export const TIMETABLE_PERIODS = [1, 2, 3, 4, 5, 6];
 
 export const toId = (value) => String(value?._id || value || '');
 

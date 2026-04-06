@@ -17,7 +17,7 @@ const TIMETABLE_DAYS = Array.isArray(Timetable.TIMETABLE_DAYS)
 	: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const MIN_PERIOD_NUMBER = Number(Timetable.MIN_PERIOD_NUMBER || 1);
-const MAX_PERIOD_NUMBER = Number(Timetable.MAX_PERIOD_NUMBER || 8);
+const MAX_PERIOD_NUMBER = Number(Timetable.MAX_PERIOD_NUMBER || 6);
 const TIME_24H_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const DAY_ORDER = new Map(TIMETABLE_DAYS.map((day, index) => [day, index]));
