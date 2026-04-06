@@ -46,7 +46,14 @@ const getInitialForm = () => {
   };
 };
 
-const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId', 'teacherId', 'startTime', 'endTime'];
+const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId', 'startTime', 'endTime'];
+
+const CONFLICT_MESSAGES = Object.freeze({
+  teacherConflict: 'Teacher already has a class at this time',
+  classPeriodConflict: 'Class already has a subject in this period',
+  subjectPeriodConflict: 'Subject already assigned in this period',
+  subjectTeacherConflict: 'Subject not assigned to teacher'
+});
 
 const getTeacherLabel = (teacher) => {
   const name = String(teacher?.userId?.name || '').trim();
@@ -84,6 +91,35 @@ const isTimeRangeOverlap = ({ leftStartTime, leftEndTime, rightStartTime, rightE
   }
 
   return leftStartMinutes < rightEndMinutes && leftEndMinutes > rightStartMinutes;
+};
+
+const mapSaveErrorToConflictMessage = (rawErrorMessage) => {
+  const normalizedErrorMessage = String(rawErrorMessage || '').toLowerCase();
+
+  if (normalizedErrorMessage.includes('teacher already assigned')) {
+    return CONFLICT_MESSAGES.teacherConflict;
+  }
+
+  if (
+    normalizedErrorMessage.includes('class already has a subject in this period')
+    || normalizedErrorMessage.includes('class period already has')
+    || normalizedErrorMessage.includes('duplicate timetable entry')
+  ) {
+    return CONFLICT_MESSAGES.classPeriodConflict;
+  }
+
+  if (normalizedErrorMessage.includes('subject already assigned in this period')) {
+    return CONFLICT_MESSAGES.subjectPeriodConflict;
+  }
+
+  if (
+    normalizedErrorMessage.includes('subject not assigned to teacher')
+    || normalizedErrorMessage.includes('not assigned to this subject')
+  ) {
+    return CONFLICT_MESSAGES.subjectTeacherConflict;
+  }
+
+  return '';
 };
 
 export default function AdminTimetablePage() {
@@ -385,16 +421,30 @@ export default function AdminTimetablePage() {
       return { hasConflict: false, message: '' };
     }
 
-    if (Number(conflictingRow?.periodNumber) === Number(periodNumber)) {
-      return {
-        hasConflict: true,
-        message: 'Teacher already assigned to this period on this day'
-      };
+    return {
+      hasConflict: true,
+      message: CONFLICT_MESSAGES.teacherConflict
+    };
+  };
+
+  const hasClassPeriodConflict = () => {
+    const { day, periodNumber } = form;
+
+    const conflictingRow = rows.find((row) => {
+      if (toId(row) === editingId) {
+        return false;
+      }
+
+      return String(row?.day || '') === String(day || '')
+        && Number(row?.periodNumber) === Number(periodNumber);
+    });
+
+    if (!conflictingRow) {
+      return { hasConflict: false };
     }
 
     return {
-      hasConflict: true,
-      message: 'Teacher already assigned during this time range'
+      hasConflict: true
     };
   };
 
@@ -404,6 +454,11 @@ export default function AdminTimetablePage() {
     const effectiveSection = normalizeSection(form.section || selectedClassSection);
     if (!effectiveSection) {
       toast.error('Selected class has no section configured');
+      return;
+    }
+
+    if (!String(form.teacherId || '').trim()) {
+      toast.error(CONFLICT_MESSAGES.subjectTeacherConflict);
       return;
     }
 
@@ -421,6 +476,12 @@ export default function AdminTimetablePage() {
     setSaving(true);
 
     try {
+      const classPeriodConflict = hasClassPeriodConflict();
+      if (classPeriodConflict.hasConflict) {
+        toast.error(CONFLICT_MESSAGES.classPeriodConflict);
+        return;
+      }
+
       const teacherConflict = await hasTeacherConflict();
       if (teacherConflict.hasConflict) {
         toast.error(teacherConflict.message);
@@ -449,13 +510,8 @@ export default function AdminTimetablePage() {
       resetFormForNextEntry();
       await loadClassTimetable({ classId: payload.classId, section: payload.section });
     } catch (apiError) {
-      const normalizedErrorMessage = String(apiError?.message || '').toLowerCase();
-
-      if (normalizedErrorMessage.includes('teacher already assigned')) {
-        toast.error(apiError.message || 'Teacher already assigned to another class on this day');
-      } else {
-        toast.error(apiError.message || 'Failed to save timetable');
-      }
+      const mappedConflictMessage = mapSaveErrorToConflictMessage(apiError?.message);
+      toast.error(mappedConflictMessage || apiError.message || 'Failed to save timetable');
     } finally {
       setSaving(false);
     }

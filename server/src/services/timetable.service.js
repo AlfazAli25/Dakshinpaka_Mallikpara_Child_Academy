@@ -30,6 +30,16 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
+const ERROR_MESSAGES = Object.freeze({
+	classPeriodConflict: 'Class already has a subject in this period',
+	teacherConflict: 'Teacher already assigned to another class',
+	subjectPeriodConflict: 'Subject already assigned in this period',
+	subjectNotAssignedToTeacher: 'Subject not assigned to teacher',
+	duplicateEntry: 'Duplicate timetable entry'
+});
+
+let ensureTimetableIndexPromise = null;
+
 const toIdString = (value) => String(value?._id || value || '');
 
 const createHttpError = (statusCode, message) => {
@@ -66,10 +76,173 @@ const hasAllDuplicateKeys = (duplicateKeys, requiredKeys = []) => {
 	return requiredKeys.every((key) => duplicateKeys.has(String(key || '').toLowerCase()));
 };
 
-const isTeacherTimeOverlap = ({ existingStartTime, existingEndTime, nextStartTime, nextEndTime }) => (
-	String(existingStartTime || '') < String(nextEndTime || '')
-	&& String(existingEndTime || '') > String(nextStartTime || '')
+const isIgnorableIndexManagementError = (error) => {
+	const code = Number(error?.code || 0);
+	const codeName = String(error?.codeName || '').toLowerCase();
+	const message = String(error?.message || '').toLowerCase();
+
+	if ([13, 26, 27, 68, 85, 86].includes(code)) {
+		return true;
+	}
+
+	if (['unauthorized', 'indexnotfound', 'indexkeyspecconflict', 'indexoptionsconflict'].includes(codeName)) {
+		return true;
+	}
+
+	return (
+		message.includes('not authorized') ||
+		message.includes('index not found') ||
+		(message.includes('index') && message.includes('already exists'))
+	);
+};
+
+const toLowerCaseKeySet = (index = {}) => new Set(
+	Object.keys(index?.key || {}).map((key) => String(key || '').toLowerCase())
 );
+
+const ensureTimetableIndexes = async () => {
+	if (ensureTimetableIndexPromise) {
+		return ensureTimetableIndexPromise;
+	}
+
+	ensureTimetableIndexPromise = (async () => {
+		let indexes = [];
+
+		try {
+			indexes = await Timetable.collection.indexes();
+		} catch (error) {
+			if (!isIgnorableIndexManagementError(error)) {
+				throw error;
+			}
+			return;
+		}
+
+		const legacyUniqueIndexes = indexes.filter((index) => {
+			if (!index?.unique || !index?.name || !index?.key) {
+				return false;
+			}
+
+			const keys = toLowerCaseKeySet(index);
+			const hasPartialFilter = Boolean(index?.partialFilterExpression);
+			const isClassPeriodLegacy = (
+				keys.has('classid')
+				&& keys.has('periodnumber')
+				&& (!keys.has('day') || !keys.has('section'))
+			);
+
+			const isClassPeriodPartialLegacy = (
+				hasPartialFilter
+				&& hasAllDuplicateKeys(keys, ['classid', 'section', 'day', 'periodnumber'])
+			);
+
+			const isTeacherTimeLegacy = (
+				keys.has('teacherid')
+				&& keys.has('starttime')
+				&& !keys.has('day')
+			);
+
+			const isTeacherTimePartialLegacy = (
+				hasPartialFilter
+				&& hasAllDuplicateKeys(keys, ['teacherid', 'day', 'starttime'])
+			);
+
+			return isClassPeriodLegacy || isClassPeriodPartialLegacy || isTeacherTimeLegacy || isTeacherTimePartialLegacy;
+		});
+
+		if (legacyUniqueIndexes.length > 0) {
+			for (const index of legacyUniqueIndexes) {
+				try {
+					await Timetable.collection.dropIndex(index.name);
+				} catch (error) {
+					if (!isIgnorableIndexManagementError(error)) {
+						throw error;
+					}
+				}
+			}
+
+			try {
+				indexes = await Timetable.collection.indexes();
+			} catch (error) {
+				if (!isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+				return;
+			}
+		}
+
+		const hasClassSectionDayPeriodUnique = indexes.some((index) => {
+			if (!index?.unique) {
+				return false;
+			}
+
+			const keys = toLowerCaseKeySet(index);
+			return (
+				hasAllDuplicateKeys(keys, ['classid', 'section', 'day', 'periodnumber'])
+				&& !index?.partialFilterExpression
+			);
+		});
+
+		if (!hasClassSectionDayPeriodUnique) {
+			try {
+				await Timetable.collection.createIndex(
+					{ classId: 1, section: 1, day: 1, periodNumber: 1 },
+					{ unique: true, name: 'classId_1_section_1_day_1_periodNumber_1' }
+				);
+			} catch (error) {
+				if (Number(error?.code || 0) !== 11000 && !isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+
+		const hasTeacherDayStartUnique = indexes.some((index) => {
+			if (!index?.unique) {
+				return false;
+			}
+
+			const keys = toLowerCaseKeySet(index);
+			return hasAllDuplicateKeys(keys, ['teacherid', 'day', 'starttime']) && !index?.partialFilterExpression;
+		});
+
+		if (!hasTeacherDayStartUnique) {
+			try {
+				await Timetable.collection.createIndex(
+					{ teacherId: 1, day: 1, startTime: 1 },
+					{ unique: true, name: 'teacherId_1_day_1_startTime_1' }
+				);
+			} catch (error) {
+				if (Number(error?.code || 0) !== 11000 && !isIgnorableIndexManagementError(error)) {
+					throw error;
+				}
+			}
+		}
+	})();
+
+	try {
+		await ensureTimetableIndexPromise;
+	} catch (error) {
+		ensureTimetableIndexPromise = null;
+		throw error;
+	}
+};
+
+const isTeacherTimeOverlap = ({ existingStartTime, existingEndTime, nextStartTime, nextEndTime }) => {
+	const existingStartMinutes = parseTimeToMinutes(existingStartTime);
+	const existingEndMinutes = parseTimeToMinutes(existingEndTime);
+	const nextStartMinutes = parseTimeToMinutes(nextStartTime);
+	const nextEndMinutes = parseTimeToMinutes(nextEndTime);
+
+	if (
+		!Number.isFinite(existingStartMinutes)
+		|| !Number.isFinite(existingEndMinutes)
+		|| !Number.isFinite(nextStartMinutes)
+		|| !Number.isFinite(nextEndMinutes)
+	) {
+		return false;
+	}
+
+	return existingStartMinutes < nextEndMinutes && existingEndMinutes > nextStartMinutes;
+};
 
 const normalizePayload = (payload = {}) => {
 	const rawPeriodNumber = Number(payload.periodNumber);
@@ -138,31 +311,32 @@ const mapDuplicateTimetableError = (error) => {
 	}
 
 	const keyPattern = error?.keyPattern || {};
-	const duplicateKeys = new Set(Object.keys(keyPattern).map((key) => String(key || '').toLowerCase()));
+	const keyValue = error?.keyValue || {};
+	const duplicateKeys = new Set([
+		...Object.keys(keyPattern),
+		...Object.keys(keyValue)
+	].map((key) => String(key || '').toLowerCase()));
 	const message = String(error?.message || '').toLowerCase();
+	const messageMentions = (keys = []) => keys.every((key) => message.includes(String(key || '').toLowerCase()));
 
 	if (
 		hasAllDuplicateKeys(duplicateKeys, ['teacherid', 'day', 'starttime']) ||
-		(message.includes('teacherid_1') && message.includes('day_1') && message.includes('starttime_1'))
+		(message.includes('teacherid_1') && message.includes('day_1') && message.includes('starttime_1')) ||
+		messageMentions(['teacherid', 'day', 'starttime'])
 	) {
-		return createHttpError(409, 'Teacher already assigned during this time range');
-	}
-
-	if (
-		hasAllDuplicateKeys(duplicateKeys, ['teacherid', 'day', 'periodnumber']) ||
-		(message.includes('teacherid_1') && message.includes('day_1') && message.includes('periodnumber_1'))
-	) {
-		return createHttpError(409, 'Teacher already assigned to this period on this day');
+		return createHttpError(409, ERROR_MESSAGES.teacherConflict);
 	}
 
 	if (
 		hasAllDuplicateKeys(duplicateKeys, ['classid', 'section', 'day', 'periodnumber']) ||
-		(message.includes('classid_1') && message.includes('section_1') && message.includes('day_1') && message.includes('periodnumber_1'))
+		hasAllDuplicateKeys(duplicateKeys, ['classid', 'periodnumber']) ||
+		(message.includes('classid_1') && message.includes('section_1') && message.includes('day_1') && message.includes('periodnumber_1')) ||
+		messageMentions(['classid', 'periodnumber'])
 	) {
-		return createHttpError(409, 'This class period already has a timetable entry');
+		return createHttpError(409, ERROR_MESSAGES.classPeriodConflict);
 	}
 
-	return createHttpError(409, 'Duplicate timetable entry found');
+	return createHttpError(409, ERROR_MESSAGES.duplicateEntry);
 };
 
 const sortRowsByDayAndPeriod = (rows = []) => {
@@ -252,7 +426,7 @@ const ensureTeacherAssignedToSubject = async ({ teacherUserId, subject }) => {
 
 	if (normalizedSubjectTeacherId) {
 		if (normalizedSubjectTeacherId !== teacherUserId) {
-			throw createHttpError(400, 'Teacher is not assigned to this subject');
+			throw createHttpError(403, ERROR_MESSAGES.subjectNotAssignedToTeacher);
 		}
 		return;
 	}
@@ -260,7 +434,7 @@ const ensureTeacherAssignedToSubject = async ({ teacherUserId, subject }) => {
 	const teacherProfile = await Teacher.findOne({ userId: teacherUserId }).select('subjects').lean();
 	const assignedSubjectIds = new Set((teacherProfile?.subjects || []).map((item) => toIdString(item)).filter(Boolean));
 	if (!assignedSubjectIds.has(normalizedSubjectId)) {
-		throw createHttpError(400, 'Teacher is not assigned to this subject');
+		throw createHttpError(403, ERROR_MESSAGES.subjectNotAssignedToTeacher);
 	}
 };
 
@@ -288,7 +462,7 @@ const enforceSlotBusinessRules = async (normalizedPayload, { excludeId } = {}) =
 	}
 
 	if (toIdString(subject.classId) !== classId) {
-		throw createHttpError(400, 'Selected subject does not belong to this class');
+		throw createHttpError(400, 'Subject does not belong to selected class');
 	}
 
 	if (!teacherUser || teacherUser.role !== 'teacher') {
@@ -300,58 +474,98 @@ const enforceSlotBusinessRules = async (normalizedPayload, { excludeId } = {}) =
 		subject
 	});
 
-	const [duplicateClassPeriod, teacherConflict] = await Promise.all([
+	const exclusionFilter = excludeId ? { _id: { $ne: excludeId } } : {};
+
+	const [
+		duplicateEntry,
+		duplicateClassPeriod,
+		subjectPeriodConflict,
+		teacherStartTimeConflict,
+		teacherTimeOverlapConflict
+	] = await Promise.all([
 		Timetable.findOne({
 			classId,
 			section,
 			day,
 			periodNumber,
-			...(excludeId ? { _id: { $ne: excludeId } } : {})
+			subjectId,
+			teacherId,
+			startTime,
+			endTime,
+			...exclusionFilter
+		})
+			.select('_id')
+			.lean(),
+		Timetable.findOne({
+			classId,
+			section,
+			day,
+			periodNumber,
+			...exclusionFilter
+		})
+			.select('_id')
+			.lean(),
+		Timetable.findOne({
+			subjectId,
+			day,
+			periodNumber,
+			...exclusionFilter
 		})
 			.select('_id')
 			.lean(),
 		Timetable.findOne({
 			teacherId,
 			day,
-			$or: [
-				{ periodNumber },
-				{
-					startTime: { $lt: endTime },
-					endTime: { $gt: startTime }
-				}
-			],
-			...(excludeId ? { _id: { $ne: excludeId } } : {})
+			startTime,
+			...exclusionFilter
+		})
+			.select('_id')
+			.lean(),
+		Timetable.findOne({
+			teacherId,
+			day,
+			startTime: { $lt: endTime },
+			endTime: { $gt: startTime },
+			...exclusionFilter
 		})
 			.select('_id periodNumber startTime endTime')
 			.lean()
 	]);
 
-	if (duplicateClassPeriod) {
-		throw createHttpError(409, 'This class period already has a timetable entry');
+	if (duplicateEntry) {
+		throw createHttpError(409, ERROR_MESSAGES.duplicateEntry);
 	}
 
-	if (teacherConflict) {
-		const isSamePeriod = Number(teacherConflict.periodNumber) === Number(periodNumber);
-		if (isSamePeriod) {
-			throw createHttpError(409, 'Teacher already assigned to this period on this day');
-		}
+	if (duplicateClassPeriod) {
+		throw createHttpError(409, ERROR_MESSAGES.classPeriodConflict);
+	}
 
-		if (isTeacherTimeOverlap({
-			existingStartTime: teacherConflict.startTime,
-			existingEndTime: teacherConflict.endTime,
+	if (subjectPeriodConflict) {
+		throw createHttpError(409, ERROR_MESSAGES.subjectPeriodConflict);
+	}
+
+	if (teacherStartTimeConflict) {
+		throw createHttpError(409, ERROR_MESSAGES.teacherConflict);
+	}
+
+	if (
+		teacherTimeOverlapConflict
+		&& isTeacherTimeOverlap({
+			existingStartTime: teacherTimeOverlapConflict.startTime,
+			existingEndTime: teacherTimeOverlapConflict.endTime,
 			nextStartTime: startTime,
 			nextEndTime: endTime
-		})) {
-			throw createHttpError(409, 'Teacher already assigned during this time range');
-		}
-
-		throw createHttpError(409, 'Teacher already assigned to another class on this day');
+		})
+	) {
+		throw createHttpError(409, ERROR_MESSAGES.teacherConflict);
 	}
 };
 
 const getById = async (id) => Timetable.findById(id).populate(TIMETABLE_POPULATE).lean();
 
 const createEntry = async ({ payload = {}, createdBy = null } = {}) => {
+	await ensureTimetableIndexes();
+
 	const normalizedPayload = normalizePayload(payload);
 	normalizedPayload.teacherId = await resolveTeacherUserId(normalizedPayload.teacherId);
 
@@ -372,6 +586,7 @@ const createEntry = async ({ payload = {}, createdBy = null } = {}) => {
 
 const updateEntry = async ({ id, payload = {} } = {}) => {
 	ensureObjectId(id, 'Timetable entry');
+	await ensureTimetableIndexes();
 
 	const existing = await Timetable.findById(id).lean();
 	if (!existing) {

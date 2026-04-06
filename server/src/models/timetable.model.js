@@ -88,13 +88,7 @@ timetableSchema.index(
     periodNumber: 1
   },
   {
-    unique: true,
-    partialFilterExpression: {
-      classId: { $exists: true },
-      section: { $exists: true, $type: 'string', $ne: '' },
-      day: { $exists: true, $type: 'string', $in: TIMETABLE_DAYS },
-      periodNumber: { $exists: true, $type: 'number' }
-    }
+    unique: true
   }
 );
 
@@ -105,12 +99,7 @@ timetableSchema.index(
     startTime: 1
   },
   {
-    unique: true,
-    partialFilterExpression: {
-      teacherId: { $exists: true },
-      day: { $exists: true, $type: 'string', $in: TIMETABLE_DAYS },
-      startTime: { $exists: true, $type: 'string', $ne: '' }
-    }
+    unique: true
   }
 );
 
