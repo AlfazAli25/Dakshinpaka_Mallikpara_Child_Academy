@@ -208,6 +208,11 @@ export default function AdminTimetablePage() {
     []
   );
 
+  const effectiveTeacherUserId = useMemo(
+    () => String(assignedTeacher.teacherUserId || form.teacherId || '').trim(),
+    [assignedTeacher.teacherUserId, form.teacherId]
+  );
+
   const periodOptions = useMemo(
     () => TIMETABLE_PERIODS.map((periodNumber) => ({ value: String(periodNumber), label: `Period ${periodNumber}` })),
     []
@@ -226,9 +231,9 @@ export default function AdminTimetablePage() {
     try {
       const token = getToken();
       const [classResponse, subjectResponse, teacherResponse] = await Promise.all([
-        get('/classes', token),
-        get('/subjects', token),
-        get('/teachers', token)
+        get('/classes', token, { forceRefresh: true, cacheTtlMs: 0 }),
+        get('/subjects', token, { forceRefresh: true, cacheTtlMs: 0 }),
+        get('/teachers', token, { forceRefresh: true, cacheTtlMs: 0 })
       ]);
 
       const classRows = Array.isArray(classResponse?.data) ? classResponse.data : [];
@@ -423,7 +428,7 @@ export default function AdminTimetablePage() {
       return;
     }
 
-    if (!String(form.teacherId || '').trim()) {
+    if (!effectiveTeacherUserId) {
       toast.error(CONFLICT_MESSAGES.subjectTeacherConflict);
       return;
     }
@@ -463,7 +468,7 @@ export default function AdminTimetablePage() {
         day: form.day,
         periodNumber: Number(form.periodNumber),
         subjectId: form.subjectId,
-        teacherId: form.teacherId,
+        teacherId: effectiveTeacherUserId,
         startTime: effectiveStartTime,
         endTime: effectiveEndTime,
         roomNumber: String(form.roomNumber || '').trim() || undefined
