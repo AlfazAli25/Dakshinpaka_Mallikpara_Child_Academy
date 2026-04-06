@@ -78,19 +78,6 @@ const toMinutes = (timeValue) => {
   return (hours * 60) + minutes;
 };
 
-const isTimeRangeOverlap = ({ leftStartTime, leftEndTime, rightStartTime, rightEndTime }) => {
-  const leftStartMinutes = toMinutes(leftStartTime);
-  const leftEndMinutes = toMinutes(leftEndTime);
-  const rightStartMinutes = toMinutes(rightStartTime);
-  const rightEndMinutes = toMinutes(rightEndTime);
-
-  if ([leftStartMinutes, leftEndMinutes, rightStartMinutes, rightEndMinutes].some((value) => !Number.isFinite(value))) {
-    return false;
-  }
-
-  return leftStartMinutes < rightEndMinutes && leftEndMinutes > rightStartMinutes;
-};
-
 const mapSaveErrorToConflictMessage = (rawErrorMessage) => {
   const normalizedErrorMessage = String(rawErrorMessage || '').toLowerCase();
 
@@ -406,47 +393,6 @@ export default function AdminTimetablePage() {
     setEditingId('');
   };
 
-  const hasTeacherConflict = async ({ startTime, endTime }) => {
-    const { teacherId, day, periodNumber } = form;
-    if (!teacherId || !day) {
-      return { hasConflict: false, message: '' };
-    }
-
-    const query = new URLSearchParams();
-    query.set('day', day);
-
-    const response = await get(`/timetable/teacher/${teacherId}?${query.toString()}`, getToken(), {
-      forceRefresh: true,
-      cacheTtlMs: 0
-    });
-
-    const candidateRows = Array.isArray(response?.data) ? response.data : [];
-    const conflictingRow = candidateRows.find((row) => {
-      if (toId(row) === editingId) {
-        return false;
-      }
-
-      const hasSamePeriodConflict = Number(row?.periodNumber) === Number(periodNumber);
-      const hasTimeOverlapConflict = isTimeRangeOverlap({
-        leftStartTime: startTime,
-        leftEndTime: endTime,
-        rightStartTime: row?.startTime,
-        rightEndTime: row?.endTime
-      });
-
-      return hasSamePeriodConflict || hasTimeOverlapConflict;
-    });
-
-    if (!conflictingRow) {
-      return { hasConflict: false, message: '' };
-    }
-
-    return {
-      hasConflict: true,
-      message: CONFLICT_MESSAGES.teacherConflict
-    };
-  };
-
   const hasClassPeriodConflict = () => {
     const { day, periodNumber } = form;
 
@@ -508,15 +454,6 @@ export default function AdminTimetablePage() {
       const classPeriodConflict = hasClassPeriodConflict();
       if (classPeriodConflict.hasConflict) {
         toast.error(CONFLICT_MESSAGES.classPeriodConflict);
-        return;
-      }
-
-      const teacherConflict = await hasTeacherConflict({
-        startTime: effectiveStartTime,
-        endTime: effectiveEndTime
-      });
-      if (teacherConflict.hasConflict) {
-        toast.error(teacherConflict.message);
         return;
       }
 
