@@ -328,6 +328,17 @@ export const put = async (path, data, token) => {
   return response;
 };
 
+export const patch = async (path, data, token) => {
+  const response = await request(path, {
+    method: 'PATCH',
+    headers: buildHeaders(token),
+    body: JSON.stringify(data)
+  });
+
+  clearGetCache();
+  return response;
+};
+
 export const del = async (path, token) => {
   const response = await request(path, {
     method: 'DELETE',

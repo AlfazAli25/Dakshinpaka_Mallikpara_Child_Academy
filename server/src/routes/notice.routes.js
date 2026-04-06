@@ -1,0 +1,109 @@
+const express = require('express');
+const { body, param, query } = require('express-validator');
+const { protect, requireRole } = require('../middleware/auth.middleware');
+const validate = require('../middleware/validate.middleware');
+const noticeController = require('../controllers/noticeController');
+const noticePaymentController = require('../controllers/noticePaymentController');
+
+const router = express.Router();
+
+router.post(
+  '/',
+  protect,
+  requireRole(['admin']),
+  [
+    body('title').notEmpty().withMessage('Title is required'),
+    body('description').notEmpty().withMessage('Description is required'),
+    body('classIds').optional().isArray().withMessage('classIds must be an array'),
+    body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
+    body('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),
+    body('amount').optional().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
+    body('dueDate').optional({ nullable: true }).isISO8601().withMessage('Due date is invalid'),
+    body('isImportant').optional().isBoolean().withMessage('isImportant must be true or false'),
+    body('status').optional().isIn(['Active', 'Expired']).withMessage('Status must be Active or Expired')
+  ],
+  validate,
+  noticeController.createNotice
+);
+
+router.get(
+  '/student',
+  protect,
+  requireRole(['student']),
+  [
+    query('noticeId').optional().isMongoId().withMessage('Notice is invalid'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be at least 1'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+  ],
+  validate,
+  noticeController.getStudentNotices
+);
+
+router.post(
+  '/pay',
+  protect,
+  requireRole(['student']),
+  [
+    body('studentId').optional().isMongoId().withMessage('Student is invalid'),
+    body('noticeId').notEmpty().withMessage('Notice is required').bail().isMongoId().withMessage('Notice is invalid'),
+    body('amount').notEmpty().withMessage('Amount is required').bail().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')
+  ],
+  validate,
+  noticePaymentController.payNotice
+);
+
+router.get(
+  '/',
+  protect,
+  requireRole(['admin']),
+  [
+    query('status').optional().isIn(['Active', 'Expired']).withMessage('Status must be Active or Expired'),
+    query('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),
+    query('classId').optional().isMongoId().withMessage('Class is invalid'),
+    query('isImportant').optional().isIn(['true', 'false']).withMessage('isImportant must be true or false'),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be at least 1'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100')
+  ],
+  validate,
+  noticeController.getAllNotices
+);
+
+router.put(
+  '/:id',
+  protect,
+  requireRole(['admin']),
+  [
+    param('id').isMongoId().withMessage('Notice is invalid'),
+    body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+    body('description').optional().notEmpty().withMessage('Description cannot be empty'),
+    body('classIds').optional().isArray().withMessage('classIds must be an array'),
+    body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
+    body('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),
+    body('amount').optional().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
+    body('dueDate').optional({ nullable: true }).isISO8601().withMessage('Due date is invalid'),
+    body('isImportant').optional().isBoolean().withMessage('isImportant must be true or false'),
+    body('status').optional().isIn(['Active', 'Expired']).withMessage('Status must be Active or Expired')
+  ],
+  validate,
+  noticeController.updateNotice
+);
+
+router.patch(
+  '/expire/:id',
+  protect,
+  requireRole(['admin']),
+  [param('id').isMongoId().withMessage('Notice is invalid')],
+  validate,
+  noticeController.expireNotice
+);
+
+router.delete(
+  '/:id',
+  protect,
+  requireRole(['admin']),
+  [param('id').isMongoId().withMessage('Notice is invalid')],
+  validate,
+  noticeController.deleteNotice
+);
+
+module.exports = router;
