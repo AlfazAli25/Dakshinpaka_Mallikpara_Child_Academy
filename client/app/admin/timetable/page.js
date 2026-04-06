@@ -101,7 +101,6 @@ const mapSaveErrorToConflictMessage = (rawErrorMessage) => {
   if (
     normalizedErrorMessage.includes('class already has a subject in this period')
     || normalizedErrorMessage.includes('class period already has')
-    || normalizedErrorMessage.includes('duplicate timetable entry')
   ) {
     return CONFLICT_MESSAGES.classPeriodConflict;
   }

@@ -68,6 +68,9 @@ const normalizeDay = (value) => {
 
 const normalizeTime = (value) => String(value || '').trim();
 
+const CLASS_PERIOD_UNIQUE_INDEX_KEYS = ['classid', 'section', 'day', 'periodnumber'];
+const TEACHER_DAY_START_UNIQUE_INDEX_KEYS = ['teacherid', 'day', 'starttime'];
+
 const hasAllDuplicateKeys = (duplicateKeys, requiredKeys = []) => {
 	if (!(duplicateKeys instanceof Set)) {
 		return false;
@@ -100,6 +103,24 @@ const toLowerCaseKeySet = (index = {}) => new Set(
 	Object.keys(index?.key || {}).map((key) => String(key || '').toLowerCase())
 );
 
+const hasExactIndexKeys = (keys, requiredKeys = []) => (
+	keys instanceof Set
+	&& keys.size === requiredKeys.length
+	&& requiredKeys.every((key) => keys.has(String(key || '').toLowerCase()))
+);
+
+const isRequiredTimetableUniqueIndex = (index = {}) => {
+	if (!index?.unique || !index?.key || index?.name === '_id_' || index?.partialFilterExpression) {
+		return false;
+	}
+
+	const keys = toLowerCaseKeySet(index);
+	return (
+		hasExactIndexKeys(keys, CLASS_PERIOD_UNIQUE_INDEX_KEYS)
+		|| hasExactIndexKeys(keys, TEACHER_DAY_START_UNIQUE_INDEX_KEYS)
+	);
+};
+
 const ensureTimetableIndexes = async () => {
 	if (ensureTimetableIndexPromise) {
 		return ensureTimetableIndexPromise;
@@ -117,37 +138,12 @@ const ensureTimetableIndexes = async () => {
 			return;
 		}
 
-		const legacyUniqueIndexes = indexes.filter((index) => {
-			if (!index?.unique || !index?.name || !index?.key) {
-				return false;
-			}
-
-			const keys = toLowerCaseKeySet(index);
-			const hasPartialFilter = Boolean(index?.partialFilterExpression);
-			const isClassPeriodLegacy = (
-				keys.has('classid')
-				&& keys.has('periodnumber')
-				&& (!keys.has('day') || !keys.has('section'))
-			);
-
-			const isClassPeriodPartialLegacy = (
-				hasPartialFilter
-				&& hasAllDuplicateKeys(keys, ['classid', 'section', 'day', 'periodnumber'])
-			);
-
-			const isTeacherTimeLegacy = (
-				keys.has('teacherid')
-				&& keys.has('starttime')
-				&& !keys.has('day')
-			);
-
-			const isTeacherTimePartialLegacy = (
-				hasPartialFilter
-				&& hasAllDuplicateKeys(keys, ['teacherid', 'day', 'starttime'])
-			);
-
-			return isClassPeriodLegacy || isClassPeriodPartialLegacy || isTeacherTimeLegacy || isTeacherTimePartialLegacy;
-		});
+		const legacyUniqueIndexes = indexes.filter((index) => (
+			Boolean(index?.unique)
+			&& Boolean(index?.name)
+			&& index.name !== '_id_'
+			&& !isRequiredTimetableUniqueIndex(index)
+		));
 
 		if (legacyUniqueIndexes.length > 0) {
 			for (const index of legacyUniqueIndexes) {
@@ -171,15 +167,12 @@ const ensureTimetableIndexes = async () => {
 		}
 
 		const hasClassSectionDayPeriodUnique = indexes.some((index) => {
-			if (!index?.unique) {
+			if (!isRequiredTimetableUniqueIndex(index)) {
 				return false;
 			}
 
 			const keys = toLowerCaseKeySet(index);
-			return (
-				hasAllDuplicateKeys(keys, ['classid', 'section', 'day', 'periodnumber'])
-				&& !index?.partialFilterExpression
-			);
+			return hasExactIndexKeys(keys, CLASS_PERIOD_UNIQUE_INDEX_KEYS);
 		});
 
 		if (!hasClassSectionDayPeriodUnique) {
@@ -196,12 +189,12 @@ const ensureTimetableIndexes = async () => {
 		}
 
 		const hasTeacherDayStartUnique = indexes.some((index) => {
-			if (!index?.unique) {
+			if (!isRequiredTimetableUniqueIndex(index)) {
 				return false;
 			}
 
 			const keys = toLowerCaseKeySet(index);
-			return hasAllDuplicateKeys(keys, ['teacherid', 'day', 'starttime']) && !index?.partialFilterExpression;
+			return hasExactIndexKeys(keys, TEACHER_DAY_START_UNIQUE_INDEX_KEYS);
 		});
 
 		if (!hasTeacherDayStartUnique) {
