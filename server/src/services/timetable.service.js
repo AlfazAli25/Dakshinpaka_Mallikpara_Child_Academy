@@ -58,6 +58,19 @@ const normalizeDay = (value) => {
 
 const normalizeTime = (value) => String(value || '').trim();
 
+const hasAllDuplicateKeys = (duplicateKeys, requiredKeys = []) => {
+	if (!(duplicateKeys instanceof Set)) {
+		return false;
+	}
+
+	return requiredKeys.every((key) => duplicateKeys.has(String(key || '').toLowerCase()));
+};
+
+const isTeacherTimeOverlap = ({ existingStartTime, existingEndTime, nextStartTime, nextEndTime }) => (
+	String(existingStartTime || '') < String(nextEndTime || '')
+	&& String(existingEndTime || '') > String(nextStartTime || '')
+);
+
 const normalizePayload = (payload = {}) => {
 	const rawPeriodNumber = Number(payload.periodNumber);
 
@@ -125,18 +138,25 @@ const mapDuplicateTimetableError = (error) => {
 	}
 
 	const keyPattern = error?.keyPattern || {};
-	const duplicateKeys = Object.keys(keyPattern).map((key) => String(key || '').toLowerCase());
+	const duplicateKeys = new Set(Object.keys(keyPattern).map((key) => String(key || '').toLowerCase()));
 	const message = String(error?.message || '').toLowerCase();
 
 	if (
-		duplicateKeys.includes('teacherid') ||
+		hasAllDuplicateKeys(duplicateKeys, ['teacherid', 'day', 'starttime']) ||
 		(message.includes('teacherid_1') && message.includes('day_1') && message.includes('starttime_1'))
 	) {
-		return createHttpError(409, 'Teacher already assigned at this time');
+		return createHttpError(409, 'Teacher already assigned during this time range');
 	}
 
 	if (
-		duplicateKeys.includes('classid') ||
+		hasAllDuplicateKeys(duplicateKeys, ['teacherid', 'day', 'periodnumber']) ||
+		(message.includes('teacherid_1') && message.includes('day_1') && message.includes('periodnumber_1'))
+	) {
+		return createHttpError(409, 'Teacher already assigned to this period on this day');
+	}
+
+	if (
+		hasAllDuplicateKeys(duplicateKeys, ['classid', 'section', 'day', 'periodnumber']) ||
 		(message.includes('classid_1') && message.includes('section_1') && message.includes('day_1') && message.includes('periodnumber_1'))
 	) {
 		return createHttpError(409, 'This class period already has a timetable entry');
@@ -252,7 +272,8 @@ const enforceSlotBusinessRules = async (normalizedPayload, { excludeId } = {}) =
 		periodNumber,
 		subjectId,
 		teacherId,
-		startTime
+		startTime,
+		endTime
 	} = normalizedPayload;
 
 	await ensureClassExists(classId);
@@ -292,10 +313,16 @@ const enforceSlotBusinessRules = async (normalizedPayload, { excludeId } = {}) =
 		Timetable.findOne({
 			teacherId,
 			day,
-			startTime,
+			$or: [
+				{ periodNumber },
+				{
+					startTime: { $lt: endTime },
+					endTime: { $gt: startTime }
+				}
+			],
 			...(excludeId ? { _id: { $ne: excludeId } } : {})
 		})
-			.select('_id')
+			.select('_id periodNumber startTime endTime')
 			.lean()
 	]);
 
@@ -304,7 +331,21 @@ const enforceSlotBusinessRules = async (normalizedPayload, { excludeId } = {}) =
 	}
 
 	if (teacherConflict) {
-		throw createHttpError(409, 'Teacher already assigned at this time');
+		const isSamePeriod = Number(teacherConflict.periodNumber) === Number(periodNumber);
+		if (isSamePeriod) {
+			throw createHttpError(409, 'Teacher already assigned to this period on this day');
+		}
+
+		if (isTeacherTimeOverlap({
+			existingStartTime: teacherConflict.startTime,
+			existingEndTime: teacherConflict.endTime,
+			nextStartTime: startTime,
+			nextEndTime: endTime
+		})) {
+			throw createHttpError(409, 'Teacher already assigned during this time range');
+		}
+
+		throw createHttpError(409, 'Teacher already assigned to another class on this day');
 	}
 };
 

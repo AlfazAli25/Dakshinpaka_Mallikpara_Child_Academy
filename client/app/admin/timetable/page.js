@@ -16,17 +16,35 @@ import {
 } from '@/lib/timetable-grid';
 import { useToast } from '@/lib/toast-context';
 
-const getInitialForm = () => ({
-  classId: '',
-  section: '',
-  day: TIMETABLE_DAYS[0],
-  periodNumber: String(TIMETABLE_PERIODS[0]),
-  subjectId: '',
-  teacherId: '',
-  startTime: '',
-  endTime: '',
-  roomNumber: ''
+const PERIOD_TIME_SLOTS = Object.freeze({
+  1: { startTime: '10:00', endTime: '10:15' },
+  2: { startTime: '10:16', endTime: '10:30' },
+  3: { startTime: '10:31', endTime: '10:45' },
+  4: { startTime: '10:46', endTime: '11:00' },
+  5: { startTime: '11:01', endTime: '11:15' },
+  6: { startTime: '11:16', endTime: '11:30' },
+  7: { startTime: '11:31', endTime: '11:45' },
+  8: { startTime: '11:46', endTime: '12:00' }
 });
+
+const getPeriodTimeSlot = (periodNumber) => PERIOD_TIME_SLOTS[Number(periodNumber)] || null;
+
+const getInitialForm = () => {
+  const defaultPeriodNumber = String(TIMETABLE_PERIODS[0] || '');
+  const defaultTimeSlot = getPeriodTimeSlot(defaultPeriodNumber);
+
+  return {
+    classId: '',
+    section: '',
+    day: TIMETABLE_DAYS[0],
+    periodNumber: defaultPeriodNumber,
+    subjectId: '',
+    teacherId: '',
+    startTime: defaultTimeSlot?.startTime || '',
+    endTime: defaultTimeSlot?.endTime || '',
+    roomNumber: ''
+  };
+};
 
 const requiredFormFields = ['classId', 'section', 'day', 'periodNumber', 'subjectId', 'teacherId', 'startTime', 'endTime'];
 
@@ -53,6 +71,19 @@ const toMinutes = (timeValue) => {
   }
 
   return (hours * 60) + minutes;
+};
+
+const isTimeRangeOverlap = ({ leftStartTime, leftEndTime, rightStartTime, rightEndTime }) => {
+  const leftStartMinutes = toMinutes(leftStartTime);
+  const leftEndMinutes = toMinutes(leftEndTime);
+  const rightStartMinutes = toMinutes(rightStartTime);
+  const rightEndMinutes = toMinutes(rightEndTime);
+
+  if ([leftStartMinutes, leftEndMinutes, rightStartMinutes, rightEndMinutes].some((value) => !Number.isFinite(value))) {
+    return false;
+  }
+
+  return leftStartMinutes < rightEndMinutes && leftEndMinutes > rightStartMinutes;
 };
 
 export default function AdminTimetablePage() {
@@ -175,15 +206,58 @@ export default function AdminTimetablePage() {
     ];
   }, [form.subjectId, subjectById, teachers]);
 
-  const periodOptions = useMemo(
-    () => TIMETABLE_PERIODS.map((periodNumber) => ({ value: String(periodNumber), label: `Period ${periodNumber}` })),
-    []
-  );
-
   const dayOptions = useMemo(
     () => TIMETABLE_DAYS.map((day) => ({ value: day, label: day })),
     []
   );
+
+  const usedPeriodNumbers = useMemo(() => {
+    const used = new Set();
+
+    rows.forEach((row) => {
+      if (toId(row?.classId) !== form.classId) {
+        return;
+      }
+
+      if (normalizeSection(row?.section) !== normalizeSection(form.section)) {
+        return;
+      }
+
+      if (String(row?.day || '') !== form.day) {
+        return;
+      }
+
+      const rowId = toId(row);
+      if (editingId && rowId === editingId) {
+        return;
+      }
+
+      const rowPeriodNumber = Number(row?.periodNumber);
+      if (Number.isInteger(rowPeriodNumber)) {
+        used.add(rowPeriodNumber);
+      }
+    });
+
+    return used;
+  }, [rows, form.classId, form.section, form.day, editingId]);
+
+  const periodOptions = useMemo(() => {
+    const selectedPeriodNumber = Number(form.periodNumber);
+    const availablePeriods = TIMETABLE_PERIODS.filter((periodNumber) => (
+      (editingId && periodNumber === selectedPeriodNumber) || !usedPeriodNumbers.has(periodNumber)
+    ));
+
+    if (availablePeriods.length === 0) {
+      return [{ value: '', label: 'No periods available for selected day' }];
+    }
+
+    return availablePeriods.map((periodNumber) => ({
+      value: String(periodNumber),
+      label: `Period ${periodNumber}`
+    }));
+  }, [form.periodNumber, usedPeriodNumbers, editingId]);
+
+  const noPeriodsAvailable = periodOptions.length === 1 && !periodOptions[0]?.value;
 
   const gridRows = useMemo(() => buildTimetableGrid(rows, TIMETABLE_PERIODS), [rows]);
 
@@ -300,6 +374,35 @@ export default function AdminTimetablePage() {
     }));
   }, [form.subjectId, form.teacherId, subjectById, teacherOptions]);
 
+  useEffect(() => {
+    const hasSelectedPeriod = periodOptions.some((option) => option.value === form.periodNumber && option.value);
+    if (hasSelectedPeriod) {
+      return;
+    }
+
+    const firstAvailablePeriod = periodOptions.find((option) => option.value)?.value || '';
+    const firstAvailableSlot = getPeriodTimeSlot(firstAvailablePeriod);
+    const nextStartTime = firstAvailableSlot?.startTime || '';
+    const nextEndTime = firstAvailableSlot?.endTime || '';
+
+    setForm((prev) => {
+      if (
+        prev.periodNumber === firstAvailablePeriod
+        && prev.startTime === nextStartTime
+        && prev.endTime === nextEndTime
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        periodNumber: firstAvailablePeriod,
+        startTime: nextStartTime,
+        endTime: nextEndTime
+      };
+    });
+  }, [form.periodNumber, periodOptions]);
+
   const onFieldChange = (field) => (event) => {
     const nextValue = event.target.value;
 
@@ -330,6 +433,16 @@ export default function AdminTimetablePage() {
         };
       }
 
+      if (field === 'periodNumber') {
+        const selectedPeriodSlot = getPeriodTimeSlot(nextValue);
+        return {
+          ...prev,
+          periodNumber: nextValue,
+          startTime: selectedPeriodSlot?.startTime || '',
+          endTime: selectedPeriodSlot?.endTime || ''
+        };
+      }
+
       return {
         ...prev,
         [field]: nextValue
@@ -347,14 +460,13 @@ export default function AdminTimetablePage() {
   };
 
   const hasTeacherConflict = async () => {
-    const { teacherId, day, startTime } = form;
-    if (!teacherId || !day || !startTime) {
-      return false;
+    const { teacherId, day, periodNumber, startTime, endTime } = form;
+    if (!teacherId || !day) {
+      return { hasConflict: false, message: '' };
     }
 
     const query = new URLSearchParams();
     query.set('day', day);
-    query.set('startTime', startTime);
 
     const response = await get(`/timetable/teacher/${teacherId}?${query.toString()}`, getToken(), {
       forceRefresh: true,
@@ -362,7 +474,37 @@ export default function AdminTimetablePage() {
     });
 
     const candidateRows = Array.isArray(response?.data) ? response.data : [];
-    return candidateRows.some((row) => toId(row) !== editingId);
+    const conflictingRow = candidateRows.find((row) => {
+      if (toId(row) === editingId) {
+        return false;
+      }
+
+      const hasSamePeriodConflict = Number(row?.periodNumber) === Number(periodNumber);
+      const hasTimeOverlapConflict = isTimeRangeOverlap({
+        leftStartTime: startTime,
+        leftEndTime: endTime,
+        rightStartTime: row?.startTime,
+        rightEndTime: row?.endTime
+      });
+
+      return hasSamePeriodConflict || hasTimeOverlapConflict;
+    });
+
+    if (!conflictingRow) {
+      return { hasConflict: false, message: '' };
+    }
+
+    if (Number(conflictingRow?.periodNumber) === Number(periodNumber)) {
+      return {
+        hasConflict: true,
+        message: 'Teacher already assigned to this period on this day'
+      };
+    }
+
+    return {
+      hasConflict: true,
+      message: 'Teacher already assigned during this time range'
+    };
   };
 
   const onSaveTimetable = async (event) => {
@@ -382,9 +524,9 @@ export default function AdminTimetablePage() {
     setSaving(true);
 
     try {
-      const conflictExists = await hasTeacherConflict();
-      if (conflictExists) {
-        toast.error('Teacher already assigned at this time');
+      const teacherConflict = await hasTeacherConflict();
+      if (teacherConflict.hasConflict) {
+        toast.error(teacherConflict.message);
         return;
       }
 
@@ -410,8 +552,10 @@ export default function AdminTimetablePage() {
       resetFormForNextEntry();
       await loadClassTimetable({ classId: payload.classId, section: payload.section });
     } catch (apiError) {
-      if (String(apiError?.message || '').toLowerCase().includes('teacher already assigned at this time')) {
-        toast.error('Teacher already assigned at this time');
+      const normalizedErrorMessage = String(apiError?.message || '').toLowerCase();
+
+      if (normalizedErrorMessage.includes('teacher already assigned')) {
+        toast.error(apiError.message || 'Teacher already assigned to another class on this day');
       } else {
         toast.error(apiError.message || 'Failed to save timetable');
       }
@@ -508,7 +652,7 @@ export default function AdminTimetablePage() {
             value={form.periodNumber}
             onChange={onFieldChange('periodNumber')}
             options={periodOptions}
-            disabled={saving}
+            disabled={saving || noPeriodsAvailable}
             required
           />
 
@@ -530,23 +674,14 @@ export default function AdminTimetablePage() {
             required
           />
 
-          <Input
-            label="Start Time"
-            type="time"
-            value={form.startTime}
-            onChange={onFieldChange('startTime')}
-            disabled={saving}
-            required
-          />
-
-          <Input
-            label="End Time"
-            type="time"
-            value={form.endTime}
-            onChange={onFieldChange('endTime')}
-            disabled={saving}
-            required
-          />
+          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
+            <p className="mb-1.5 text-sm font-medium text-slate-700">Time Slot</p>
+            {form.startTime && form.endTime ? (
+              <p className="text-sm font-semibold text-slate-900">{form.startTime} - {form.endTime}</p>
+            ) : (
+              <p className="text-sm text-slate-500">Select an available period to auto-set the time slot.</p>
+            )}
+          </div>
 
           <Input
             label="Room Number"
