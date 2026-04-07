@@ -55,7 +55,7 @@ const text = {
       empty: 'No fee receipts available yet.',
       download: 'Download Receipt',
       downloading: 'Downloading...',
-      downloadFailed: 'Unable to download receipt right now.'
+      downloadFailed: 'Failed to download receipt'
     }
   },
   bn: {
@@ -306,8 +306,8 @@ export default function StudentDashboardPage() {
       const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
       const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
-    } catch (error) {
-      setReceiptDownloadError(error?.message || t.receipts.downloadFailed);
+    } catch (_error) {
+      setReceiptDownloadError(t.receipts.downloadFailed);
     } finally {
       setDownloadingReceiptPaymentId('');
     }
