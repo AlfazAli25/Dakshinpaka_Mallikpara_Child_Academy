@@ -1,5 +1,5 @@
 const asyncHandler = require('../middleware/async.middleware');
-const { runMonthlySync } = require('../services/monthly-sync.service');
+const { runMonthlySync, isMonthlyBoundaryInConfiguredTimezone } = require('../services/monthly-sync.service');
 
 const parseBoolean = (value) => {
   if (typeof value === 'boolean') {
@@ -12,8 +12,20 @@ const parseBoolean = (value) => {
 
 const runMonthlySyncFromCron = asyncHandler(async (req, res) => {
   const force = parseBoolean(req.query?.force);
+
+  if (!force && !isMonthlyBoundaryInConfiguredTimezone(new Date())) {
+    return res.json({
+      success: true,
+      message: 'Skipped: not monthly boundary window for configured timezone',
+      data: {
+        skipped: true,
+        reason: 'vercel-cron-non-boundary-window'
+      }
+    });
+  }
+
   const result = await runMonthlySync({
-    reason: 'vercel-cron',
+    reason: 'vercel-cron-monthly-boundary',
     force
   });
 

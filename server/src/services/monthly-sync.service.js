@@ -6,6 +6,9 @@ let inFlightSyncPromise = null;
 let lastCompletedMonthKey = '';
 let schedulerTimeoutId = null;
 
+const MONTHLY_SYNC_TIMEZONE_OFFSET_MINUTES = Number(process.env.MONTHLY_SYNC_TIMEZONE_OFFSET_MINUTES || 330);
+const MONTHLY_SYNC_TIMEZONE_OFFSET_MS = MONTHLY_SYNC_TIMEZONE_OFFSET_MINUTES * 60 * 1000;
+
 const getMonthKey = (value = new Date()) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -29,8 +32,20 @@ const toValidDate = (value) => {
   return parsed;
 };
 
+const toConfiguredTimezoneDate = (value = new Date()) => {
+  const date = toValidDate(value);
+  return new Date(date.getTime() + MONTHLY_SYNC_TIMEZONE_OFFSET_MS);
+};
+
+const isMonthlyBoundaryInConfiguredTimezone = (value = new Date()) => {
+  const timezoneDate = toConfiguredTimezoneDate(value);
+
+  // The first hour of day 1 in configured timezone is considered boundary window.
+  return timezoneDate.getUTCDate() === 1 && timezoneDate.getUTCHours() === 0;
+};
+
 const runMonthlySync = async ({ reason = 'manual', force = false, anchorDate = new Date() } = {}) => {
-  const normalizedAnchorDate = toValidDate(anchorDate);
+  const normalizedAnchorDate = toConfiguredTimezoneDate(anchorDate);
   const targetMonthKey = getMonthKey(normalizedAnchorDate);
 
   if (!force && targetMonthKey && lastCompletedMonthKey === targetMonthKey) {
@@ -88,18 +103,21 @@ const runMonthlySync = async ({ reason = 'manual', force = false, anchorDate = n
 };
 
 const getNextMonthlyRunAt = (now = new Date()) => {
-  const current = toValidDate(now);
+  const currentTzDate = toConfiguredTimezoneDate(now);
 
-  // Run at 00:00 on the first day of next month (server local time).
-  return new Date(
-    current.getFullYear(),
-    current.getMonth() + 1,
+  // Build next month start in timezone-aligned UTC space.
+  const nextTimezoneMonthStart = new Date(Date.UTC(
+    currentTzDate.getUTCFullYear(),
+    currentTzDate.getUTCMonth() + 1,
     1,
     0,
     0,
     0,
     0
-  );
+  ));
+
+  // Convert back to actual UTC/runtime time.
+  return new Date(nextTimezoneMonthStart.getTime() - MONTHLY_SYNC_TIMEZONE_OFFSET_MS);
 };
 
 const scheduleNextRun = () => {
@@ -122,7 +140,8 @@ const scheduleNextRun = () => {
 
   logInfo('monthly_sync_scheduler_scheduled', {
     nextRunAt: nextRunAt.toISOString(),
-    delayMs
+    delayMs,
+    timezoneOffsetMinutes: MONTHLY_SYNC_TIMEZONE_OFFSET_MINUTES
   });
 };
 
@@ -153,6 +172,7 @@ const stopMonthlySyncScheduler = () => {
 
 module.exports = {
   runMonthlySync,
+  isMonthlyBoundaryInConfiguredTimezone,
   startMonthlySyncScheduler,
   stopMonthlySyncScheduler
 };

@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/system/monthly-sync/run",
-      "schedule": "0 0 1 * *"
+      "schedule": "30 18 * * *"
     }
   ],
   "builds": [
