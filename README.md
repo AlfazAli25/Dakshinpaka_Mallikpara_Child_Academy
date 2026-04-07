@@ -168,6 +168,7 @@ Frontend runs at `http://localhost:3000`.
 - `CLOUDINARY_API_KEY` (required for static QR screenshot uploads)
 - `CLOUDINARY_API_SECRET` (required for static QR screenshot uploads)
 - `CLOUDINARY_FOLDER` (optional; defaults to `sms/payment-screenshots`)
+- `CRON_SECRET` (required in production for secure monthly sync cron endpoint `/api/system/monthly-sync/run`)
 
 ### Frontend (`client/.env.local`)
 

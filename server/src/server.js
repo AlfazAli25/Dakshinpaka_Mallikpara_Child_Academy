@@ -3,6 +3,7 @@ const http = require('http');
 const app = require('./app');
 const connectDB = require('./config/db');
 const { logError, logInfo } = require('./utils/logger');
+const { startMonthlySyncScheduler } = require('./services/monthly-sync.service');
 
 const PORT = process.env.PORT || 5000;
 const SERVER_REQUEST_TIMEOUT_MS = Number(process.env.SERVER_REQUEST_TIMEOUT_MS || 120000);
@@ -17,6 +18,12 @@ const start = async () => {
 
   server.listen(PORT, () => {
     logInfo('server_started', { port: PORT });
+
+    startMonthlySyncScheduler({ runOnStartup: true }).catch((error) => {
+      logError('monthly_sync_scheduler_start_failed', {
+        message: error?.message || 'Unknown scheduler startup error'
+      });
+    });
   });
 };
 
