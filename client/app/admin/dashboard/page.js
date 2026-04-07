@@ -13,7 +13,6 @@ const DEFAULT_STATS = [
   { title: 'Total Students', value: '0' },
   { title: 'Total Teachers', value: '0' },
   { title: 'Total Classes', value: '0' },
-  { title: 'Attendance Avg', value: '0%' },
   { title: 'Upcoming Exam', value: 'No Upcoming Exam' }
 ];
 
@@ -25,13 +24,11 @@ const fetchAdminDashboardStats = async () => {
 
   const summaryRes = await get('/dashboard/summary', token);
   const summary = summaryRes.data || {};
-  const attendanceAverage = Number(summary?.attendanceSummary?.averagePercent || 0);
 
   return [
     { title: 'Total Students', value: String(summary.studentsCount || 0) },
     { title: 'Total Teachers', value: String(summary.teachersCount || 0) },
     { title: 'Total Classes', value: String(summary.classesCount || 0) },
-    { title: 'Attendance Avg', value: `${attendanceAverage}%` },
     { title: 'Upcoming Exam', value: String(summary.upcomingExam || 'No Upcoming Exam') }
   ];
 };
@@ -50,7 +47,7 @@ export default function AdminDashboardPage() {
         title="Admin Dashboard"
         description="Track key school metrics and quickly navigate core management operations."
       />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
           <StatCard key={item.title} title={item.title} value={item.value} loading={isLoading} />
         ))}

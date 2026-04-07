@@ -264,6 +264,75 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
+
+      <InfoCard title={t.notices.title}>
+        {isLoading ? (
+          <div className="space-y-2">
+            <div className="h-4 w-11/12 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-9/12 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-10/12 animate-pulse rounded bg-slate-200" />
+          </div>
+        ) : notices.length === 0 ? (
+          <p className="text-base font-semibold text-slate-600">{t.notices.empty}</p>
+        ) : (
+          <div className="space-y-4">
+            {notices.map((notice) => {
+              const noticeId = String(notice?._id || '');
+              const isImportant = Boolean(notice?.isImportant);
+              const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
+
+              return (
+                <div
+                  key={noticeId}
+                  className={`rounded-xl border p-5 ${isImportant ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xl font-bold text-slate-900">{notice?.title || '-'}</p>
+                      <p className="mt-2 text-base font-medium text-slate-700">{notice?.description || '-'}</p>
+                    </div>
+                    {isImportant ? (
+                      <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
+                        {t.notices.important}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-700">
+                    {notice?.dueDate ? (
+                      <p>{t.notices.dueDate}: {formatDate(notice.dueDate)}</p>
+                    ) : null}
+                    {isPaymentNotice ? (
+                      <p>{t.notices.amount}: INR {Number(notice?.amount || 0)}</p>
+                    ) : null}
+                  </div>
+
+                  {isPaymentNotice ? (
+                    <div className="mt-4">
+                      {notice?.canPay ? (
+                        <Link
+                          href={`/student/payment/${noticeId}`}
+                          className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                        >
+                          {t.notices.payNow}
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/student/fees"
+                          className="inline-flex rounded-lg bg-slate-700 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                        >
+                          {t.notices.viewInFees}
+                        </Link>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </InfoCard>
+
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => (
           <StatCard key={item.title} title={t.stats[item.title] || item.title} value={item.value} loading={isLoading} />
@@ -300,73 +369,6 @@ export default function StudentDashboardPage() {
         </InfoCard>
       ) : null}
 
-      <InfoCard title={t.notices.title}>
-        {isLoading ? (
-          <div className="space-y-2">
-            <div className="h-4 w-11/12 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-9/12 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-10/12 animate-pulse rounded bg-slate-200" />
-          </div>
-        ) : notices.length === 0 ? (
-          <p className="text-sm text-slate-500">{t.notices.empty}</p>
-        ) : (
-          <div className="space-y-3">
-            {notices.map((notice) => {
-              const noticeId = String(notice?._id || '');
-              const isImportant = Boolean(notice?.isImportant);
-              const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
-
-              return (
-                <div
-                  key={noticeId}
-                  className={`rounded-xl border p-3 ${isImportant ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{notice?.title || '-'}</p>
-                      <p className="mt-1 text-sm text-slate-700">{notice?.description || '-'}</p>
-                    </div>
-                    {isImportant ? (
-                      <span className="rounded-full bg-red-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-                        {t.notices.important}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                    {notice?.dueDate ? (
-                      <p>{t.notices.dueDate}: {formatDate(notice.dueDate)}</p>
-                    ) : null}
-                    {isPaymentNotice ? (
-                      <p>{t.notices.amount}: INR {Number(notice?.amount || 0)}</p>
-                    ) : null}
-                  </div>
-
-                  {isPaymentNotice ? (
-                    <div className="mt-3">
-                      {notice?.canPay ? (
-                        <Link
-                          href={`/student/payment/${noticeId}`}
-                          className="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                        >
-                          {t.notices.payNow}
-                        </Link>
-                      ) : (
-                        <Link
-                          href="/student/fees"
-                          className="inline-flex rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
-                        >
-                          {t.notices.viewInFees}
-                        </Link>
-                      )}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </InfoCard>
     </div>
   );
 }
