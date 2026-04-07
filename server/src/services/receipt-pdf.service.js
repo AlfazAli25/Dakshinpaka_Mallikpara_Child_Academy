@@ -21,8 +21,7 @@ const isServerlessRuntime = Boolean(
   process.env.AWS_LAMBDA_FUNCTION_NAME ||
   process.env.LAMBDA_TASK_ROOT
 );
-const isProductionEnvironment = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
-const allowBrowserPdfInProduction =
+const allowBrowserPdfGeneration =
   String(process.env.RECEIPT_ENABLE_BROWSER_PDF || '').toLowerCase() === 'true';
 
 const escapeHtml = (value) =>
@@ -538,22 +537,19 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
   const logoDataUri = await getLogoDataUri();
   const html = buildStudentReceiptHtml({ model, logoDataUri });
 
-  const toResult = (pdfBuffer) => ({
+  const toResult = (pdfBuffer, generator) => ({
     pdfBuffer,
     receiptNumber: model.receiptNumber,
-    fileName: buildReceiptFileName(model.receiptNumber)
+    fileName: buildReceiptFileName(model.receiptNumber),
+    generator
   });
 
   const buildFallbackResult = async () => {
     const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
-    return toResult(fallbackBuffer);
+    return toResult(fallbackBuffer, 'pdfkit');
   };
 
-  const shouldForceFallback =
-    isServerlessRuntime ||
-    (isProductionEnvironment && !allowBrowserPdfInProduction);
-
-  if (shouldForceFallback) {
+  if (!allowBrowserPdfGeneration) {
     return buildFallbackResult();
   }
 
@@ -575,7 +571,7 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
       preferCSSPageSize: true
     });
 
-    return toResult(pdfBuffer);
+    return toResult(pdfBuffer, 'puppeteer');
   } catch (error) {
     console.error('[receipt-pdf] Chromium generation failed, using fallback PDF:', error?.message || error);
     return buildFallbackResult();
@@ -593,7 +589,8 @@ const createStudentFeeReceiptFallbackPdf = async ({ payment, student, classRecor
   return {
     pdfBuffer,
     receiptNumber: model.receiptNumber,
-    fileName: buildReceiptFileName(model.receiptNumber)
+    fileName: buildReceiptFileName(model.receiptNumber),
+    generator: 'pdfkit'
   };
 };
 

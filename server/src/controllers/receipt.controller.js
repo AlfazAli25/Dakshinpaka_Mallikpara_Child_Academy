@@ -70,7 +70,7 @@ const downloadStudentFeeReceipt = asyncHandler(async (req, res) => {
     });
   }
 
-  const { pdfBuffer, fileName } = generatedReceipt;
+  const { pdfBuffer, fileName, generator } = generatedReceipt;
 
   const normalizedPdfBuffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer || []);
 
@@ -78,6 +78,8 @@ const downloadStudentFeeReceipt = asyncHandler(async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.setHeader('Content-Length', normalizedPdfBuffer.length);
   res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Receipt-Generator', String(generator || 'unknown'));
+  res.setHeader('X-Receipt-Version', '2026-04-07-fallback-default');
   res.send(normalizedPdfBuffer);
 });
 
