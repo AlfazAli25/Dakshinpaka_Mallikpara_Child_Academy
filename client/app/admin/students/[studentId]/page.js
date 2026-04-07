@@ -68,6 +68,7 @@ const getStudentFormFromProfile = (student) => ({
   name: student?.userId?.name || '',
   email: student?.userId?.email || '',
   admissionNo: student?.admissionNo || '',
+  rollNo: student?.rollNo === 0 || student?.rollNo ? String(student.rollNo) : '',
   classId: student?.classId?._id ? String(student.classId._id) : '',
   gender: student?.gender || '',
   dob: student?.dob ? String(student.dob).slice(0, 10) : '',
@@ -91,6 +92,7 @@ export default function StudentProfilePage() {
     name: '',
     email: '',
     admissionNo: '',
+    rollNo: '',
     classId: '',
     gender: '',
     dob: '',
@@ -168,6 +170,7 @@ export default function StudentProfilePage() {
     const nextName = String(editForm.name || '').trim();
     const nextEmail = String(editForm.email || '').trim();
     const nextAdmissionNo = String(editForm.admissionNo || '').trim();
+    const nextRollNoText = String(editForm.rollNo || '').trim();
     const nextGuardianContact = String(editForm.guardianContact || '').trim();
     const nextAddress = String(editForm.address || '').trim();
 
@@ -186,6 +189,16 @@ export default function StudentProfilePage() {
 
     if (nextAdmissionNo && nextAdmissionNo !== String(originalForm.admissionNo || '').trim()) {
       payload.admissionNo = nextAdmissionNo;
+    }
+
+    if (nextRollNoText && nextRollNoText !== String(originalForm.rollNo || '').trim()) {
+      const normalizedRollNo = Number(nextRollNoText);
+      if (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0) {
+        setError('Roll number must be a positive whole number.');
+        return;
+      }
+
+      payload.rollNo = normalizedRollNo;
     }
 
     if (editForm.classId && editForm.classId !== String(originalForm.classId || '').trim()) {
@@ -288,6 +301,7 @@ export default function StudentProfilePage() {
     { label: 'Guardian Contact', value: student?.guardianContact || '-' },
     { label: 'Email', value: student?.userId?.email || '-' },
     { label: 'Student ID', value: student?.admissionNo || '-' },
+    { label: 'Roll No', value: student?.rollNo || '-' },
     { label: 'Address', value: student?.address || '-' },
     { label: 'Pending Fees', value: `INR ${student?.pendingFees || 0}`, highlight: true },
     { label: 'Attendance', value: `${student?.attendance || 0}%` }
@@ -317,6 +331,7 @@ export default function StudentProfilePage() {
             <div>
               <p className="text-sm font-semibold text-slate-900">{student?.userId?.name || 'Student'}</p>
               <p className="text-xs text-slate-600">Student ID: {student?.admissionNo || '-'}</p>
+              <p className="text-xs text-slate-600">Roll No: {student?.rollNo || '-'}</p>
             </div>
           </div>
 
@@ -341,6 +356,7 @@ export default function StudentProfilePage() {
                 <Input label="Name" value={editForm.name} onChange={onEditChange('name')} className="h-10" />
                 <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} className="h-10" />
                 <Input label="Student ID" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} className="h-10" />
+                <Input label="Roll No" type="number" min="1" step="1" value={editForm.rollNo} onChange={onEditChange('rollNo')} className="h-10" />
                 <Select label="Class" value={editForm.classId} onChange={onEditChange('classId')} className="h-10" options={classSelectOptions} />
                 <Select label="Gender" value={editForm.gender} onChange={onEditChange('gender')} className="h-10" options={genderOptions} />
                 <Input label="Date of Birth" type="date" value={editForm.dob} onChange={onEditChange('dob')} className="h-10" />

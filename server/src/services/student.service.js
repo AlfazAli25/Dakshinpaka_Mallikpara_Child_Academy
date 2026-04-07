@@ -102,7 +102,7 @@ const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_PO
 const findAllForAdmin = async ({ search, page, limit } = {}) => {
 	const [students, studentUsers] = await Promise.all([
 		Student.find({})
-			.select('userId admissionNo profileImageUrl classId guardianContact pendingFees attendance createdAt')
+			.select('userId admissionNo rollNo profileImageUrl classId guardianContact pendingFees attendance createdAt')
 			.populate({ path: 'userId', select: 'name email role' })
 			.populate({ path: 'classId', select: 'name section' })
 			.sort({ createdAt: -1 })
@@ -122,6 +122,7 @@ const findAllForAdmin = async ({ search, page, limit } = {}) => {
 			_id: `user-${user._id.toString()}`,
 			userId: user,
 			admissionNo: '-',
+			rollNo: '-',
 			profileImageUrl: DEFAULT_STUDENT_PROFILE_IMAGE_URL,
 			classId: null,
 			guardianContact: '-',
@@ -180,9 +181,23 @@ const findAllForAdmin = async ({ search, page, limit } = {}) => {
 };
 
 const create = async (payload) => {
-	const { name, email, password, classId, gender, dob, guardianContact, address, pendingFees, attendance, studentPhotoFile } = payload;
+	const {
+		name,
+		email,
+		password,
+		classId,
+		rollNo,
+		gender,
+		dob,
+		guardianContact,
+		address,
+		pendingFees,
+		attendance,
+		studentPhotoFile
+	} = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
 	const normalizedGender = String(gender || '').toUpperCase().trim();
+	const normalizedRollNo = Number(rollNo);
 	const normalizedGuardianContact = String(guardianContact || '').trim();
 	const normalizedAddress = String(address || '').trim();
 	const pendingFeesProvided =
@@ -197,6 +212,9 @@ const create = async (payload) => {
 		!email ||
 		!password ||
 		!classId ||
+		rollNo === undefined ||
+		rollNo === null ||
+		String(rollNo).trim() === '' ||
 		!normalizedGender ||
 		!dob ||
 		!normalizedGuardianContact ||
@@ -204,8 +222,14 @@ const create = async (payload) => {
 		attendance === undefined
 	) {
 		const error = new Error(
-			'All student details are required: name, email, password, class, gender, date of birth, guardian contact, address, and attendance'
+			'All student details are required: name, email, password, class, roll number, gender, date of birth, guardian contact, address, and attendance'
 		);
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0) {
+		const error = new Error('Roll number must be a positive whole number');
 		error.statusCode = 400;
 		throw error;
 	}
@@ -247,6 +271,13 @@ const create = async (payload) => {
 		throw error;
 	}
 
+	const existingRollNo = await Student.findOne({ classId, rollNo: normalizedRollNo }).select('_id');
+	if (existingRollNo) {
+		const error = new Error('Roll number already exists in this class');
+		error.statusCode = 409;
+		throw error;
+	}
+
 	const passwordHash = await bcrypt.hash(password, 10);
 	const user = await User.create({
 		name: String(name).trim(),
@@ -262,6 +293,7 @@ const create = async (payload) => {
 		const student = await Student.create({
 			userId: user._id,
 			admissionNo: generatedAdmissionNo,
+			rollNo: normalizedRollNo,
 			profileImageUrl: uploadedStudentPhoto?.secureUrl || DEFAULT_STUDENT_PROFILE_IMAGE_URL,
 			profileImagePublicId: uploadedStudentPhoto?.publicId || undefined,
 			classId,
@@ -286,6 +318,13 @@ const create = async (payload) => {
 	} catch (error) {
 		await Student.findOneAndDelete({ userId: user._id });
 		await User.findByIdAndDelete(user._id);
+
+		if (error?.code === 11000 && error?.keyPattern?.rollNo) {
+			const conflictError = new Error('Roll number already exists in this class');
+			conflictError.statusCode = 409;
+			throw conflictError;
+		}
+
 		throw error;
 	}
 };
@@ -307,6 +346,12 @@ const updateById = async (id, payload = {}) => {
 	const nextAdmissionNo =
 		payload.admissionNo !== undefined ? String(payload.admissionNo || '').trim() : String(student.admissionNo || '').trim();
 	const nextClassId = payload.classId !== undefined ? payload.classId : student.classId;
+	const hasIncomingRollNo = payload.rollNo !== undefined;
+	const currentRollNo = Number(student.rollNo);
+	const hasCurrentRollNo = Number.isInteger(currentRollNo) && currentRollNo > 0;
+	const nextRollNoRaw = hasIncomingRollNo ? Number(payload.rollNo) : currentRollNo;
+	const hasNextRollNo = Number.isInteger(nextRollNoRaw) && nextRollNoRaw > 0;
+	const nextRollNo = hasNextRollNo ? Math.floor(nextRollNoRaw) : null;
 	const nextGender =
 		payload.gender !== undefined ? String(payload.gender || '').toUpperCase().trim() : String(student.gender || '').toUpperCase().trim();
 	const nextDobRaw = payload.dob !== undefined ? payload.dob : student.dob;
@@ -321,6 +366,12 @@ const updateById = async (id, payload = {}) => {
 
 	if (!Number.isFinite(nextPendingFees) || nextPendingFees < 0) {
 		const error = new Error('Pending fees must be 0 or greater');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (hasIncomingRollNo && !hasNextRollNo) {
+		const error = new Error('Roll number must be a positive whole number');
 		error.statusCode = 400;
 		throw error;
 	}
@@ -341,6 +392,22 @@ const updateById = async (id, payload = {}) => {
 		const existingAdmissionNo = await Student.findOne({ admissionNo: nextAdmissionNo, _id: { $ne: student._id } });
 		if (existingAdmissionNo) {
 			const error = new Error('Admission number already in use');
+			error.statusCode = 409;
+			throw error;
+		}
+	}
+
+	const currentClassId = student.classId ? String(student.classId) : '';
+	const nextClassIdValue = nextClassId ? String(nextClassId) : '';
+	const classChanged = nextClassIdValue !== currentClassId;
+	if ((hasIncomingRollNo || classChanged) && (hasCurrentRollNo || hasIncomingRollNo) && nextClassIdValue) {
+		const existingRollNoInClass = await Student.findOne({
+			classId: nextClassId,
+			rollNo: nextRollNo,
+			_id: { $ne: student._id }
+		});
+		if (existingRollNoInClass) {
+			const error = new Error('Roll number already exists in this class');
 			error.statusCode = 409;
 			throw error;
 		}
@@ -385,18 +452,24 @@ const updateById = async (id, payload = {}) => {
 	}
 
 	return runWithOptionalTransaction(async (session) => {
+		const studentUpdates = {
+			admissionNo: nextAdmissionNo,
+			classId: nextClassId,
+			gender: nextGender,
+			dob: nextDob,
+			guardianContact: nextGuardianContact,
+			address: nextAddress,
+			pendingFees: nextPendingFees
+		};
+
+		if (hasIncomingRollNo && nextRollNo !== null) {
+			studentUpdates.rollNo = nextRollNo;
+		}
+
 		await withSession(
 			Student.findByIdAndUpdate(
 				student._id,
-				{
-					admissionNo: nextAdmissionNo,
-					classId: nextClassId,
-					gender: nextGender,
-					dob: nextDob,
-					guardianContact: nextGuardianContact,
-					address: nextAddress,
-					pendingFees: nextPendingFees
-				},
+				studentUpdates,
 				{ new: true, runValidators: true }
 			),
 			session
@@ -484,6 +557,7 @@ const getAdminProfileByUserId = async (userId) => {
 				_id: `user-${user._id.toString()}`,
 				userId: user,
 				admissionNo: '-',
+				rollNo: '-',
 				classId: null,
 				guardianContact: '-',
 				pendingFees: 0,

@@ -17,6 +17,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const columns = [
   { key: 'admissionNo', label: 'Student ID' },
+  { key: 'rollNo', label: 'Roll No' },
   { key: 'name', label: 'Name' },
   { key: 'className', label: 'Class' },
   { key: 'guardianContact', label: 'Guardian Contact' },
@@ -29,6 +30,7 @@ const getInitialStudentForm = () => ({
   password: '',
   confirmPassword: '',
   classId: '',
+  rollNo: '',
   gender: '',
   dob: '',
   guardianContact: '',
@@ -116,6 +118,7 @@ export default function AdminStudentsPage() {
             ? `/admin/students/user/${String(item.userId._id)}`
             : '',
         admissionNo: item.admissionNo || '-',
+        rollNo: item.rollNo || '-',
         name: item.userId?.name || '-',
         className: formatClassLabel(item.classId),
         guardianContact: item.guardianContact || '-',
@@ -285,6 +288,7 @@ export default function AdminStudentsPage() {
 
     if (
       !form.classId ||
+      String(form.rollNo || '').trim() === '' ||
       !form.gender ||
       !form.dob ||
       !String(form.guardianContact || '').trim() ||
@@ -298,7 +302,14 @@ export default function AdminStudentsPage() {
     }
 
     const normalizedPendingFees = Number(form.pendingFees);
+    const normalizedRollNo = Number(form.rollNo);
     const normalizedAttendance = Number(form.attendance);
+    if (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0) {
+      setError('Roll number must be a positive whole number.');
+      setMessage('');
+      return;
+    }
+
     if (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0) {
       setError('Pending fees must be 0 or greater.');
       setMessage('');
@@ -321,6 +332,7 @@ export default function AdminStudentsPage() {
       formData.append('email', String(form.email || '').trim());
       formData.append('password', form.password);
       formData.append('classId', form.classId);
+      formData.append('rollNo', String(normalizedRollNo));
       formData.append('gender', form.gender);
       formData.append('dob', form.dob);
       formData.append('guardianContact', String(form.guardianContact || '').trim());
@@ -390,6 +402,16 @@ export default function AdminStudentsPage() {
             required
             className="h-11"
             options={[{ value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' }, ...classOptions]}
+          />
+          <Input
+            label={requiredLabel('Roll No')}
+            type="number"
+            min="1"
+            step="1"
+            value={form.rollNo}
+            onChange={onChange('rollNo')}
+            required
+            className="h-11"
           />
           <Select
             label={requiredLabel('Gender')}

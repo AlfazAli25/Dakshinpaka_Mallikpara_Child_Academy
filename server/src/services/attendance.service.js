@@ -10,7 +10,7 @@ const ATTENDANCE_STATUS = {
 const ATTENDANCE_POPULATE = [
 	{
 		path: 'studentId',
-		select: 'admissionNo classId userId',
+		select: 'admissionNo rollNo classId userId',
 		populate: { path: 'userId', select: 'name email role' }
 	},
 	{ path: 'classId', select: 'name section' },

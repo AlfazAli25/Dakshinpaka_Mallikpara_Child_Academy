@@ -35,6 +35,29 @@ const formatDateValue = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const toNormalizedRollNo = (value) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return parsed;
+};
+
+const sortStudentsByRollNo = (items = []) =>
+  [...items].sort((left, right) => {
+    const leftRollNo = toNormalizedRollNo(left?.rollNo);
+    const rightRollNo = toNormalizedRollNo(right?.rollNo);
+
+    if (leftRollNo !== rightRollNo) {
+      return leftRollNo - rightRollNo;
+    }
+
+    const leftName = String(left?.userId?.name || '').toLowerCase();
+    const rightName = String(right?.userId?.name || '').toLowerCase();
+    return leftName.localeCompare(rightName);
+  });
+
 export default function TeacherAttendancePage() {
   const toast = useToast();
   const [loadingClasses, setLoadingClasses] = useState(true);
@@ -215,7 +238,7 @@ export default function TeacherAttendancePage() {
         }
 
         const [studentsResponse, attendanceResponse] = await Promise.all([
-          get(`/students?classId=${selectedClassId}&_page=${page}&_limit=${STUDENT_PAGE_SIZE}`, token, {
+          get(`/students?classId=${selectedClassId}&_sort=rollNo&_order=asc&_page=${page}&_limit=${STUDENT_PAGE_SIZE}`, token, {
             forceRefresh: true,
             cacheTtlMs: 0
           }),
@@ -225,7 +248,7 @@ export default function TeacherAttendancePage() {
           })
         ]);
 
-        const studentRows = Array.isArray(studentsResponse.data) ? studentsResponse.data : [];
+        const studentRows = sortStudentsByRollNo(Array.isArray(studentsResponse.data) ? studentsResponse.data : []);
         const attendanceRows = Array.isArray(attendanceResponse.data) ? attendanceResponse.data : [];
         const attendanceIdMap = {};
         const attendanceByStudentId = new Map(
@@ -625,7 +648,7 @@ export default function TeacherAttendancePage() {
                         key={studentId || index}
                         className={`border-t border-slate-100 ${index % 2 === 1 ? 'bg-red-50/25' : ''}`}
                       >
-                        <td className="px-4 py-3 text-slate-700">{student.admissionNo || '-'}</td>
+                        <td className="px-4 py-3 text-slate-700">{student.rollNo || '-'}</td>
                         <td className="px-4 py-3 text-slate-700">{student.userId?.name || '-'}</td>
                         <td className="px-4 py-3">
                           <label className="inline-flex items-center gap-2 text-sm text-slate-700">

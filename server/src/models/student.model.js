@@ -4,6 +4,7 @@ const studentSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     admissionNo: { type: String, required: true, unique: true, trim: true },
+    rollNo: { type: Number, required: true, min: 1 },
     profileImageUrl: { type: String, trim: true, default: '/default-student-avatar.svg' },
     profileImagePublicId: { type: String, trim: true },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
@@ -18,6 +19,16 @@ const studentSchema = new mongoose.Schema(
 );
 
 studentSchema.index({ classId: 1 });
+studentSchema.index(
+  { classId: 1, rollNo: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      classId: { $exists: true },
+      rollNo: { $exists: true }
+    }
+  }
+);
 studentSchema.index({ userId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Student', studentSchema);

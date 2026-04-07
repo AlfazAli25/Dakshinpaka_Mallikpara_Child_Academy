@@ -31,6 +31,7 @@ const text = {
       guardianContact: 'Guardian Contact',
       email: 'Email',
       admissionNo: 'Admission No',
+      rollNo: 'Roll No',
       address: 'Address',
       pendingFees: 'Pending Fees',
       attendance: 'Attendance'
@@ -73,6 +74,7 @@ const text = {
       guardianContact: 'অভিভাবকের যোগাযোগ',
       email: 'ইমেইল',
       admissionNo: 'ভর্তি নম্বর',
+      rollNo: 'রোল নম্বর',
       address: 'ঠিকানা',
       pendingFees: 'বকেয়া ফি',
       attendance: 'উপস্থিতি'
@@ -491,6 +493,7 @@ export default function StudentDashboardPage() {
               { label: t.fields.guardianContact, value: studentProfile.guardianContact || '-' },
               { label: t.fields.email, value: studentProfile.userId?.email || '-' },
               { label: t.fields.admissionNo, value: studentProfile.admissionNo || '-' },
+              { label: t.fields.rollNo, value: studentProfile.rollNo || '-' },
               { label: t.fields.address, value: studentProfile.address || '-' },
               { label: t.fields.pendingFees, value: `INR ${studentProfile.pendingFees || 0}`, highlight: true },
               { label: t.fields.attendance, value: `${studentProfile.attendance || 0}%` }
