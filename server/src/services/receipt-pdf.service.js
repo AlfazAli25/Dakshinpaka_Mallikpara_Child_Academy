@@ -1,6 +1,5 @@
 const fs = require('fs/promises');
 const path = require('path');
-const puppeteer = require('puppeteer');
 const puppeteerCore = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const PDFDocument = require('pdfkit');
@@ -471,8 +470,11 @@ const launchReceiptBrowser = async () => {
     if (serverlessLaunchOptions) {
       return puppeteerCore.launch(serverlessLaunchOptions);
     }
+
+    return null;
   }
 
+  const puppeteer = require('puppeteer');
   return puppeteer.launch(getPuppeteerLaunchOptions());
 };
 
@@ -542,6 +544,11 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
   let browser;
   try {
     browser = await launchReceiptBrowser();
+    if (!browser) {
+      const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
+      return toResult(fallbackBuffer);
+    }
+
     const page = await browser.newPage();
     await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 45000 });
