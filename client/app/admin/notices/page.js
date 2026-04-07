@@ -117,6 +117,28 @@ export default function AdminNoticesPage() {
     [cashPaymentForm.noticeId, paymentNoticeOptions]
   );
 
+  const selectedNoticeClassIds = useMemo(() => {
+    const ids = Array.isArray(selectedCashNotice?.classIds)
+      ? selectedCashNotice.classIds.map((item) => toId(item)).filter(Boolean)
+      : [];
+
+    return Array.from(new Set(ids));
+  }, [selectedCashNotice]);
+
+  const scopedStudentOptions = useMemo(() => {
+    if (!selectedCashNotice) {
+      return [];
+    }
+
+    // Empty classIds means notice is published for all classes.
+    if (selectedNoticeClassIds.length === 0) {
+      return studentOptions;
+    }
+
+    const allowedClassIds = new Set(selectedNoticeClassIds);
+    return studentOptions.filter((item) => allowedClassIds.has(toId(item?.classId)));
+  }, [selectedCashNotice, selectedNoticeClassIds, studentOptions]);
+
   const classLabelMap = useMemo(
     () => classes.reduce((acc, item) => {
       acc[toId(item)] = formatClassLabel(item, 'Class');
@@ -395,7 +417,8 @@ export default function AdminNoticesPage() {
     const nextValue = String(event.target.value || '');
     setCashPaymentForm((prev) => ({
       ...prev,
-      [field]: nextValue
+      [field]: nextValue,
+      ...(field === 'noticeId' ? { studentId: '' } : {})
     }));
   };
 
@@ -733,15 +756,18 @@ export default function AdminNoticesPage() {
               <select
                 value={cashPaymentForm.studentId}
                 onChange={onCashPaymentFieldChange('studentId')}
-                disabled={loading || recordingCashPayment}
+                disabled={loading || recordingCashPayment || !cashPaymentForm.noticeId}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
               >
-                <option value="">Select student</option>
-                {studentOptions.map((student) => (
+                <option value="">{cashPaymentForm.noticeId ? 'Select student' : 'Select payment notice first'}</option>
+                {scopedStudentOptions.map((student) => (
                   <option key={toId(student)} value={toId(student)}>
                     {`${student?.userId?.name || '-'} | Adm ${student?.admissionNo || '-'} | ${formatClassLabel(student?.classId, 'Class')}`}
                   </option>
                 ))}
+                {cashPaymentForm.noticeId && scopedStudentOptions.length === 0 ? (
+                  <option value="" disabled>No students found for selected notice classes</option>
+                ) : null}
               </select>
             </label>
           </div>
