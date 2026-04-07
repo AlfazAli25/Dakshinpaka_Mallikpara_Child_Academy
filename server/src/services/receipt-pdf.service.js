@@ -11,7 +11,7 @@ const {
   SCHOOL_MOBILE
 } = require('../config/school');
 
-const TEMPLATE_PATH = path.resolve(
+const STUDENT_TEMPLATE_PATH = path.resolve(
   __dirname,
   '..',
   '..',
@@ -20,12 +20,22 @@ const TEMPLATE_PATH = path.resolve(
   'payment-receipt-design.html'
 );
 
+const TEACHER_TEMPLATE_PATH = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'templates',
+  'receipts',
+  'teacher-salary-payment-receipt-design.html'
+);
+
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const SERVER_ROOT = path.resolve(__dirname, '..', '..');
 const SCHOOL_LOGO_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'School_Logo.png');
 const DEFAULT_AVATAR_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'default-student-avatar.svg');
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
+const SALARY_SUCCESS_STATUSES = new Set(['PAID', 'SUCCESS', 'VERIFIED']);
 
 const LOCAL_CHROME_CANDIDATES = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -35,7 +45,7 @@ const LOCAL_CHROME_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 ];
 
-let templateCache = '';
+const templateCache = new Map();
 
 const createHttpError = (message, statusCode) => {
   const error = new Error(message);
@@ -111,6 +121,24 @@ const normalizePaymentStatus = (status) => {
   return normalized || 'PENDING';
 };
 
+const normalizeSalaryStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+
+  if (SALARY_SUCCESS_STATUSES.has(normalized)) {
+    return 'PAID';
+  }
+
+  if (normalized === 'PENDING') {
+    return 'PENDING';
+  }
+
+  if (normalized === 'FAILED' || normalized === 'REJECTED' || normalized === 'CANCELLED') {
+    return 'FAILED';
+  }
+
+  return normalized || 'PENDING';
+};
+
 const normalizePaymentMethod = (value) =>
   toSafeText(value, 'UNKNOWN').replace(/[_\s]+/g, ' ').trim().toUpperCase();
 
@@ -140,7 +168,7 @@ const resolvePaymentThrough = (payment = {}) => {
   return 'Student Panel';
 };
 
-const resolveReceiptNumber = ({ payment, receipt }) => {
+const resolveStudentReceiptNumber = ({ payment, receipt }) => {
   const existingReceiptNumber = String(receipt?.receiptNumber || '').trim();
   if (existingReceiptNumber) {
     return existingReceiptNumber;
@@ -152,6 +180,20 @@ const resolveReceiptNumber = ({ payment, receipt }) => {
   }
 
   return `FEE-${String(payment?._id || '').slice(-10) || Date.now()}`;
+};
+
+const resolveTeacherReceiptNumber = ({ payroll, receipt }) => {
+  const existingReceiptNumber = String(receipt?.receiptNumber || '').trim();
+  if (existingReceiptNumber) {
+    return existingReceiptNumber;
+  }
+
+  const monthToken = String(payroll?.month || '').replace(/[^0-9-]/g, '').trim();
+  if (monthToken) {
+    return `SAL-${monthToken}-${String(payroll?._id || '').slice(-6)}`;
+  }
+
+  return `SAL-${String(payroll?._id || '').slice(-10) || Date.now()}`;
 };
 
 const resolveMimeType = (filePath) => {
@@ -243,14 +285,25 @@ const resolveSchoolLogoDataUri = async () => {
   throw createHttpError('School logo is missing', 500);
 };
 
-const loadTemplateHtml = async () => {
-  if (templateCache) {
-    return templateCache;
+const getTemplatePath = (templateType) => {
+  if (templateType === 'teacher') {
+    return TEACHER_TEMPLATE_PATH;
   }
 
+  return STUDENT_TEMPLATE_PATH;
+};
+
+const loadTemplateHtml = async (templateType = 'student') => {
+  if (templateCache.has(templateType)) {
+    return templateCache.get(templateType);
+  }
+
+  const templatePath = getTemplatePath(templateType);
+
   try {
-    templateCache = await fs.readFile(TEMPLATE_PATH, 'utf8');
-    return templateCache;
+    const template = await fs.readFile(templatePath, 'utf8');
+    templateCache.set(templateType, template);
+    return template;
   } catch (_error) {
     throw createHttpError('Receipt template missing', 500);
   }
@@ -311,7 +364,7 @@ const launchBrowser = async () => {
   throw createHttpError(launchError?.message || 'PDF generation failure', 500);
 };
 
-const buildTemplateModel = async ({ payment, student, receipt }) => {
+const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
   const [schoolLogo, studentProfileImage] = await Promise.all([
     resolveSchoolLogoDataUri(),
     resolveStudentImageDataUri(student)
@@ -328,7 +381,7 @@ const buildTemplateModel = async ({ payment, student, receipt }) => {
     schoolName: toSafeText(SCHOOL_BRANCH_NAME || SCHOOL_NAME, SCHOOL_NAME),
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
     schoolPhone: toSafeText(SCHOOL_MOBILE),
-    receiptNumber: resolveReceiptNumber({ payment, receipt }),
+    receiptNumber: resolveStudentReceiptNumber({ payment, receipt }),
     studentName: toSafeText(student?.userId?.name || receipt?.studentName, 'Student'),
     studentId: toSafeText(student?.admissionNo || student?._id),
     studentRollNumber: toSafeText(student?.rollNo),
@@ -345,18 +398,59 @@ const buildTemplateModel = async ({ payment, student, receipt }) => {
   };
 };
 
-const createTemplateReceiptPdf = async ({ payment, student, receipt }) => {
-  const templateHtml = await loadTemplateHtml();
-  const model = await buildTemplateModel({ payment, student, receipt });
-  const finalHtml = renderTemplate(templateHtml, model);
+const buildTeacherTemplateModel = async ({ payroll, teacher, receipt }) => {
+  const schoolLogo = await resolveSchoolLogoDataUri();
 
+  const amountPaid = Number(
+    receipt?.amountPaid ??
+      receipt?.pendingSalaryCleared ??
+      payroll?.pendingSalaryCleared ??
+      payroll?.amount ??
+      receipt?.amount ??
+      0
+  );
+
+  const monthlySalary = Number(
+    receipt?.monthlySalary ??
+      teacher?.monthlySalary ??
+      payroll?.amount ??
+      0
+  );
+
+  const pendingSalary = Number(
+    receipt?.pendingSalary ??
+      teacher?.pendingSalary ??
+      0
+  );
+
+  const paymentDateValue = receipt?.paymentDate || payroll?.paidOn || payroll?.updatedAt || payroll?.createdAt;
+
+  return {
+    schoolLogo,
+    schoolName: toSafeText(SCHOOL_BRANCH_NAME || SCHOOL_NAME, SCHOOL_NAME),
+    schoolAddress: toSafeText(SCHOOL_ADDRESS),
+    schoolPhone: toSafeText(SCHOOL_MOBILE),
+    receiptNumber: resolveTeacherReceiptNumber({ payroll, receipt }),
+    teacherName: toSafeText(teacher?.userId?.name || receipt?.teacherName, 'Teacher'),
+    monthlySalary: formatAmount(monthlySalary),
+    paymentDate: formatDate(paymentDateValue),
+    paymentMethod: normalizePaymentMethod(receipt?.paymentMethod || payroll?.paymentMethod),
+    amountPaid: formatAmount(amountPaid),
+    amountInWords: amountToWordsINR(amountPaid),
+    pendingSalary: formatAmount(pendingSalary),
+    status: normalizeSalaryStatus(receipt?.status || payroll?.status || 'PAID'),
+    receiptDownloadDate: formatDate(new Date())
+  };
+};
+
+const generatePdfFromHtml = async ({ html, receiptNumber, filePrefix }) => {
   let browser;
 
   try {
     browser = await launchBrowser();
     const page = await browser.newPage();
     await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
-    await page.setContent(finalHtml, {
+    await page.setContent(html, {
       waitUntil: 'networkidle0',
       timeout: 45000
     });
@@ -375,7 +469,7 @@ const createTemplateReceiptPdf = async ({ payment, student, receipt }) => {
 
     return {
       pdfBuffer,
-      fileName: `Fee_Receipt_${toSafeFileToken(model.receiptNumber)}.pdf`,
+      fileName: `${filePrefix}_${toSafeFileToken(receiptNumber)}.pdf`,
       generator: 'template-html-puppeteer-v2'
     };
   } catch (error) {
@@ -387,6 +481,31 @@ const createTemplateReceiptPdf = async ({ payment, student, receipt }) => {
   }
 };
 
+const createTemplateReceiptPdf = async ({ payment, student, receipt }) => {
+  const templateHtml = await loadTemplateHtml('student');
+  const model = await buildStudentTemplateModel({ payment, student, receipt });
+  const finalHtml = renderTemplate(templateHtml, model);
+
+  return generatePdfFromHtml({
+    html: finalHtml,
+    receiptNumber: model.receiptNumber,
+    filePrefix: 'Fee_Receipt'
+  });
+};
+
+const createTemplateTeacherSalaryReceiptPdf = async ({ payroll, teacher, receipt }) => {
+  const templateHtml = await loadTemplateHtml('teacher');
+  const model = await buildTeacherTemplateModel({ payroll, teacher, receipt });
+  const finalHtml = renderTemplate(templateHtml, model);
+
+  return generatePdfFromHtml({
+    html: finalHtml,
+    receiptNumber: model.receiptNumber,
+    filePrefix: 'Salary_Receipt'
+  });
+};
+
 module.exports = {
-  createTemplateReceiptPdf
+  createTemplateReceiptPdf,
+  createTemplateTeacherSalaryReceiptPdf
 };

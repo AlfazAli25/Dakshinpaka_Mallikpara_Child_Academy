@@ -1,14 +1,14 @@
 "use client";
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
-import { get, post } from '@/lib/api';
+import { get, getBlob, post } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
@@ -95,6 +95,8 @@ export default function TeacherDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(getDefaultStats());
   const [salaryRows, setSalaryRows] = useState([]);
+  const [downloadingSalaryReceiptId, setDownloadingSalaryReceiptId] = useState('');
+  const [salaryReceiptError, setSalaryReceiptError] = useState('');
   const [teacherProfile, setTeacherProfile] = useState(null);
   const [teacherNotices, setTeacherNotices] = useState([]);
   const [paymentNotifications, setPaymentNotifications] = useState([]);
@@ -107,6 +109,67 @@ export default function TeacherDashboardPage() {
       item.notificationType === 'TEACHER_SALARY_PAYMENT_CONFIRMATION' &&
       String(item?.metadata?.status || '').toUpperCase() === 'PENDING'
   );
+
+  const downloadBlob = (blob, filename) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const downloadSalaryReceiptPdf = async (payrollId, receiptToken) => {
+    const normalizedPayrollId = String(payrollId || '').trim();
+    if (!normalizedPayrollId) {
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      return;
+    }
+
+    setSalaryReceiptError('');
+    setDownloadingSalaryReceiptId(normalizedPayrollId);
+
+    try {
+      const endpointCandidates = [
+        `/receipt/teacher/${normalizedPayrollId}`,
+        `/receipt/download/teacher/${normalizedPayrollId}`,
+        `/receipts/teacher/${normalizedPayrollId}`
+      ];
+
+      let blob = null;
+      let lastError = null;
+
+      for (const endpoint of endpointCandidates) {
+        try {
+          blob = await getBlob(endpoint, token, { timeoutMs: 120000 });
+          break;
+        } catch (error) {
+          lastError = error;
+          const statusCode = Number(error?.statusCode || 0);
+          if (statusCode && statusCode !== 404 && statusCode !== 405) {
+            break;
+          }
+        }
+      }
+
+      if (!blob) {
+        throw lastError || new Error('Unable to download receipt right now.');
+      }
+
+      const safeToken = String(receiptToken || normalizedPayrollId).replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Salary_Receipt_${safeToken}.pdf`);
+    } catch (error) {
+      setSalaryReceiptError(String(error?.message || 'Failed to download receipt'));
+    } finally {
+      setDownloadingSalaryReceiptId('');
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -142,11 +205,13 @@ export default function TeacherDashboardPage() {
         setSalaryRows(
           (payrollRes.data || []).map((item) => ({
             id: item._id,
+            payrollId: item._id,
             month: item.month,
             amount: `INR ${item.amount || 0}`,
             status: item.status,
             paidOn: formatDateValue(item.paidOn),
-            paymentMethod: item.status === 'Paid' ? (item.paymentMethod || '-') : '-'
+            paymentMethod: item.status === 'Paid' ? (item.paymentMethod || '-') : '-',
+            receiptToken: item?.receiptId?.receiptNumber || item.month || item._id
           }))
         );
 
@@ -240,6 +305,32 @@ export default function TeacherDashboardPage() {
     const nextTop = window.scrollY + teacherDetailsRef.current.getBoundingClientRect().top - topOffset;
     window.scrollTo({ top: Math.max(nextTop, 0), behavior: 'smooth' });
   };
+
+  const salaryTableRows = useMemo(
+    () =>
+      salaryRows.map((row) => {
+        const payrollId = String(row?.payrollId || '').trim();
+        const status = String(row?.status || '').trim().toUpperCase();
+        const canDownload = status === 'PAID' && Boolean(payrollId);
+
+        return {
+          ...row,
+          receipt: canDownload ? (
+            <button
+              type="button"
+              onClick={() => downloadSalaryReceiptPdf(payrollId, row?.receiptToken)}
+              disabled={downloadingSalaryReceiptId === payrollId}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {downloadingSalaryReceiptId === payrollId ? 'Downloading...' : 'Download Receipt'}
+            </button>
+          ) : (
+            <span className="text-xs font-semibold text-slate-400">Not available</span>
+          )
+        };
+      }),
+    [salaryRows, downloadingSalaryReceiptId]
+  );
 
   return (
     <div className="space-y-5">
@@ -409,13 +500,17 @@ export default function TeacherDashboardPage() {
             { key: 'amount', label: 'Amount' },
             { key: 'status', label: 'Status' },
             { key: 'paidOn', label: 'Paid On' },
-            { key: 'paymentMethod', label: 'Method' }
+            { key: 'paymentMethod', label: 'Method' },
+            { key: 'receipt', label: 'Receipt' }
           ]}
-          rows={salaryRows}
+          rows={salaryTableRows}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[288px]"
         />
+        {salaryReceiptError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{salaryReceiptError}</p>
+        ) : null}
       </div>
 
     </div>

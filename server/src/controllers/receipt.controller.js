@@ -1,9 +1,14 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
+const Teacher = require('../models/teacher.model');
 const Payment = require('../models/payment.model');
+const Payroll = require('../models/payroll.model');
 const Receipt = require('../models/receipt.model');
-const { createTemplateReceiptPdf } = require('../services/receipt-pdf.service');
+const {
+  createTemplateReceiptPdf,
+  createTemplateTeacherSalaryReceiptPdf
+} = require('../services/receipt-pdf.service');
 const { logError, logInfo } = require('../utils/logger');
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
@@ -35,6 +40,13 @@ const sendPdfResponse = (res, generatedReceipt) => {
 const ensureStudentOwnsPayment = async ({ userId, paymentStudentId }) => {
   const requesterStudent = await Student.findOne({ userId }).select('_id').lean();
   if (!requesterStudent || String(requesterStudent._id) !== String(paymentStudentId)) {
+    throw createHttpError('Forbidden', 403);
+  }
+};
+
+const ensureTeacherOwnsPayroll = async ({ userId, payrollTeacherId }) => {
+  const requesterTeacher = await Teacher.findOne({ userId }).select('_id').lean();
+  if (!requesterTeacher || String(requesterTeacher._id) !== String(payrollTeacherId)) {
     throw createHttpError('Forbidden', 403);
   }
 };
@@ -116,6 +128,84 @@ const downloadPaymentReceipt = asyncHandler(async (req, res) => {
   });
 });
 
+const downloadTeacherSalaryReceipt = asyncHandler(async (req, res) => {
+  const payrollId = String(req.params?.payrollId || req.params?.paymentId || '').trim();
+  if (!payrollId) {
+    throw createHttpError('payrollId is required', 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(payrollId)) {
+    throw createHttpError('Invalid payrollId', 400);
+  }
+
+  logInfo('teacher_receipt_download_requested', {
+    requestId: req.requestId,
+    payrollId,
+    requesterId: String(req.user?._id || ''),
+    requesterRole: String(req.user?.role || '')
+  });
+
+  const payroll = await Payroll.findById(payrollId)
+    .populate('processedByAdmin', 'name email')
+    .lean();
+
+  if (!payroll) {
+    throw createHttpError('Payroll payment not found', 404);
+  }
+
+  const normalizedPayrollStatus = String(payroll?.status || '').trim().toUpperCase();
+  if (normalizedPayrollStatus !== 'PAID') {
+    throw createHttpError('Payroll payment not found', 404);
+  }
+
+  const teacher = await Teacher.findById(payroll.teacherId)
+    .populate('userId', 'name email')
+    .lean();
+
+  if (!teacher) {
+    throw createHttpError('Teacher record not found', 404);
+  }
+
+  if (req.user?.role === 'teacher') {
+    await ensureTeacherOwnsPayroll({ userId: req.user._id, payrollTeacherId: teacher._id });
+  }
+
+  const receipt = await Receipt.findOne({ payrollId: payroll._id, receiptType: 'SALARY' }).lean();
+
+  let generatedReceipt;
+  try {
+    generatedReceipt = await createTemplateTeacherSalaryReceiptPdf({
+      payroll,
+      teacher,
+      receipt,
+      requestId: req.requestId
+    });
+  } catch (error) {
+    const statusCode = Number(error?.statusCode || 500);
+    const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
+
+    logError('teacher_receipt_generation_failed', {
+      requestId: req.requestId,
+      payrollId,
+      requesterId: String(req.user?._id || ''),
+      statusCode,
+      message: message || 'Unknown receipt generation error'
+    });
+
+    throw createHttpError(message || 'Failed to generate receipt', statusCode);
+  }
+
+  sendPdfResponse(res, generatedReceipt);
+
+  logInfo('teacher_receipt_download_completed', {
+    requestId: req.requestId,
+    payrollId,
+    requesterId: String(req.user?._id || ''),
+    byteLength: generatedReceipt?.pdfBuffer?.length || 0
+  });
+});
+
 module.exports = {
-  downloadPaymentReceipt
+  downloadPaymentReceipt,
+  downloadTeacherSalaryReceipt
 };
