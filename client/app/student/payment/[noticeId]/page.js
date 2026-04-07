@@ -128,10 +128,6 @@ export default function StudentNoticePaymentPage() {
         return;
       }
 
-      if (preparedScreenshot.size < screenshotFile.size) {
-        toast.info('Screenshot optimized for upload.');
-      }
-
       const formData = new FormData();
       formData.append('studentId', student._id);
       formData.append('noticeId', noticeId);
