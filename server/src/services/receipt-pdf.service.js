@@ -4,8 +4,6 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
 const {
-  SCHOOL_NAME,
-  SCHOOL_BRANCH_NAME,
   SCHOOL_ADDRESS,
   SCHOOL_MOBILE
 } = require('../config/school');
@@ -35,6 +33,7 @@ const DEFAULT_AVATAR_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'default
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
 const SALARY_SUCCESS_STATUSES = new Set(['PAID', 'SUCCESS', 'VERIFIED']);
+const RECEIPT_SCHOOL_NAME = 'DAKSHINPAKA MALLIKPARA CHILD ACADEMY';
 
 const LOCAL_CHROME_CANDIDATES = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -138,8 +137,14 @@ const normalizeSalaryStatus = (status) => {
   return normalized || 'PENDING';
 };
 
-const normalizePaymentMethod = (value) =>
-  toSafeText(value, 'UNKNOWN').replace(/[_\s]+/g, ' ').trim().toUpperCase();
+const normalizePaymentMethod = (value) => {
+  const normalized = String(value || '').trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if (normalized === 'CASH' || normalized === 'ADMIN_CASH' || normalized === 'OFFLINE_CASH') {
+    return 'Via Cash';
+  }
+
+  return 'Via Online';
+};
 
 const buildPaymentForLabel = ({ payment = {}, receipt = {} } = {}) => {
   const sourceType = String(payment?.sourceType || receipt?.receiptType || '').trim().toUpperCase();
@@ -161,15 +166,6 @@ const buildPaymentForLabel = ({ payment = {}, receipt = {} } = {}) => {
   }
 
   return `School Fee (${monthKeys[0]} to ${monthKeys[monthKeys.length - 1]})`;
-};
-
-const resolvePaymentThrough = (payment = {}) => {
-  const processedBy = String(payment?.processedBy || '').trim().toUpperCase();
-  if (processedBy === 'ADMIN' || payment?.processedByAdmin) {
-    return 'Admin Panel';
-  }
-
-  return 'Student Panel';
 };
 
 const resolveStudentReceiptNumber = ({ payment, receipt }) => {
@@ -383,7 +379,7 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
   return {
     schoolLogo,
     studentProfileImage,
-    schoolName: toSafeText(SCHOOL_BRANCH_NAME || SCHOOL_NAME, SCHOOL_NAME),
+    schoolName: RECEIPT_SCHOOL_NAME,
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
     schoolPhone: toSafeText(SCHOOL_MOBILE),
     receiptNumber: resolveStudentReceiptNumber({ payment, receipt }),
@@ -395,7 +391,6 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     amountPaid: formatAmount(amountPaid),
     paymentFor: buildPaymentForLabel({ payment, receipt }),
     paymentMethod: normalizePaymentMethod(payment?.paymentMethod || receipt?.paymentMethod),
-    paymentThrough: resolvePaymentThrough(payment),
     paymentDateTime: formatDateTime(paymentDateTimeValue),
     status: normalizePaymentStatus(payment?.paymentStatus || receipt?.status),
     receiptDownloadDate: formatDate(new Date())
@@ -431,7 +426,7 @@ const buildTeacherTemplateModel = async ({ payroll, teacher, receipt }) => {
 
   return {
     schoolLogo,
-    schoolName: toSafeText(SCHOOL_BRANCH_NAME || SCHOOL_NAME, SCHOOL_NAME),
+    schoolName: RECEIPT_SCHOOL_NAME,
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
     schoolPhone: toSafeText(SCHOOL_MOBILE),
     receiptNumber: resolveTeacherReceiptNumber({ payroll, receipt }),
