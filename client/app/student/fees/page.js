@@ -5,11 +5,12 @@ import Link from 'next/link';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
-import { get } from '@/lib/api';
+import { get, getBlob } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
 
 const MONTHLY_FEE_AMOUNT = 200;
+const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
 
 const text = {
   en: {
@@ -24,8 +25,13 @@ const text = {
       { key: 'paymentFor', label: 'Payment For' },
       { key: 'amount', label: 'Amount' },
       { key: 'screenshotStatus', label: 'Screenshot Status' },
-      { key: 'verificationStatus', label: 'Verification Status' }
+      { key: 'verificationStatus', label: 'Verification Status' },
+      { key: 'receipt', label: 'Receipt' }
     ],
+    downloadReceipt: 'Download Receipt',
+    downloadingReceipt: 'Downloading...',
+    receiptNotAvailable: 'Not available',
+    receiptDownloadFailed: 'Failed to download receipt',
     columns: [
       { key: 'month', label: 'Month' },
       { key: 'amountPaid', label: 'Amount Paid' },
@@ -45,8 +51,13 @@ const text = {
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
       { key: 'amount', label: 'পরিমাণ' },
       { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
-      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' },
+      { key: 'receipt', label: 'রিসিপ্ট' }
     ],
+    downloadReceipt: 'রিসিপ্ট ডাউনলোড',
+    downloadingReceipt: 'ডাউনলোড হচ্ছে...',
+    receiptNotAvailable: 'উপলব্ধ নয়',
+    receiptDownloadFailed: 'এই মুহূর্তে রিসিপ্ট ডাউনলোড করা যাচ্ছে না।',
     columns: [
       { key: 'month', label: 'মাস' },
       { key: 'amountPaid', label: 'পরিশোধিত' },
@@ -96,6 +107,11 @@ const mapVerificationStatus = (status) => {
   return 'PENDING';
 };
 
+const isSuccessfulPaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  return normalized === 'SUCCESS' || normalized === 'PAID' || normalized === 'VERIFIED';
+};
+
 const formatDateValue = (value) => {
   if (!value) {
     return '-';
@@ -115,6 +131,68 @@ export default function StudentFeesPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
+  const [receiptDownloadError, setReceiptDownloadError] = useState('');
+
+  const downloadBlob = (blob, filename) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const downloadReceiptPdf = async (paymentId, receiptToken) => {
+    const normalizedPaymentId = String(paymentId || '').trim();
+    if (!normalizedPaymentId) {
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      return;
+    }
+
+    setReceiptDownloadError('');
+    setDownloadingReceiptPaymentId(normalizedPaymentId);
+
+    try {
+      const endpointCandidates = [
+        `/receipt/download/${normalizedPaymentId}`,
+        `/receipts/student/${normalizedPaymentId}`
+      ];
+
+      let blob = null;
+      let lastError = null;
+
+      for (const endpoint of endpointCandidates) {
+        try {
+          blob = await getBlob(endpoint, token, { timeoutMs: 120000 });
+          break;
+        } catch (error) {
+          lastError = error;
+          const statusCode = Number(error?.statusCode || 0);
+          if (statusCode && statusCode !== 404 && statusCode !== 405) {
+            break;
+          }
+        }
+      }
+
+      if (!blob) {
+        throw lastError || new Error('Unable to download receipt right now.');
+      }
+
+      const safeToken = String(receiptToken || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Fee_Receipt_${safeToken}.pdf`);
+    } catch (error) {
+      setReceiptDownloadError(String(error?.message || t.receiptDownloadFailed));
+    } finally {
+      setDownloadingReceiptPaymentId('');
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -153,9 +231,17 @@ export default function StudentFeesPage() {
 
         const paymentRows = (paymentHistoryResponse.data || []).map((item) => {
           const sourceType = String(item?.sourceType || '').toUpperCase();
+          const paymentId = String(item?._id || '').trim();
+          const canDownloadReceipt =
+            sourceType === 'FEE' &&
+            OBJECT_ID_REGEX.test(paymentId) &&
+            isSuccessfulPaymentStatus(item?.paymentStatus);
 
           return {
             id: item._id,
+            paymentId,
+            receiptToken: String(item?.transactionId || item?.transactionReference || paymentId),
+            canDownloadReceipt,
             paymentDate: formatDateValue(item.paidAt || item.createdAt),
             paymentFor:
               item.sourceLabel ||
@@ -184,6 +270,31 @@ export default function StudentFeesPage() {
     [rows]
   );
 
+  const paymentHistoryRows = useMemo(
+    () =>
+      paymentHistory.map((row) => {
+        const paymentId = String(row?.paymentId || '').trim();
+        const canDownloadReceipt = Boolean(row?.canDownloadReceipt) && Boolean(paymentId);
+
+        return {
+          ...row,
+          receipt: canDownloadReceipt ? (
+            <button
+              type="button"
+              onClick={() => downloadReceiptPdf(paymentId, row?.receiptToken)}
+              disabled={downloadingReceiptPaymentId === paymentId}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {downloadingReceiptPaymentId === paymentId ? t.downloadingReceipt : t.downloadReceipt}
+            </button>
+          ) : (
+            <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
+          )
+        };
+      }),
+    [paymentHistory, downloadingReceiptPaymentId, t]
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -210,11 +321,14 @@ export default function StudentFeesPage() {
         <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
         <Table
           columns={t.paymentHistoryColumns}
-          rows={paymentHistory}
+          rows={paymentHistoryRows}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[288px]"
         />
+        {receiptDownloadError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
+        ) : null}
       </div>
     </div>
   );
