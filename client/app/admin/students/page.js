@@ -27,6 +27,7 @@ const getInitialStudentForm = () => ({
   name: '',
   email: '',
   password: '',
+  confirmPassword: '',
   admissionNo: '',
   classId: '',
   gender: '',
@@ -231,6 +232,12 @@ export default function AdminStudentsPage() {
   const onCreate = async (event) => {
     event.preventDefault();
 
+    if (String(form.password || '') !== String(form.confirmPassword || '')) {
+      setError('Password and confirm password must match.');
+      setMessage('');
+      return;
+    }
+
     if (!EMAIL_REGEX.test(String(form.email || '').trim())) {
       setError('Please enter a valid email address.');
       setMessage('');
@@ -389,6 +396,14 @@ export default function AdminStudentsPage() {
             type="password"
             value={form.password}
             onChange={onChange('password')}
+            required
+            className="h-11"
+          />
+          <Input
+            label={requiredLabel('Confirm Password')}
+            type="password"
+            value={form.confirmPassword}
+            onChange={onChange('confirmPassword')}
             required
             className="h-11"
           />

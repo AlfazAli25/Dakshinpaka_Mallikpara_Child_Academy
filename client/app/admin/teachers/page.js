@@ -28,6 +28,7 @@ const getInitialTeacherForm = () => ({
   name: '',
   email: '',
   password: '',
+  confirmPassword: '',
   contactNumber: '',
   qualifications: '',
   monthlySalary: '',
@@ -225,6 +226,12 @@ export default function AdminTeachersPage() {
       return;
     }
 
+    if (String(form.password || '') !== String(form.confirmPassword || '')) {
+      setError('Password and confirm password must match.');
+      setMessage('');
+      return;
+    }
+
     if (!EMAIL_REGEX.test(String(form.email || '').trim())) {
       setError('Please enter a valid email address.');
       setMessage('');
@@ -351,6 +358,14 @@ export default function AdminTeachersPage() {
             type="password"
             value={form.password}
             onChange={onChange('password')}
+            required
+            className="h-11"
+          />
+          <Input
+            label={requiredLabel('Confirm Password')}
+            type="password"
+            value={form.confirmPassword}
+            onChange={onChange('confirmPassword')}
             required
             className="h-11"
           />
