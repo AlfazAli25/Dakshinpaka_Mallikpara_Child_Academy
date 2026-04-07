@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
-import { get } from '@/lib/api';
+import { get, getBlob } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
 
@@ -24,8 +24,13 @@ const text = {
       { key: 'paymentFor', label: 'Payment For' },
       { key: 'amount', label: 'Amount' },
       { key: 'screenshotStatus', label: 'Screenshot Status' },
-      { key: 'verificationStatus', label: 'Verification Status' }
+      { key: 'verificationStatus', label: 'Verification Status' },
+      { key: 'action', label: 'Action' }
     ],
+    downloadReceipt: 'Download Receipt',
+    downloadingReceipt: 'Downloading...',
+    receiptNotAvailable: 'Not available',
+    receiptDownloadFailed: 'Unable to download receipt right now.',
     columns: [
       { key: 'month', label: 'Month' },
       { key: 'amountPaid', label: 'Amount Paid' },
@@ -45,8 +50,13 @@ const text = {
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
       { key: 'amount', label: 'পরিমাণ' },
       { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
-      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' },
+      { key: 'action', label: 'অ্যাকশন' }
     ],
+    downloadReceipt: 'রিসিপ্ট ডাউনলোড',
+    downloadingReceipt: 'ডাউনলোড হচ্ছে...',
+    receiptNotAvailable: 'উপলব্ধ নয়',
+    receiptDownloadFailed: 'এই মুহূর্তে রিসিপ্ট ডাউনলোড করা যাচ্ছে না।',
     columns: [
       { key: 'month', label: 'মাস' },
       { key: 'amountPaid', label: 'পরিশোধিত' },
@@ -116,9 +126,10 @@ export default function StudentFeesPage() {
   const [rows, setRows] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [receipts, setReceipts] = useState([]);
+  const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
+  const [receiptDownloadError, setReceiptDownloadError] = useState('');
 
-  const downloadTextFile = (filename, lines) => {
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const downloadBlob = (blob, filename) => {
     const href = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = href;
@@ -127,6 +138,31 @@ export default function StudentFeesPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(href);
+  };
+
+  const downloadReceiptPdf = async (paymentId, receiptNumber) => {
+    const normalizedPaymentId = String(paymentId || '').trim();
+    if (!normalizedPaymentId) {
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      return;
+    }
+
+    setReceiptDownloadError('');
+    setDownloadingReceiptPaymentId(normalizedPaymentId);
+
+    try {
+      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 60000 });
+      const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
+    } catch (error) {
+      setReceiptDownloadError(error?.message || t.receiptDownloadFailed);
+    } finally {
+      setDownloadingReceiptPaymentId('');
+    }
   };
 
   useEffect(() => {
@@ -147,6 +183,17 @@ export default function StudentFeesPage() {
           get('/fees/my/payments', token)
         ]);
 
+        const receiptRows = Array.isArray(receiptResponse?.data) ? receiptResponse.data : [];
+        const feeReceiptByPaymentId = new Map(
+          receiptRows
+            .filter(
+              (item) =>
+                String(item?.receiptType || '').toUpperCase() === 'FEE' &&
+                String(item?.paymentId || '').trim()
+            )
+            .map((item) => [String(item.paymentId), item])
+        );
+
         const feeRows = (response.data || [])
           .slice()
           .sort((a, b) => {
@@ -166,18 +213,29 @@ export default function StudentFeesPage() {
           }))
           .filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0);
 
-        const paymentRows = (paymentHistoryResponse.data || []).map((item) => ({
-          id: item._id,
-          paymentDate: formatDateValue(item.paidAt || item.createdAt),
-          paymentFor: item.sourceLabel || (String(item.sourceType || '').toUpperCase() === 'NOTICE' ? 'Notice Payment' : 'Fee Payment'),
-          amount: `INR ${item.amount || 0}`,
-          screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
-          verificationStatus: mapVerificationStatus(item.paymentStatus)
-        }));
+        const paymentRows = (paymentHistoryResponse.data || []).map((item) => {
+          const sourceType = String(item?.sourceType || '').toUpperCase();
+          const paymentId = sourceType === 'FEE' ? String(item?._id || '') : '';
+          const linkedReceipt = paymentId ? feeReceiptByPaymentId.get(paymentId) : null;
+
+          return {
+            id: item._id,
+            paymentDate: formatDateValue(item.paidAt || item.createdAt),
+            paymentFor:
+              item.sourceLabel ||
+              (sourceType === 'NOTICE' ? 'Notice Payment' : 'Fee Payment'),
+            amount: `INR ${item.amount || 0}`,
+            screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
+            verificationStatus: mapVerificationStatus(item.paymentStatus),
+            paymentId,
+            canDownloadReceipt: Boolean(paymentId),
+            receiptNumber: linkedReceipt?.receiptNumber || ''
+          };
+        });
 
         setRows(feeRows);
         setPaymentHistory(paymentRows);
-        setReceipts(receiptResponse.data || []);
+        setReceipts(receiptRows);
       } catch (_error) {
         setRows([]);
         setPaymentHistory([]);
@@ -194,6 +252,26 @@ export default function StudentFeesPage() {
     () => rows.reduce((sum, row) => sum + (row.pendingAmountValue || 0), 0),
     [rows]
   );
+
+  const paymentHistoryRows = paymentHistory.map((item) => ({
+    ...item,
+    action: item.canDownloadReceipt ? (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          downloadReceiptPdf(item.paymentId, item.receiptNumber);
+        }}
+        disabled={downloadingReceiptPaymentId === item.paymentId}
+        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {downloadingReceiptPaymentId === item.paymentId ? t.downloadingReceipt : t.downloadReceipt}
+      </button>
+    ) : (
+      <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
+    )
+  }));
 
   return (
     <div className="space-y-5">
@@ -221,11 +299,14 @@ export default function StudentFeesPage() {
         <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
         <Table
           columns={t.paymentHistoryColumns}
-          rows={paymentHistory}
+          rows={paymentHistoryRows}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[320px]"
         />
+        {receiptDownloadError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -245,32 +326,27 @@ export default function StudentFeesPage() {
               const receiptTypeLabel = String(receipt?.receiptType || '') === 'NOTICE'
                 ? `Notice: ${receipt?.noticeTitle || 'Payment'}`
                 : 'Fee Payment';
+              const isFeeReceipt = String(receipt?.receiptType || '').toUpperCase() === 'FEE';
+              const paymentId = String(receipt?.paymentId || '').trim();
+              const canDownloadReceipt = isFeeReceipt && Boolean(paymentId);
 
               return (
                 <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                   <p className="text-sm text-slate-700">
                     {receipt.receiptNumber} - {receiptTypeLabel} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}
                   </p>
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadTextFile(`${receipt.receiptNumber}.txt`, [
-                      `Receipt Number: ${receipt.receiptNumber}`,
-                      `Receipt Type: ${receipt.receiptType || '-'}`,
-                      `Notice Title: ${receipt.noticeTitle || '-'}`,
-                      `Student Name: ${receipt.studentName || '-'}`,
-                      `Class: ${receipt.className || '-'}`,
-                      `Amount Paid: INR ${receipt.amount}`,
-                      `Payment Method: ${receipt.paymentMethod}`,
-                      `Payment Date: ${new Date(receipt.paymentDate).toLocaleString('en-GB')}`,
-                      `Transaction Reference: ${receipt.transactionReference || '-'}`,
-                      `Status: ${receipt.status}`
-                    ])
-                  }
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  Download
-                </button>
+                  {canDownloadReceipt ? (
+                    <button
+                      type="button"
+                      onClick={() => downloadReceiptPdf(paymentId, receipt.receiptNumber)}
+                      disabled={downloadingReceiptPaymentId === paymentId}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {downloadingReceiptPaymentId === paymentId ? t.downloadingReceipt : t.downloadReceipt}
+                    </button>
+                  ) : (
+                    <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
+                  )}
                 </div>
               );
             })}

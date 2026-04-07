@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
@@ -9,7 +9,7 @@ import LanguageToggle from '@/components/LanguageToggle';
 import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
-import { get } from '@/lib/api';
+import { get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
@@ -46,6 +46,13 @@ const text = {
       important: 'Important',
       payNow: 'Pay Now',
       viewInFees: 'View Payment History in Fees'
+    },
+    receipts: {
+      title: 'Recent Fee Receipts',
+      empty: 'No fee receipts available yet.',
+      download: 'Download Receipt',
+      downloading: 'Downloading...',
+      downloadFailed: 'Unable to download receipt right now.'
     }
   },
   bn: {
@@ -79,6 +86,13 @@ const text = {
       important: 'গুরুত্বপূর্ণ',
       payNow: 'এখনই পরিশোধ করুন',
       viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন'
+    },
+    receipts: {
+      title: 'সাম্প্রতিক ফি রিসিপ্ট',
+      empty: 'এখনও কোনো ফি রিসিপ্ট নেই।',
+      download: 'রিসিপ্ট ডাউনলোড',
+      downloading: 'ডাউনলোড হচ্ছে...',
+      downloadFailed: 'এই মুহূর্তে রিসিপ্ট ডাউনলোড করা যাচ্ছে না।'
     }
   }
 };
@@ -177,7 +191,8 @@ const fetchStudentDashboardData = async () => {
     return {
       studentProfile: null,
       stats: DEFAULT_STATS,
-      notices: []
+      notices: [],
+      feeReceipts: []
     };
   }
 
@@ -190,15 +205,20 @@ const fetchStudentDashboardData = async () => {
     return {
       studentProfile: null,
       stats: DEFAULT_STATS,
-      notices: []
+      notices: [],
+      feeReceipts: []
     };
   }
 
-  const [attendanceRes, examsRes, feesRes, noticesRes] = await Promise.all([
+  const [attendanceRes, examsRes, feesRes, noticesRes, receiptsRes] = await Promise.all([
     get('/student/attendance', token),
     get(`/exams?classId=${student.classId?._id || ''}`, token),
     get('/student/fees', token),
     get('/notices/student?page=1&limit=12', token, {
+      forceRefresh: true,
+      cacheTtlMs: 0
+    }),
+    get('/receipts/student', token, {
       forceRefresh: true,
       cacheTtlMs: 0
     })
@@ -228,13 +248,20 @@ const fetchStudentDashboardData = async () => {
       { title: 'Upcoming Exam', value: upcomingExamValue },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ],
-    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : []
+    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
+    feeReceipts: (Array.isArray(receiptsRes?.data) ? receiptsRes.data : []).filter(
+      (item) =>
+        String(item?.receiptType || '').toUpperCase() === 'FEE' &&
+        String(item?.paymentId || '').trim()
+    )
   };
 };
 
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
+  const [receiptDownloadError, setReceiptDownloadError] = useState('');
 
   const { data, isLoading } = useSWR('student-dashboard', fetchStudentDashboardData, {
     refreshInterval: 60000
@@ -243,6 +270,42 @@ export default function StudentDashboardPage() {
   const studentProfile = data?.studentProfile || null;
   const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : DEFAULT_STATS), [data]);
   const notices = useMemo(() => (Array.isArray(data?.notices) ? data.notices : []), [data]);
+  const feeReceipts = useMemo(() => (Array.isArray(data?.feeReceipts) ? data.feeReceipts : []), [data]);
+
+  const downloadBlob = (blob, fileName) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const onDownloadReceipt = async (paymentId, receiptNumber) => {
+    const normalizedPaymentId = String(paymentId || '').trim();
+    if (!normalizedPaymentId) {
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      return;
+    }
+
+    setReceiptDownloadError('');
+    setDownloadingReceiptPaymentId(normalizedPaymentId);
+    try {
+      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 60000 });
+      const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
+    } catch (error) {
+      setReceiptDownloadError(error?.message || t.receipts.downloadFailed);
+    } finally {
+      setDownloadingReceiptPaymentId('');
+    }
+  };
 
   const formatDate = (value) => {
     if (!value) {
@@ -334,6 +397,43 @@ export default function StudentDashboardPage() {
             })}
           </div>
         )}
+      </InfoCard>
+
+      <InfoCard title={t.receipts.title}>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`receipt-dashboard-skeleton-${index}`} className="h-10 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
+            ))}
+          </div>
+        ) : feeReceipts.length === 0 ? (
+          <p className="text-sm font-semibold text-slate-600">{t.receipts.empty}</p>
+        ) : (
+          <div className="space-y-2">
+            {feeReceipts.slice(0, 5).map((receipt) => {
+              const paymentId = String(receipt?.paymentId || '').trim();
+
+              return (
+                <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                  <p className="text-sm text-slate-700">
+                    {receipt.receiptNumber} - INR {receipt.amount} - {formatDate(receipt.paymentDate)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadReceipt(paymentId, receipt.receiptNumber)}
+                    disabled={!paymentId || downloadingReceiptPaymentId === paymentId}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {downloadingReceiptPaymentId === paymentId ? t.receipts.downloading : t.receipts.download}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {receiptDownloadError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
+        ) : null}
       </InfoCard>
 
       <div className="grid gap-4 md:grid-cols-3">

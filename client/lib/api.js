@@ -362,13 +362,15 @@ export const postForm = async (path, formData, token, options = {}) => {
   return response;
 };
 
-export const getBlob = async (path, token) => {
+export const getBlob = async (path, token, options = {}) => {
+  const { timeoutMs = REQUEST_TIMEOUT_MS } = options;
+
   try {
     const response = await fetchWithTimeout(`${BASE_URL}${path}`, {
       method: 'GET',
       headers: buildAuthHeaders(token),
       cache: 'no-store'
-    });
+    }, timeoutMs);
 
     if (!response.ok) {
       const json = await parseJsonSafely(response);
