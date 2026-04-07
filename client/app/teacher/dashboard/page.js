@@ -307,28 +307,40 @@ export default function TeacherDashboardPage() {
   };
 
   const salaryTableRows = useMemo(
-    () =>
-      salaryRows.map((row) => {
-        const payrollId = String(row?.payrollId || '').trim();
-        const status = String(row?.status || '').trim().toUpperCase();
-        const canDownload = status === 'PAID' && Boolean(payrollId);
+    () => salaryRows,
+    [salaryRows]
+  );
 
-        return {
-          ...row,
-          receipt: canDownload ? (
-            <button
-              type="button"
-              onClick={() => downloadSalaryReceiptPdf(payrollId, row?.receiptToken)}
-              disabled={downloadingSalaryReceiptId === payrollId}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {downloadingSalaryReceiptId === payrollId ? 'Downloading...' : 'Download Receipt'}
-            </button>
-          ) : (
-            <span className="text-xs font-semibold text-slate-400">Not available</span>
-          )
-        };
-      }),
+  const salaryReceiptRows = useMemo(
+    () =>
+      salaryRows
+        .map((row) => {
+          const payrollId = String(row?.payrollId || '').trim();
+          const status = String(row?.status || '').trim().toUpperCase();
+          const canDownload = status === 'PAID' && Boolean(payrollId);
+
+          if (!canDownload) {
+            return null;
+          }
+
+          return {
+            id: `salary-receipt-${row.id || payrollId}`,
+            month: row.month,
+            amount: row.amount,
+            paidOn: row.paidOn,
+            action: (
+              <button
+                type="button"
+                onClick={() => downloadSalaryReceiptPdf(payrollId, row?.receiptToken)}
+                disabled={downloadingSalaryReceiptId === payrollId}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {downloadingSalaryReceiptId === payrollId ? 'Downloading...' : 'Download Receipt'}
+              </button>
+            )
+          };
+        })
+        .filter(Boolean),
     [salaryRows, downloadingSalaryReceiptId]
   );
 
@@ -500,14 +512,34 @@ export default function TeacherDashboardPage() {
             { key: 'amount', label: 'Amount' },
             { key: 'status', label: 'Status' },
             { key: 'paidOn', label: 'Paid On' },
-            { key: 'paymentMethod', label: 'Method' },
-            { key: 'receipt', label: 'Receipt' }
+            { key: 'paymentMethod', label: 'Method' }
           ]}
           rows={salaryTableRows}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[288px]"
         />
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+          <h4 className="text-sm font-semibold text-slate-900">Salary Receipt Downloads</h4>
+          <p className="mb-2 text-xs text-slate-600">Receipts are available for paid salary records only.</p>
+          <Table
+            columns={[
+              { key: 'month', label: 'Month' },
+              { key: 'amount', label: 'Amount' },
+              { key: 'paidOn', label: 'Paid On' },
+              { key: 'action', label: 'Receipt' }
+            ]}
+            rows={salaryReceiptRows}
+            loading={loading}
+            scrollY
+            maxHeightClass="max-h-[240px]"
+          />
+          {!loading && salaryReceiptRows.length === 0 ? (
+            <p className="mt-2 text-xs font-medium text-slate-500">No downloadable receipts found.</p>
+          ) : null}
+        </div>
+
         {salaryReceiptError ? (
           <p className="mt-3 text-sm font-medium text-red-600">{salaryReceiptError}</p>
         ) : null}

@@ -3,7 +3,6 @@ const path = require('path');
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
-const { amountToWordsINR } = require('../utils/amount-in-words');
 const {
   SCHOOL_NAME,
   SCHOOL_BRANCH_NAME,
@@ -393,7 +392,6 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     paymentThrough: resolvePaymentThrough(payment),
     paymentDateTime: formatDateTime(paymentDateTimeValue),
     status: normalizePaymentStatus(payment?.paymentStatus || receipt?.status),
-    amountInWords: amountToWordsINR(amountPaid),
     receiptDownloadDate: formatDate(new Date())
   };
 };
@@ -436,7 +434,6 @@ const buildTeacherTemplateModel = async ({ payroll, teacher, receipt }) => {
     paymentDate: formatDate(paymentDateValue),
     paymentMethod: normalizePaymentMethod(receipt?.paymentMethod || payroll?.paymentMethod),
     amountPaid: formatAmount(amountPaid),
-    amountInWords: amountToWordsINR(amountPaid),
     pendingSalary: formatAmount(pendingSalary),
     status: normalizeSalaryStatus(receipt?.status || payroll?.status || 'PAID'),
     receiptDownloadDate: formatDate(new Date())

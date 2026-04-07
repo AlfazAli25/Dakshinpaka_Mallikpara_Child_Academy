@@ -30,6 +30,8 @@
       min-height: 297mm;
       padding: 11mm 9mm 10mm;
       overflow: hidden;
+      border: 0.4mm solid #9ec4e8;
+      background: linear-gradient(180deg, #f4faff 0%, #ffffff 36%, #f1f8ff 100%);
     }
 
     .watermark {
@@ -38,7 +40,20 @@
       left: 50%;
       width: 152mm;
       transform: translate(-50%, -50%);
-      opacity: 0.08;
+      opacity: 0.06;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .watermark-gradient {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 170mm;
+      height: 170mm;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(147, 197, 253, 0.28) 0%, rgba(186, 230, 253, 0.16) 45%, rgba(255, 255, 255, 0) 78%);
       pointer-events: none;
       z-index: 0;
     }
@@ -94,16 +109,6 @@
       margin-bottom: 2.1mm;
     }
 
-    .row.words-label {
-      margin-top: 0.9mm;
-      margin-bottom: 1.2mm;
-      grid-template-columns: 1fr;
-    }
-
-    .row.words-value {
-      margin-bottom: 5.2mm;
-    }
-
     .row.download-row {
       margin-top: 6mm;
       grid-template-columns: 78mm 1fr;
@@ -114,10 +119,6 @@
       font-weight: 700;
       color: #101827;
       white-space: nowrap;
-    }
-
-    .label.strong {
-      font-weight: 900;
     }
 
     .label.download {
@@ -145,6 +146,7 @@
 <body>
   <div class="page">
     <img class="watermark" src="{{schoolLogo}}" alt="watermark" />
+    <div class="watermark-gradient"></div>
 
     <div class="content">
       <img class="school-logo" src="{{schoolLogo}}" alt="School logo" />
@@ -184,14 +186,6 @@
       <div class="row">
         <div class="label">Amount Paid:</div>
         <div class="value">{{amountPaid}}</div>
-      </div>
-
-      <div class="row words-label">
-        <div class="label strong">Amount in words:</div>
-      </div>
-
-      <div class="row words-value">
-        <div class="value">{{amountInWords}}</div>
       </div>
 
       <div class="row">

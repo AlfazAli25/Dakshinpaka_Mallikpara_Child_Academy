@@ -25,8 +25,15 @@ const text = {
       { key: 'paymentFor', label: 'Payment For' },
       { key: 'amount', label: 'Amount' },
       { key: 'screenshotStatus', label: 'Screenshot Status' },
-      { key: 'verificationStatus', label: 'Verification Status' },
-      { key: 'receipt', label: 'Receipt' }
+      { key: 'verificationStatus', label: 'Verification Status' }
+    ],
+    receiptSectionTitle: 'Download Receipts',
+    receiptSectionDescription: 'Receipts are available only for verified fee payments.',
+    receiptColumns: [
+      { key: 'paymentDate', label: 'Payment Date' },
+      { key: 'paymentFor', label: 'Payment For' },
+      { key: 'amount', label: 'Amount' },
+      { key: 'action', label: 'Receipt' }
     ],
     downloadReceipt: 'Download Receipt',
     downloadingReceipt: 'Downloading...',
@@ -51,8 +58,15 @@ const text = {
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
       { key: 'amount', label: 'পরিমাণ' },
       { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
-      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' },
-      { key: 'receipt', label: 'রিসিপ্ট' }
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
+    ],
+    receiptSectionTitle: 'রিসিপ্ট ডাউনলোড',
+    receiptSectionDescription: 'শুধু ভেরিফায়েড ফি পেমেন্টের জন্য রিসিপ্ট পাওয়া যাবে।',
+    receiptColumns: [
+      { key: 'paymentDate', label: 'পেমেন্ট তারিখ' },
+      { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
+      { key: 'amount', label: 'পরিমাণ' },
+      { key: 'action', label: 'রিসিপ্ট' }
     ],
     downloadReceipt: 'রিসিপ্ট ডাউনলোড',
     downloadingReceipt: 'ডাউনলোড হচ্ছে...',
@@ -270,15 +284,22 @@ export default function StudentFeesPage() {
     [rows]
   );
 
-  const paymentHistoryRows = useMemo(
+  const receiptDownloadRows = useMemo(
     () =>
       paymentHistory.map((row) => {
         const paymentId = String(row?.paymentId || '').trim();
         const canDownloadReceipt = Boolean(row?.canDownloadReceipt) && Boolean(paymentId);
 
+        if (!canDownloadReceipt) {
+          return null;
+        }
+
         return {
-          ...row,
-          receipt: canDownloadReceipt ? (
+          id: `receipt-${row.id || paymentId}`,
+          paymentDate: row.paymentDate,
+          paymentFor: row.paymentFor,
+          amount: row.amount,
+          action: (
             <button
               type="button"
               onClick={() => downloadReceiptPdf(paymentId, row?.receiptToken)}
@@ -287,11 +308,9 @@ export default function StudentFeesPage() {
             >
               {downloadingReceiptPaymentId === paymentId ? t.downloadingReceipt : t.downloadReceipt}
             </button>
-          ) : (
-            <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
           )
         };
-      }),
+      }).filter(Boolean),
     [paymentHistory, downloadingReceiptPaymentId, t]
   );
 
@@ -321,14 +340,29 @@ export default function StudentFeesPage() {
         <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
         <Table
           columns={t.paymentHistoryColumns}
-          rows={paymentHistoryRows}
+          rows={paymentHistory}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[288px]"
         />
-        {receiptDownloadError ? (
-          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
-        ) : null}
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+          <h4 className="text-sm font-semibold text-slate-900">{t.receiptSectionTitle}</h4>
+          <p className="mb-2 text-xs text-slate-600">{t.receiptSectionDescription}</p>
+          <Table
+            columns={t.receiptColumns}
+            rows={receiptDownloadRows}
+            loading={loading}
+            scrollY
+            maxHeightClass="max-h-[240px]"
+          />
+          {!loading && receiptDownloadRows.length === 0 ? (
+            <p className="mt-2 text-xs font-medium text-slate-500">{t.receiptNotAvailable}</p>
+          ) : null}
+          {receiptDownloadError ? (
+            <p className="mt-2 text-sm font-medium text-red-600">{receiptDownloadError}</p>
+          ) : null}
+        </div>
       </div>
     </div>
   );
