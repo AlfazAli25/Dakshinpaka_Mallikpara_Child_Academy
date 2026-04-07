@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import Input from '@/components/Input';
@@ -288,9 +289,11 @@ export default function StudentCheckoutPage() {
 
             <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
               <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
-              <img
+              <Image
                 src="/static-payment-qr.svg"
                 alt="Static payment QR"
+                width={192}
+                height={192}
                 className="mt-3 h-48 w-48 rounded-lg border border-slate-200 bg-white p-2"
               />
               <p className="mt-2 text-xs text-slate-500">Scan this QR to pay online, then upload screenshot and submit.</p>

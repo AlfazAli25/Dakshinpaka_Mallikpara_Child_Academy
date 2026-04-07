@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
@@ -354,9 +355,11 @@ export default function AdminFeesPage() {
         {paymentMode === 'ONLINE' && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-800">Static QR Code (Online Payment)</p>
-            <img
+            <Image
               src="/static-payment-qr.svg"
               alt="Static payment QR"
+              width={192}
+              height={192}
               className="mt-3 h-48 w-48 rounded-lg border border-slate-200 bg-white p-2"
             />
             <p className="mt-2 text-xs text-slate-500">For in-person collection, confirm payment and record it directly. Screenshot upload is not required here.</p>

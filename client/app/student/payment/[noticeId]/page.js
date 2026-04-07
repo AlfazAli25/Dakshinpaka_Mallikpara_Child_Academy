@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
@@ -223,9 +224,11 @@ export default function StudentNoticePaymentPage() {
 
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
-                  <img
+                  <Image
                     src="/static-payment-qr.svg"
                     alt="Static payment QR"
+                    width={176}
+                    height={176}
                     className="mt-3 h-44 w-44 rounded-lg border border-slate-200 bg-white p-2"
                   />
                   <p className="mt-2 text-xs text-slate-500">
