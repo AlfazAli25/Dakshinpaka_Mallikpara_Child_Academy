@@ -3,6 +3,7 @@ const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
 const Payment = require('../models/payment.model');
+const NoticePayment = require('../models/notice-payment.model');
 const Payroll = require('../models/payroll.model');
 const Receipt = require('../models/receipt.model');
 const {
@@ -12,6 +13,7 @@ const {
 const { logError, logInfo } = require('../utils/logger');
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
+const SUCCESSFUL_NOTICE_PAYMENT_STATUSES = new Set(['VERIFIED', 'PAID']);
 
 const createHttpError = (message, statusCode) => {
   const error = new Error(message);
@@ -21,6 +23,9 @@ const createHttpError = (message, statusCode) => {
 
 const isSuccessfulPaymentStatus = (status) =>
   SUCCESSFUL_PAYMENT_STATUSES.has(String(status || '').trim().toUpperCase());
+
+const isSuccessfulNoticePaymentStatus = (status) =>
+  SUCCESSFUL_NOTICE_PAYMENT_STATUSES.has(String(status || '').trim().toUpperCase());
 
 const sendPdfResponse = (res, generatedReceipt) => {
   const normalizedPdfBuffer = Buffer.isBuffer(generatedReceipt?.pdfBuffer)
@@ -128,6 +133,99 @@ const downloadPaymentReceipt = asyncHandler(async (req, res) => {
   });
 });
 
+const downloadNoticePaymentReceipt = asyncHandler(async (req, res) => {
+  const noticePaymentId = String(req.params?.noticePaymentId || '').trim();
+  if (!noticePaymentId) {
+    throw createHttpError('noticePaymentId is required', 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(noticePaymentId)) {
+    throw createHttpError('Invalid noticePaymentId', 400);
+  }
+
+  logInfo('notice_receipt_download_requested', {
+    requestId: req.requestId,
+    noticePaymentId,
+    requesterId: String(req.user?._id || ''),
+    requesterRole: String(req.user?.role || '')
+  });
+
+  const noticePayment = await NoticePayment.findById(noticePaymentId)
+    .populate('noticeId', 'title')
+    .populate('verifiedBy', 'name email')
+    .lean();
+
+  if (!noticePayment) {
+    throw createHttpError('Notice payment not found', 404);
+  }
+
+  if (!isSuccessfulNoticePaymentStatus(noticePayment.paymentStatus)) {
+    throw createHttpError('Notice payment not found', 404);
+  }
+
+  const student = await Student.findById(noticePayment.studentId)
+    .populate('userId', 'name email')
+    .populate('classId', 'name section')
+    .lean();
+
+  if (!student) {
+    throw createHttpError('Student record not found', 404);
+  }
+
+  if (req.user?.role === 'student') {
+    await ensureStudentOwnsPayment({ userId: req.user._id, paymentStudentId: student._id });
+  }
+
+  const receipt = await Receipt.findOne({ noticePaymentId: noticePayment._id, receiptType: 'NOTICE' }).lean();
+  const mappedNoticePayment = {
+    _id: noticePayment._id,
+    amount: noticePayment.amount,
+    paymentStatus: noticePayment.paymentStatus,
+    paymentMethod: noticePayment.paymentMethod || receipt?.paymentMethod || 'NOTICE_PAYMENT',
+    transactionReference: noticePayment.transactionReference,
+    paymentDate: noticePayment.paymentDate,
+    paidAt: noticePayment.paymentDate || noticePayment.verifiedAt || noticePayment.createdAt,
+    verifiedAt: noticePayment.verifiedAt,
+    createdAt: noticePayment.createdAt,
+    updatedAt: noticePayment.updatedAt,
+    sourceType: 'NOTICE',
+    sourceLabel: noticePayment?.noticeId?.title ? `Notice: ${noticePayment.noticeId.title}` : 'Notice Payment',
+    processedByAdmin: noticePayment.verifiedBy || null
+  };
+
+  let generatedReceipt;
+  try {
+    generatedReceipt = await createTemplateReceiptPdf({
+      payment: mappedNoticePayment,
+      student,
+      receipt,
+      requestId: req.requestId
+    });
+  } catch (error) {
+    const statusCode = Number(error?.statusCode || 500);
+    const message = statusCode === 500 ? (error?.message || 'Failed to generate notice receipt') : error?.message;
+
+    logError('notice_receipt_generation_failed', {
+      requestId: req.requestId,
+      noticePaymentId,
+      requesterId: String(req.user?._id || ''),
+      statusCode,
+      message: message || 'Unknown notice receipt generation error'
+    });
+
+    throw createHttpError(message || 'Failed to generate notice receipt', statusCode);
+  }
+
+  sendPdfResponse(res, generatedReceipt);
+
+  logInfo('notice_receipt_download_completed', {
+    requestId: req.requestId,
+    noticePaymentId,
+    requesterId: String(req.user?._id || ''),
+    byteLength: generatedReceipt?.pdfBuffer?.length || 0
+  });
+});
+
 const downloadTeacherSalaryReceipt = asyncHandler(async (req, res) => {
   const payrollId = String(req.params?.payrollId || req.params?.paymentId || '').trim();
   if (!payrollId) {
@@ -207,5 +305,6 @@ const downloadTeacherSalaryReceipt = asyncHandler(async (req, res) => {
 
 module.exports = {
   downloadPaymentReceipt,
+  downloadNoticePaymentReceipt,
   downloadTeacherSalaryReceipt
 };

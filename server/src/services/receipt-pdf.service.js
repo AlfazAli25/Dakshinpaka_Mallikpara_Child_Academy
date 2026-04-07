@@ -141,7 +141,12 @@ const normalizeSalaryStatus = (status) => {
 const normalizePaymentMethod = (value) =>
   toSafeText(value, 'UNKNOWN').replace(/[_\s]+/g, ' ').trim().toUpperCase();
 
-const buildPaymentForLabel = (payment = {}) => {
+const buildPaymentForLabel = ({ payment = {}, receipt = {} } = {}) => {
+  const sourceType = String(payment?.sourceType || receipt?.receiptType || '').trim().toUpperCase();
+  if (sourceType === 'NOTICE') {
+    return toSafeText(payment?.sourceLabel || receipt?.noticeTitle, 'Notice Payment');
+  }
+
   const allocations = Array.isArray(payment.allocations) ? payment.allocations : [];
   const monthKeys = allocations
     .map((item) => String(item?.monthKey || '').trim())
@@ -372,7 +377,8 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
   const className = toSafeText(student?.classId?.name || receipt?.className);
   const sectionName = toSafeText(student?.classId?.section || '-');
   const amountPaid = Number(payment?.amount || receipt?.amount || 0);
-  const paymentDateTimeValue = payment?.paidAt || payment?.verifiedAt || payment?.updatedAt || payment?.createdAt || receipt?.paymentDate;
+  const paymentDateTimeValue =
+    payment?.paidAt || payment?.paymentDate || payment?.verifiedAt || payment?.updatedAt || payment?.createdAt || receipt?.paymentDate;
 
   return {
     schoolLogo,
@@ -387,7 +393,7 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     class: className,
     section: sectionName,
     amountPaid: formatAmount(amountPaid),
-    paymentFor: buildPaymentForLabel(payment),
+    paymentFor: buildPaymentForLabel({ payment, receipt }),
     paymentMethod: normalizePaymentMethod(payment?.paymentMethod || receipt?.paymentMethod),
     paymentThrough: resolvePaymentThrough(payment),
     paymentDateTime: formatDateTime(paymentDateTimeValue),

@@ -28,7 +28,7 @@ const text = {
       { key: 'verificationStatus', label: 'Verification Status' }
     ],
     receiptSectionTitle: 'Download Receipts',
-    receiptSectionDescription: 'Receipts are available only for verified fee payments.',
+    receiptSectionDescription: 'Receipts are available for verified fee and notice payments.',
     receiptColumns: [
       { key: 'paymentDate', label: 'Payment Date' },
       { key: 'paymentFor', label: 'Payment For' },
@@ -61,7 +61,7 @@ const text = {
       { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
     ],
     receiptSectionTitle: 'রিসিপ্ট ডাউনলোড',
-    receiptSectionDescription: 'শুধু ভেরিফায়েড ফি পেমেন্টের জন্য রিসিপ্ট পাওয়া যাবে।',
+    receiptSectionDescription: 'ভেরিফায়েড ফি এবং নোটিশ পেমেন্টের জন্য রিসিপ্ট পাওয়া যাবে।',
     receiptColumns: [
       { key: 'paymentDate', label: 'পেমেন্ট তারিখ' },
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
@@ -139,6 +139,15 @@ const formatDateValue = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const getNoticePaymentId = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.replace(/^notice-/i, '').trim();
+};
+
 export default function StudentFeesPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
@@ -159,9 +168,17 @@ export default function StudentFeesPage() {
     URL.revokeObjectURL(href);
   };
 
-  const downloadReceiptPdf = async (paymentId, receiptToken) => {
+  const downloadReceiptPdf = async (paymentId, receiptToken, sourceType) => {
     const normalizedPaymentId = String(paymentId || '').trim();
     if (!normalizedPaymentId) {
+      return;
+    }
+
+    const normalizedSourceType = String(sourceType || 'FEE').trim().toUpperCase();
+    const receiptTargetId =
+      normalizedSourceType === 'NOTICE' ? getNoticePaymentId(normalizedPaymentId) : normalizedPaymentId;
+
+    if (!OBJECT_ID_REGEX.test(receiptTargetId)) {
       return;
     }
 
@@ -174,10 +191,10 @@ export default function StudentFeesPage() {
     setDownloadingReceiptPaymentId(normalizedPaymentId);
 
     try {
-      const endpointCandidates = [
-        `/receipt/download/${normalizedPaymentId}`,
-        `/receipts/student/${normalizedPaymentId}`
-      ];
+      const endpointCandidates =
+        normalizedSourceType === 'NOTICE'
+          ? [`/receipt/notice/${receiptTargetId}`, `/receipts/notice/${receiptTargetId}`]
+          : [`/receipt/download/${receiptTargetId}`, `/receipts/student/${receiptTargetId}`];
 
       let blob = null;
       let lastError = null;
@@ -199,7 +216,7 @@ export default function StudentFeesPage() {
         throw lastError || new Error('Unable to download receipt right now.');
       }
 
-      const safeToken = String(receiptToken || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
+      const safeToken = String(receiptToken || receiptTargetId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${safeToken}.pdf`);
     } catch (error) {
       setReceiptDownloadError(String(error?.message || t.receiptDownloadFailed));
@@ -246,14 +263,16 @@ export default function StudentFeesPage() {
         const paymentRows = (paymentHistoryResponse.data || []).map((item) => {
           const sourceType = String(item?.sourceType || '').toUpperCase();
           const paymentId = String(item?._id || '').trim();
+          const receiptResourceId = sourceType === 'NOTICE' ? getNoticePaymentId(paymentId) : paymentId;
           const canDownloadReceipt =
-            sourceType === 'FEE' &&
-            OBJECT_ID_REGEX.test(paymentId) &&
+            OBJECT_ID_REGEX.test(receiptResourceId) &&
             isSuccessfulPaymentStatus(item?.paymentStatus);
 
           return {
-            id: item._id,
+            id: paymentId,
             paymentId,
+            receiptResourceId,
+            sourceType,
             receiptToken: String(item?.transactionId || item?.transactionReference || paymentId),
             canDownloadReceipt,
             paymentDate: formatDateValue(item.paidAt || item.createdAt),
@@ -288,7 +307,9 @@ export default function StudentFeesPage() {
     () =>
       paymentHistory.map((row) => {
         const paymentId = String(row?.paymentId || '').trim();
-        const canDownloadReceipt = Boolean(row?.canDownloadReceipt) && Boolean(paymentId);
+        const receiptResourceId = String(row?.receiptResourceId || '').trim();
+        const canDownloadReceipt =
+          Boolean(row?.canDownloadReceipt) && Boolean(paymentId) && Boolean(receiptResourceId);
 
         if (!canDownloadReceipt) {
           return null;
@@ -302,7 +323,7 @@ export default function StudentFeesPage() {
           action: (
             <button
               type="button"
-              onClick={() => downloadReceiptPdf(paymentId, row?.receiptToken)}
+              onClick={() => downloadReceiptPdf(paymentId, row?.receiptToken, row?.sourceType)}
               disabled={downloadingReceiptPaymentId === paymentId}
               className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
             >
