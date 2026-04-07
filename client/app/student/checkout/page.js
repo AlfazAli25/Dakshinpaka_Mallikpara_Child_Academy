@@ -191,7 +191,7 @@ export default function StudentCheckoutPage() {
         formData.append('transactionReference', transactionReference);
       }
 
-      await postForm(`/fees/${feeRowForSubmission.id}/upload-static-qr-screenshot`, formData, token);
+      await postForm(`/fees/${feeRowForSubmission.id}/upload-static-qr-screenshot`, formData, token, { timeoutMs: 90000 });
       setMessage('Screenshot uploaded successfully. Payment status is now Pending until admin verification.');
       setScreenshotFile(null);
       setTransactionReference('');

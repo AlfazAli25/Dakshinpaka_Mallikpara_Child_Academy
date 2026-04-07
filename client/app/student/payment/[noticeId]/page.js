@@ -126,7 +126,7 @@ export default function StudentNoticePaymentPage() {
         formData.append('transactionReference', normalizedReference);
       }
 
-      await postForm('/notices/pay', formData, auth.token);
+      await postForm('/notices/pay', formData, auth.token, { timeoutMs: 90000 });
 
       toast.success('Screenshot uploaded. Waiting for admin verification.');
       setScreenshotFile(null);

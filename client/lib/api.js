@@ -349,11 +349,13 @@ export const del = async (path, token) => {
   return response;
 };
 
-export const postForm = async (path, formData, token) => {
+export const postForm = async (path, formData, token, options = {}) => {
+  const { timeoutMs = 60000 } = options;
   const response = await request(path, {
     method: 'POST',
     headers: buildAuthHeaders(token),
-    body: formData
+    body: formData,
+    timeoutMs
   });
 
   clearGetCache();
