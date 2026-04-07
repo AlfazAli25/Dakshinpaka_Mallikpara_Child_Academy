@@ -44,6 +44,8 @@ const text = {
       amount: 'Amount',
       important: 'Important',
       paid: 'Paid',
+      pendingVerification: 'Pending Verification',
+      rejected: 'Rejected - Upload Again',
       payNow: 'Pay Now'
     }
   },
@@ -77,9 +79,25 @@ const text = {
       amount: 'পরিমাণ',
       important: 'গুরুত্বপূর্ণ',
       paid: 'পরিশোধিত',
+      pendingVerification: 'ভেরিফিকেশন অপেক্ষায়',
+      rejected: 'রিজেক্টেড - আবার আপলোড করুন',
       payNow: 'এখনই পরিশোধ করুন'
     }
   }
+};
+
+const normalizePaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'PAID') {
+    return 'VERIFIED';
+  }
+  if (normalized === 'PENDING') {
+    return 'PENDING_VERIFICATION';
+  }
+  if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].includes(normalized)) {
+    return normalized;
+  }
+  return '';
 };
 
 const DEFAULT_STATS = [
@@ -315,7 +333,10 @@ export default function StudentDashboardPage() {
               const noticeId = String(notice?._id || '');
               const isImportant = Boolean(notice?.isImportant);
               const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
-              const hasPaid = Boolean(notice?.hasPaid || notice?.payment);
+              const paymentStatus = normalizePaymentStatus(notice?.payment?.paymentStatus);
+              const hasPaid = paymentStatus === 'VERIFIED';
+              const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
+              const isRejected = paymentStatus === 'REJECTED';
 
               return (
                 <div
@@ -349,12 +370,16 @@ export default function StudentDashboardPage() {
                         <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">
                           {t.notices.paid}
                         </span>
+                      ) : isPendingVerification ? (
+                        <span className="rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-white">
+                          {t.notices.pendingVerification}
+                        </span>
                       ) : (
                         <Link
                           href={`/student/payment/${noticeId}`}
                           className="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
                         >
-                          {t.notices.payNow}
+                          {isRejected ? t.notices.rejected : t.notices.payNow}
                         </Link>
                       )}
                     </div>

@@ -4,6 +4,7 @@ const { protect, requireRole } = require('../middleware/auth.middleware');
 const validate = require('../middleware/validate.middleware');
 const noticeController = require('../controllers/noticeController');
 const noticePaymentController = require('../controllers/noticePaymentController');
+const { screenshotUpload } = require('../middleware/upload.middleware');
 
 const router = express.Router();
 
@@ -43,13 +44,35 @@ router.post(
   '/pay',
   protect,
   requireRole(['student']),
+  screenshotUpload.single('screenshot'),
   [
     body('studentId').optional().isMongoId().withMessage('Student is invalid'),
     body('noticeId').notEmpty().withMessage('Notice is required').bail().isMongoId().withMessage('Notice is invalid'),
-    body('amount').notEmpty().withMessage('Amount is required').bail().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')
+    body('amount').notEmpty().withMessage('Amount is required').bail().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
+    body('transactionReference').optional().isString().isLength({ max: 120 }).withMessage('Transaction reference is too long')
   ],
   validate,
   noticePaymentController.payNotice
+);
+
+router.get(
+  '/payments/pending',
+  protect,
+  requireRole(['admin']),
+  noticePaymentController.listPendingNoticePayments
+);
+
+router.post(
+  '/payments/:paymentId/verify',
+  protect,
+  requireRole(['admin']),
+  [
+    param('paymentId').isMongoId().withMessage('Notice payment is invalid'),
+    body('decision').isIn(['APPROVE', 'REJECT']).withMessage('Decision must be APPROVE or REJECT'),
+    body('notes').optional().isString().isLength({ max: 500 }).withMessage('Notes must be under 500 characters')
+  ],
+  validate,
+  noticePaymentController.verifyNoticePayment
 );
 
 router.get(

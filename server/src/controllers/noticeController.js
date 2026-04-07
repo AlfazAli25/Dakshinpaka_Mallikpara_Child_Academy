@@ -11,6 +11,20 @@ const MAX_LIMIT = 100;
 
 const toId = (value) => String(value?._id || value || '');
 
+const normalizeNoticePaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'PAID') {
+    return 'VERIFIED';
+  }
+  if (normalized === 'PENDING') {
+    return 'PENDING_VERIFICATION';
+  }
+  if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].includes(normalized)) {
+    return normalized;
+  }
+  return '';
+};
+
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -272,20 +286,31 @@ const getStudentNotices = asyncHandler(async (req, res) => {
       studentId: student._id,
       noticeId: { $in: noticeIds }
     })
-      .select('noticeId amount paymentStatus paymentDate')
+      .select('noticeId amount paymentStatus paymentDate verificationNotes')
       .lean()
     : [];
 
   const paymentMap = new Map(payments.map((item) => [toId(item.noticeId), item]));
 
   const data = notices.map((notice) => {
-    const payment = paymentMap.get(toId(notice._id)) || null;
+    const rawPayment = paymentMap.get(toId(notice._id)) || null;
+    const paymentStatus = normalizeNoticePaymentStatus(rawPayment?.paymentStatus);
+    const payment = rawPayment
+      ? {
+        ...rawPayment,
+        paymentStatus: paymentStatus || rawPayment.paymentStatus
+      }
+      : null;
+    const isVerified = paymentStatus === 'VERIFIED';
+    const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
+    const canResubmit = paymentStatus === 'REJECTED';
 
     return {
       ...notice,
       payment,
-      hasPaid: Boolean(payment),
-      canPay: notice.noticeType === 'Payment' && notice.status === 'Active' && !payment
+      hasPaid: isVerified,
+      canPay: notice.noticeType === 'Payment' && notice.status === 'Active' && (!payment || canResubmit),
+      isPendingVerification
     };
   });
 

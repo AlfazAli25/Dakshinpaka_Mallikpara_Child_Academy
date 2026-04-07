@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
-import { get, post } from '@/lib/api';
+import { get, postForm } from '@/lib/api';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -21,6 +21,20 @@ const formatDateLabel = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const normalizePaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'PAID') {
+    return 'VERIFIED';
+  }
+  if (normalized === 'PENDING') {
+    return 'PENDING_VERIFICATION';
+  }
+  if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].includes(normalized)) {
+    return normalized;
+  }
+  return '';
+};
+
 export default function StudentNoticePaymentPage() {
   const params = useParams();
   const toast = useToast();
@@ -31,14 +45,19 @@ export default function StudentNoticePaymentPage() {
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [transactionReference, setTransactionReference] = useState('');
 
   const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
-  const hasPaid = Boolean(notice?.hasPaid || notice?.payment);
+  const paymentStatus = normalizePaymentStatus(notice?.payment?.paymentStatus);
+  const hasPaid = paymentStatus === 'VERIFIED';
+  const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
+  const isRejected = paymentStatus === 'REJECTED';
   const payableAmount = Number(notice?.amount || 0);
 
   const canPay = useMemo(
-    () => Boolean(noticeId && student?._id && isPaymentNotice && !hasPaid && payableAmount > 0),
-    [hasPaid, isPaymentNotice, noticeId, payableAmount, student?._id]
+    () => Boolean(noticeId && student?._id && isPaymentNotice && !hasPaid && !isPendingVerification && payableAmount > 0),
+    [hasPaid, isPaymentNotice, isPendingVerification, noticeId, payableAmount, student?._id]
   );
 
   const loadNotice = async () => {
@@ -87,16 +106,30 @@ export default function StudentNoticePaymentPage() {
       return;
     }
 
+    if (!screenshotFile) {
+      toast.error('Please upload payment screenshot before submitting');
+      return;
+    }
+
     setPaying(true);
     try {
       const auth = getAuthContext();
-      await post('/notices/pay', {
-        studentId: student._id,
-        noticeId,
-        amount: payableAmount
-      }, auth.token);
+      const formData = new FormData();
+      formData.append('studentId', student._id);
+      formData.append('noticeId', noticeId);
+      formData.append('amount', String(payableAmount));
+      formData.append('screenshot', screenshotFile);
 
-      toast.success('Payment Successful');
+      const normalizedReference = String(transactionReference || '').trim();
+      if (normalizedReference) {
+        formData.append('transactionReference', normalizedReference);
+      }
+
+      await postForm('/notices/pay', formData, auth.token);
+
+      toast.success('Screenshot uploaded. Waiting for admin verification.');
+      setScreenshotFile(null);
+      setTransactionReference('');
       await loadNotice();
     } catch (apiError) {
       toast.error(apiError.message || 'Payment failed');
@@ -140,18 +173,60 @@ export default function StudentNoticePaymentPage() {
                 This notice is informational only and does not require payment.
               </p>
             ) : hasPaid ? (
-              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
-                Payment Successful
+              <div className="space-y-2">
+                <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                  Payment Verified by Admin
+                </p>
+                <p className="text-xs text-slate-500">Verified payments appear in your notice payment history.</p>
+              </div>
+            ) : isPendingVerification ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                Screenshot submitted. Waiting for admin verification.
               </p>
             ) : (
-              <button
-                type="button"
-                onClick={onPayNow}
-                disabled={!canPay || paying}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {paying ? 'Processing...' : 'Pay Now'}
-              </button>
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                {isRejected ? (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                    Previous screenshot was rejected. Upload a new screenshot and submit again.
+                  </p>
+                ) : null}
+
+                {notice?.payment?.verificationNotes ? (
+                  <p className="text-xs text-slate-600">
+                    <span className="font-semibold">Admin Note:</span> {notice.payment.verificationNotes}
+                  </p>
+                ) : null}
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Payment Screenshot</label>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) => setScreenshotFile(event.target.files?.[0] || null)}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">Transaction Reference (optional)</label>
+                  <input
+                    type="text"
+                    value={transactionReference}
+                    onChange={(event) => setTransactionReference(event.target.value)}
+                    placeholder="UPI ref / bank ref"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onPayNow}
+                  disabled={!canPay || paying || !screenshotFile}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {paying ? 'Submitting...' : isRejected ? 'Upload Again' : 'Upload & Submit'}
+                </button>
+              </div>
             )}
           </div>
         )}

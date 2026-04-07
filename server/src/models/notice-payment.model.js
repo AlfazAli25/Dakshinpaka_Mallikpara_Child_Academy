@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const PAYMENT_STATUSES = ['Paid', 'Pending'];
+const PAYMENT_STATUSES = ['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'Paid', 'Pending'];
 
 const noticePaymentSchema = new mongoose.Schema(
   {
@@ -10,9 +10,15 @@ const noticePaymentSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       enum: PAYMENT_STATUSES,
-      default: 'Paid'
+      default: 'PENDING_VERIFICATION'
     },
-    paymentDate: { type: Date, default: Date.now }
+    paymentDate: { type: Date, default: Date.now },
+    screenshotPath: { type: String, trim: true },
+    screenshotPublicId: { type: String, trim: true },
+    transactionReference: { type: String, trim: true },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedAt: { type: Date },
+    verificationNotes: { type: String, trim: true }
   },
   { timestamps: true }
 );

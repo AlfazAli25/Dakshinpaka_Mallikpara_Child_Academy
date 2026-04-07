@@ -54,15 +54,44 @@ const formatDateLabel = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const formatDateTimeLabel = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleString('en-GB');
+};
+
+const normalizeNoticePaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'PAID') {
+    return 'VERIFIED';
+  }
+  if (normalized === 'PENDING') {
+    return 'PENDING_VERIFICATION';
+  }
+  if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].includes(normalized)) {
+    return normalized;
+  }
+  return String(status || '').trim();
+};
+
 export default function AdminNoticesPage() {
   const toast = useToast();
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState('');
   const [classes, setClasses] = useState([]);
   const [notices, setNotices] = useState([]);
+  const [pendingNoticePayments, setPendingNoticePayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState('');
+  const [verifyingPaymentId, setVerifyingPaymentId] = useState('');
 
   const classLabelMap = useMemo(
     () => classes.reduce((acc, item) => {
@@ -79,9 +108,10 @@ export default function AdminNoticesPage() {
 
     try {
       const token = getToken();
-      const [classResult, noticeResult] = await Promise.allSettled([
+      const [classResult, noticeResult, pendingPaymentResult] = await Promise.allSettled([
         get('/classes', token, { forceRefresh: true, cacheTtlMs: 0 }),
-        get('/notices?page=1&limit=100', token, { forceRefresh: true, cacheTtlMs: 0 })
+        get('/notices?page=1&limit=100', token, { forceRefresh: true, cacheTtlMs: 0 }),
+        get('/notices/payments/pending', token, { forceRefresh: true, cacheTtlMs: 0 })
       ]);
 
       if (classResult.status === 'fulfilled') {
@@ -95,6 +125,13 @@ export default function AdminNoticesPage() {
       } else {
         setNotices([]);
         toast.error(noticeResult.reason?.message || 'Failed to load notices');
+      }
+
+      if (pendingPaymentResult.status === 'fulfilled') {
+        setPendingNoticePayments(Array.isArray(pendingPaymentResult.value?.data) ? pendingPaymentResult.value.data : []);
+      } else {
+        setPendingNoticePayments([]);
+        toast.error(pendingPaymentResult.reason?.message || 'Failed to load pending notice payments');
       }
     } finally {
       setLoading(false);
@@ -294,6 +331,31 @@ export default function AdminNoticesPage() {
       toast.error(apiError.message || 'Failed to publish notice');
     } finally {
       setProcessingId('');
+    }
+  };
+
+  const onVerifyNoticePayment = async (paymentId, decision) => {
+    if (!paymentId) {
+      return;
+    }
+
+    const notes = decision === 'REJECT'
+      ? window.prompt('Optional reason for rejection:', '') || ''
+      : '';
+
+    setVerifyingPaymentId(paymentId);
+    try {
+      await post(`/notices/payments/${paymentId}/verify`, {
+        decision,
+        notes: String(notes).trim()
+      }, getToken());
+
+      toast.success(decision === 'APPROVE' ? 'Notice payment verified' : 'Notice payment rejected');
+      await loadData();
+    } catch (apiError) {
+      toast.error(apiError.message || 'Failed to update notice payment verification');
+    } finally {
+      setVerifyingPaymentId('');
     }
   };
 
@@ -545,6 +607,101 @@ export default function AdminNoticesPage() {
                           className="rounded bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-amber-100 bg-white shadow-sm">
+        <div className="border-b border-amber-100 px-4 py-3 md:px-5">
+          <h2 className="text-base font-semibold text-slate-900">Notice Payment Verification Queue</h2>
+          <p className="text-xs text-slate-600">Approve or reject screenshots submitted for payment-related notices.</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-[1100px] w-full text-sm">
+            <thead className="bg-amber-600 text-amber-50">
+              <tr>
+                <th className="px-3 py-3 text-left font-semibold">Notice</th>
+                <th className="px-3 py-3 text-left font-semibold">Student</th>
+                <th className="px-3 py-3 text-left font-semibold">Amount</th>
+                <th className="px-3 py-3 text-left font-semibold">Submitted At</th>
+                <th className="px-3 py-3 text-left font-semibold">Reference</th>
+                <th className="px-3 py-3 text-left font-semibold">Status</th>
+                <th className="px-3 py-3 text-left font-semibold">Screenshot</th>
+                <th className="px-3 py-3 text-left font-semibold">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">Loading payment submissions...</td>
+                </tr>
+              ) : pendingNoticePayments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">No pending notice payments.</td>
+                </tr>
+              ) : pendingNoticePayments.map((payment, rowIndex) => {
+                const paymentId = toId(payment);
+                const isRowBusy = verifyingPaymentId === paymentId;
+                const student = payment?.studentId || {};
+                const studentUser = student?.userId || {};
+                const classInfo = student?.classId || {};
+                const status = normalizeNoticePaymentStatus(payment?.paymentStatus);
+                const screenshotPath = String(payment?.screenshotPath || '').trim();
+
+                return (
+                  <tr key={paymentId} className={rowIndex % 2 === 1 ? 'bg-amber-50/20' : ''}>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <p className="font-semibold text-slate-900">{payment?.noticeId?.title || '-'}</p>
+                      <p className="mt-1 text-xs text-slate-600">Due: {formatDateLabel(payment?.noticeId?.dueDate)}</p>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <p className="font-semibold text-slate-900">{studentUser?.name || '-'}</p>
+                      <p className="mt-1 text-xs text-slate-600">Adm: {student?.admissionNo || '-'} | Class: {formatClassLabel(classInfo, 'Class')}</p>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">INR {Number(payment?.amount || 0)}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{formatDateTimeLabel(payment?.paymentDate || payment?.createdAt)}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{payment?.transactionReference || '-'}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{status || '-'}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      {screenshotPath ? (
+                        <a
+                          href={screenshotPath}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded bg-slate-800 px-2 py-1 text-[11px] font-semibold text-white hover:bg-slate-900"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-500">Not available</span>
+                      )}
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onVerifyNoticePayment(paymentId, 'APPROVE')}
+                          disabled={isRowBusy}
+                          className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onVerifyNoticePayment(paymentId, 'REJECT')}
+                          disabled={isRowBusy}
+                          className="rounded bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                          Reject
                         </button>
                       </div>
                     </td>
