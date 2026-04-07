@@ -15,7 +15,7 @@ router.post(
   [
     body('title').notEmpty().withMessage('Title is required'),
     body('description').notEmpty().withMessage('Description is required'),
-    body('recipientRole').optional().isIn(['student', 'teacher']).withMessage('Recipient role must be student or teacher'),
+    body('recipientRole').optional().isIn(['student', 'teacher', 'all']).withMessage('Recipient role must be student, teacher, or all'),
     body('classIds').optional().isArray().withMessage('classIds must be an array'),
     body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
     body('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),
@@ -120,7 +120,7 @@ router.get(
   [
     query('status').optional().isIn(['Active', 'Expired']).withMessage('Status must be Active or Expired'),
     query('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),
-    query('recipientRole').optional().isIn(['student', 'teacher']).withMessage('Recipient role must be student or teacher'),
+    query('recipientRole').optional().isIn(['student', 'teacher', 'all']).withMessage('Recipient role must be student, teacher, or all'),
     query('classId').optional().isMongoId().withMessage('Class is invalid'),
     query('isImportant').optional().isIn(['true', 'false']).withMessage('isImportant must be true or false'),
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be at least 1'),
@@ -138,7 +138,7 @@ router.put(
     param('id').isMongoId().withMessage('Notice is invalid'),
     body('title').optional().notEmpty().withMessage('Title cannot be empty'),
     body('description').optional().notEmpty().withMessage('Description cannot be empty'),
-    body('recipientRole').optional().isIn(['student', 'teacher']).withMessage('Recipient role must be student or teacher'),
+    body('recipientRole').optional().isIn(['student', 'teacher', 'all']).withMessage('Recipient role must be student, teacher, or all'),
     body('classIds').optional().isArray().withMessage('classIds must be an array'),
     body('classIds.*').optional().isMongoId().withMessage('Invalid class selected'),
     body('noticeType').optional().isIn(['General', 'Payment']).withMessage('Notice type must be General or Payment'),

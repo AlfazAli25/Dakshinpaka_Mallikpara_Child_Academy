@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const NOTICE_TYPES = ['General', 'Payment'];
 const NOTICE_STATUS = ['Active', 'Expired'];
-const RECIPIENT_ROLES = ['student', 'teacher'];
+const RECIPIENT_ROLES = ['student', 'teacher', 'all'];
 
 const noticeSchema = new mongoose.Schema(
   {
@@ -43,8 +43,12 @@ noticeSchema.pre('validate', function preValidateNotice(next) {
     this.classIds = [];
   }
 
+  if (this.recipientRole === 'all') {
+    this.classIds = [];
+  }
+
   if (this.noticeType === 'Payment') {
-    if (this.recipientRole === 'teacher') {
+    if (this.recipientRole !== 'student') {
       this.invalidate('noticeType', 'Payment notices can only be issued to students');
     }
 

@@ -140,7 +140,7 @@ const validateNoticeInput = async ({ payload = {}, existingNotice = null } = {})
     throw createHttpError(400, `Recipient role must be one of: ${Notice.RECIPIENT_ROLES.join(', ')}`);
   }
 
-  if (nextRecipientRole === 'teacher' && nextNoticeType === 'Payment') {
+  if (nextRecipientRole !== 'student' && nextNoticeType === 'Payment') {
     throw createHttpError(400, 'Payment notices can only be issued to students');
   }
 
@@ -149,7 +149,7 @@ const validateNoticeInput = async ({ payload = {}, existingNotice = null } = {})
     throw createHttpError(400, `Status must be one of: ${Notice.NOTICE_STATUS.join(', ')}`);
   }
 
-  const normalizedClassIds = normalizeClassIds(payload.classIds);
+  const normalizedClassIds = nextRecipientRole === 'all' ? [] : normalizeClassIds(payload.classIds);
   const nextClassIds = normalizedClassIds !== undefined
     ? normalizedClassIds
     : Array.isArray(existingNotice?.classIds)
@@ -285,6 +285,7 @@ const getStudentNotices = asyncHandler(async (req, res) => {
       {
         $or: [
           { recipientRole: 'student' },
+          { recipientRole: 'all' },
           { recipientRole: { $exists: false } }
         ]
       },
@@ -384,7 +385,7 @@ const getTeacherNotices = asyncHandler(async (req, res) => {
 
   const filter = {
     status: 'Active',
-    recipientRole: 'teacher',
+    recipientRole: { $in: ['teacher', 'all'] },
     $or: classScopeOr
   };
 

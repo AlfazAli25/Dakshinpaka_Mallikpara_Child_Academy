@@ -11,7 +11,8 @@ import { useToast } from '@/lib/toast-context';
 const NOTICE_TYPES = ['General', 'Payment'];
 const RECIPIENT_ROLES = [
   { value: 'student', label: 'Students' },
-  { value: 'teacher', label: 'Teachers' }
+  { value: 'teacher', label: 'Teachers' },
+  { value: 'all', label: 'All' }
 ];
 
 const getInitialForm = () => ({
@@ -302,11 +303,12 @@ export default function AdminNoticesPage() {
 
       if (field === 'recipientRole') {
         const nextRecipientRole = String(nextValue || 'student');
-        const enforceGeneralType = nextRecipientRole === 'teacher' && prev.noticeType === 'Payment';
+        const enforceGeneralType = nextRecipientRole !== 'student' && prev.noticeType === 'Payment';
 
         return {
           ...prev,
           recipientRole: nextRecipientRole,
+          classIds: nextRecipientRole === 'all' ? [] : prev.classIds,
           noticeType: enforceGeneralType ? 'General' : prev.noticeType,
           amount: enforceGeneralType ? '' : prev.amount,
           dueDate: enforceGeneralType ? '' : prev.dueDate
@@ -364,7 +366,7 @@ export default function AdminNoticesPage() {
       return;
     }
 
-    if (form.recipientRole === 'teacher' && form.noticeType === 'Payment') {
+    if (form.recipientRole !== 'student' && form.noticeType === 'Payment') {
       toast.error('Payment notices can only be issued to students');
       return;
     }
@@ -376,7 +378,7 @@ export default function AdminNoticesPage() {
         title,
         description,
         recipientRole: form.recipientRole,
-        classIds: form.classIds,
+        classIds: form.recipientRole === 'all' ? [] : form.classIds,
         noticeType: form.noticeType,
         amount: form.noticeType === 'Payment' ? amount : undefined,
         dueDate: form.noticeType === 'Payment' && form.dueDate ? form.dueDate : undefined,
@@ -409,10 +411,12 @@ export default function AdminNoticesPage() {
       title: String(notice?.title || ''),
       description: String(notice?.description || ''),
       recipientRole: nextRecipientRole,
-      classIds: Array.isArray(notice?.classIds)
+      classIds: nextRecipientRole === 'all'
+        ? []
+        : Array.isArray(notice?.classIds)
         ? notice.classIds.map((item) => toId(item)).filter(Boolean)
         : [],
-      noticeType: nextRecipientRole === 'teacher' && nextNoticeType === 'Payment' ? 'General' : nextNoticeType,
+      noticeType: nextRecipientRole !== 'student' && nextNoticeType === 'Payment' ? 'General' : nextNoticeType,
       amount: notice?.amount !== undefined && notice?.amount !== null ? String(notice.amount) : '',
       dueDate: toDateInputValue(notice?.dueDate),
       isImportant: Boolean(notice?.isImportant),
@@ -577,7 +581,12 @@ export default function AdminNoticesPage() {
     const ids = Array.isArray(notice?.classIds)
       ? notice.classIds.map((item) => toId(item)).filter(Boolean)
       : [];
-    const isTeacherNotice = String(notice?.recipientRole || 'student') === 'teacher';
+    const recipientRole = String(notice?.recipientRole || 'student');
+    const isTeacherNotice = recipientRole === 'teacher';
+
+    if (recipientRole === 'all') {
+      return '-';
+    }
 
     if (ids.length === 0) {
       return isTeacherNotice ? 'All Teachers' : 'All Classes';
@@ -591,7 +600,7 @@ export default function AdminNoticesPage() {
       <PageHeader
         eyebrow="Administration"
         title="Notice Management"
-        description="Create notices for students or teachers, mark important updates, and collect notice-specific payments."
+        description="Create notices for students, teachers, or everyone, mark important updates, and collect notice-specific payments."
       />
 
       <form onSubmit={onSubmit} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
@@ -613,7 +622,7 @@ export default function AdminNoticesPage() {
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
             >
               {NOTICE_TYPES.map((item) => {
-                const disabled = form.recipientRole === 'teacher' && item === 'Payment';
+                const disabled = form.recipientRole !== 'student' && item === 'Payment';
                 return (
                   <option key={item} value={item} disabled={disabled}>
                     {disabled ? 'Payment (Students only)' : item}
@@ -651,48 +660,54 @@ export default function AdminNoticesPage() {
           />
         </label>
 
-        <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">
-              {form.recipientRole === 'teacher' ? 'Target Teacher Classes' : 'Target Classes'}
+        {form.recipientRole === 'all' ? (
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            This notice will be sent to all students and teachers. Class selection is not required.
+          </div>
+        ) : (
+          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-700">
+                {form.recipientRole === 'teacher' ? 'Target Teacher Classes' : 'Target Classes'}
+              </p>
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={allClassesSelected}
+                  onChange={onToggleAllClasses}
+                  disabled={saving}
+                  className="h-4 w-4"
+                />
+                {form.recipientRole === 'teacher' ? 'All Teachers' : 'All Classes'}
+              </label>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {classes.map((classItem) => {
+                const classId = toId(classItem);
+                const checked = form.classIds.includes(classId);
+
+                return (
+                  <label key={classId} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleClass(classId)}
+                      disabled={saving}
+                      className="h-4 w-4"
+                    />
+                    <span>{formatClassLabel(classItem, 'Class')}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {form.recipientRole === 'teacher'
+                ? 'Leave class selection empty (All Teachers checked) to publish to every teacher.'
+                : 'Leave class selection empty (All Classes checked) to publish to every class.'}
             </p>
-            <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={allClassesSelected}
-                onChange={onToggleAllClasses}
-                disabled={saving}
-                className="h-4 w-4"
-              />
-              {form.recipientRole === 'teacher' ? 'All Teachers' : 'All Classes'}
-            </label>
           </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {classes.map((classItem) => {
-              const classId = toId(classItem);
-              const checked = form.classIds.includes(classId);
-
-              return (
-                <label key={classId} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggleClass(classId)}
-                    disabled={saving}
-                    className="h-4 w-4"
-                  />
-                  <span>{formatClassLabel(classItem, 'Class')}</span>
-                </label>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            {form.recipientRole === 'teacher'
-              ? 'Leave class selection empty (All Teachers checked) to publish to every teacher.'
-              : 'Leave class selection empty (All Classes checked) to publish to every class.'}
-          </p>
-        </div>
+        )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {form.noticeType === 'Payment' ? (
@@ -801,6 +816,7 @@ export default function AdminNoticesPage() {
                 const noticeId = toId(notice);
                 const isRowBusy = processingId === noticeId;
                 const isActive = String(notice?.status || '') === 'Active';
+                const recipientRole = String(notice?.recipientRole || 'student');
 
                 return (
                   <tr key={noticeId} className={rowIndex % 2 === 1 ? 'bg-red-50/20' : ''}>
@@ -809,7 +825,7 @@ export default function AdminNoticesPage() {
                       <p className="mt-1 text-xs text-slate-600">{notice?.description || '-'}</p>
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">
-                      {String(notice?.recipientRole || 'student') === 'teacher' ? 'Teachers' : 'Students'}
+                      {recipientRole === 'teacher' ? 'Teachers' : recipientRole === 'all' ? 'All' : 'Students'}
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">{notice?.noticeType || '-'}</td>
                     <td className="border-t border-slate-100 px-3 py-3">{getClassLabelForNotice(notice)}</td>
