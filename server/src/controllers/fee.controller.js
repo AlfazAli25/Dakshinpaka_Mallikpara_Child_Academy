@@ -7,9 +7,53 @@ const base = createCrudController(feeService, 'Fee');
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ''));
 
+const toPositiveInt = (value, fallback) => {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+
+	return Math.floor(parsed);
+};
+
+const parsePagination = (query = {}) => {
+	const rawPage = query.page ?? query._page;
+	const rawLimit = query.limit ?? query._limit;
+	if (rawPage === undefined && rawLimit === undefined) {
+		return { hasPagination: false, page: 1, limit: 0 };
+	}
+
+	return {
+		hasPagination: true,
+		page: toPositiveInt(rawPage, 1),
+		limit: Math.min(toPositiveInt(rawLimit, 20), 200)
+	};
+};
+
 const list = asyncHandler(async (req, res) => {
+	const query = req.query || {};
+	const pagination = parsePagination(query);
+
 	if (req.user?.role === 'admin') {
-		const data = await feeService.findAll(req.query || {});
+		if (pagination.hasPagination && typeof feeService.countDocuments === 'function') {
+			const [data, total] = await Promise.all([
+				feeService.findAll(query),
+				feeService.countDocuments(query)
+			]);
+
+			return res.json({
+				success: true,
+				data,
+				pagination: {
+					page: pagination.page,
+					limit: pagination.limit,
+					total,
+					totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+				}
+			});
+		}
+
+		const data = await feeService.findAll(query);
 		return res.json({ success: true, data });
 	}
 
@@ -19,7 +63,26 @@ const list = asyncHandler(async (req, res) => {
 			return res.json({ success: true, data: [] });
 		}
 
-		const data = await feeService.findAll({ studentId: student._id });
+		const filter = { ...query, studentId: student._id };
+		if (pagination.hasPagination && typeof feeService.countDocuments === 'function') {
+			const [data, total] = await Promise.all([
+				feeService.findAll(filter),
+				feeService.countDocuments(filter)
+			]);
+
+			return res.json({
+				success: true,
+				data,
+				pagination: {
+					page: pagination.page,
+					limit: pagination.limit,
+					total,
+					totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+				}
+			});
+		}
+
+		const data = await feeService.findAll(filter);
 		return res.json({ success: true, data });
 	}
 
