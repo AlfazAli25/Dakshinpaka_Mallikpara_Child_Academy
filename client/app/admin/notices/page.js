@@ -90,6 +90,8 @@ export default function AdminNoticesPage() {
   const [students, setStudents] = useState([]);
   const [notices, setNotices] = useState([]);
   const [pendingNoticePayments, setPendingNoticePayments] = useState([]);
+  const [selectedNoticePayments, setSelectedNoticePayments] = useState([]);
+  const [loadingSelectedNoticePayments, setLoadingSelectedNoticePayments] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState('');
@@ -125,6 +127,18 @@ export default function AdminNoticesPage() {
     return Array.from(new Set(ids));
   }, [selectedCashNotice]);
 
+  const paidStudentIdsForSelectedNotice = useMemo(() => {
+    const paidStudentIds = new Set();
+    selectedNoticePayments.forEach((item) => {
+      const normalizedStatus = normalizeNoticePaymentStatus(item?.paymentStatus);
+      if (normalizedStatus === 'VERIFIED') {
+        paidStudentIds.add(toId(item?.studentId));
+      }
+    });
+
+    return paidStudentIds;
+  }, [selectedNoticePayments]);
+
   const scopedStudentOptions = useMemo(() => {
     if (!selectedCashNotice) {
       return [];
@@ -132,12 +146,16 @@ export default function AdminNoticesPage() {
 
     // Empty classIds means notice is published for all classes.
     if (selectedNoticeClassIds.length === 0) {
-      return studentOptions;
+      return studentOptions.filter((item) => !paidStudentIdsForSelectedNotice.has(toId(item)));
     }
 
     const allowedClassIds = new Set(selectedNoticeClassIds);
-    return studentOptions.filter((item) => allowedClassIds.has(toId(item?.classId)));
-  }, [selectedCashNotice, selectedNoticeClassIds, studentOptions]);
+    return studentOptions.filter((item) => {
+      const classId = toId(item?.classId);
+      const studentId = toId(item);
+      return allowedClassIds.has(classId) && !paidStudentIdsForSelectedNotice.has(studentId);
+    });
+  }, [selectedCashNotice, selectedNoticeClassIds, studentOptions, paidStudentIdsForSelectedNotice]);
 
   const classLabelMap = useMemo(
     () => classes.reduce((acc, item) => {
@@ -195,6 +213,61 @@ export default function AdminNoticesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const noticeId = String(cashPaymentForm.noticeId || '').trim();
+    if (!noticeId) {
+      setSelectedNoticePayments([]);
+      setLoadingSelectedNoticePayments(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadNoticePayments = async () => {
+      setLoadingSelectedNoticePayments(true);
+      try {
+        const response = await get(`/notices/payments/by-notice?noticeId=${noticeId}`, getToken(), {
+          forceRefresh: true,
+          cacheTtlMs: 0
+        });
+
+        if (!cancelled) {
+          setSelectedNoticePayments(Array.isArray(response?.data) ? response.data : []);
+        }
+      } catch (apiError) {
+        if (!cancelled) {
+          setSelectedNoticePayments([]);
+          toast.error(apiError.message || 'Failed to load notice payment records');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSelectedNoticePayments(false);
+        }
+      }
+    };
+
+    loadNoticePayments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cashPaymentForm.noticeId, toast]);
+
+  useEffect(() => {
+    const selectedStudentId = String(cashPaymentForm.studentId || '').trim();
+    if (!selectedStudentId) {
+      return;
+    }
+
+    const isStillValid = scopedStudentOptions.some((item) => toId(item) === selectedStudentId);
+    if (!isStillValid) {
+      setCashPaymentForm((prev) => ({
+        ...prev,
+        studentId: ''
+      }));
+    }
+  }, [cashPaymentForm.studentId, scopedStudentOptions]);
 
   const resetForm = () => {
     setForm(getInitialForm());
@@ -756,16 +829,22 @@ export default function AdminNoticesPage() {
               <select
                 value={cashPaymentForm.studentId}
                 onChange={onCashPaymentFieldChange('studentId')}
-                disabled={loading || recordingCashPayment || !cashPaymentForm.noticeId}
+                disabled={loading || recordingCashPayment || loadingSelectedNoticePayments || !cashPaymentForm.noticeId}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
               >
-                <option value="">{cashPaymentForm.noticeId ? 'Select student' : 'Select payment notice first'}</option>
+                <option value="">
+                  {!cashPaymentForm.noticeId
+                    ? 'Select payment notice first'
+                    : loadingSelectedNoticePayments
+                      ? 'Loading students...'
+                      : 'Select student'}
+                </option>
                 {scopedStudentOptions.map((student) => (
                   <option key={toId(student)} value={toId(student)}>
                     {`${student?.userId?.name || '-'} | Adm ${student?.admissionNo || '-'} | ${formatClassLabel(student?.classId, 'Class')}`}
                   </option>
                 ))}
-                {cashPaymentForm.noticeId && scopedStudentOptions.length === 0 ? (
+                {cashPaymentForm.noticeId && !loadingSelectedNoticePayments && scopedStudentOptions.length === 0 ? (
                   <option value="" disabled>No students found for selected notice classes</option>
                 ) : null}
               </select>
@@ -804,7 +883,7 @@ export default function AdminNoticesPage() {
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
-              disabled={loading || recordingCashPayment}
+              disabled={loading || recordingCashPayment || loadingSelectedNoticePayments}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {recordingCashPayment ? 'Recording...' : 'Record Cash Payment'}

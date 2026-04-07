@@ -326,6 +326,23 @@ const listPendingNoticePayments = asyncHandler(async (_req, res) => {
   });
 });
 
+const listNoticePaymentsByNotice = asyncHandler(async (req, res) => {
+  const noticeId = String(req.query?.noticeId || '').trim();
+
+  if (!mongoose.Types.ObjectId.isValid(noticeId)) {
+    throw createHttpError(400, 'Notice is invalid');
+  }
+
+  const paymentItems = await NoticePayment.find({ noticeId })
+    .select('studentId paymentStatus paymentDate verifiedAt createdAt')
+    .lean();
+
+  res.json({
+    success: true,
+    data: paymentItems.map(mapPaymentForResponse)
+  });
+});
+
 const verifyNoticePayment = asyncHandler(async (req, res) => {
   const paymentId = String(req.params?.paymentId || '').trim();
   const decision = String(req.body?.decision || '').trim().toUpperCase();
@@ -382,5 +399,6 @@ module.exports = {
   payNotice,
   recordCashNoticePayment,
   listPendingNoticePayments,
+  listNoticePaymentsByNotice,
   verifyNoticePayment
 };

@@ -62,6 +62,15 @@ router.get(
   noticePaymentController.listPendingNoticePayments
 );
 
+router.get(
+  '/payments/by-notice',
+  protect,
+  requireRole(['admin']),
+  [query('noticeId').notEmpty().withMessage('Notice is required').bail().isMongoId().withMessage('Notice is invalid')],
+  validate,
+  noticePaymentController.listNoticePaymentsByNotice
+);
+
 router.post(
   '/payments/cash',
   protect,
