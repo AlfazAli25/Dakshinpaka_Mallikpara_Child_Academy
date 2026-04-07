@@ -24,8 +24,7 @@ const text = {
       { key: 'paymentFor', label: 'Payment For' },
       { key: 'amount', label: 'Amount' },
       { key: 'screenshotStatus', label: 'Screenshot Status' },
-      { key: 'verificationStatus', label: 'Verification Status' },
-      { key: 'action', label: 'Action' }
+      { key: 'verificationStatus', label: 'Verification Status' }
     ],
     downloadReceipt: 'Download Receipt',
     downloadingReceipt: 'Downloading...',
@@ -50,8 +49,7 @@ const text = {
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
       { key: 'amount', label: 'পরিমাণ' },
       { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
-      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' },
-      { key: 'action', label: 'অ্যাকশন' }
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
     ],
     downloadReceipt: 'রিসিপ্ট ডাউনলোড',
     downloadingReceipt: 'ডাউনলোড হচ্ছে...',
@@ -155,7 +153,7 @@ export default function StudentFeesPage() {
     setDownloadingReceiptPaymentId(normalizedPaymentId);
 
     try {
-      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 60000 });
+      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
       const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
     } catch (error) {
@@ -184,15 +182,6 @@ export default function StudentFeesPage() {
         ]);
 
         const receiptRows = Array.isArray(receiptResponse?.data) ? receiptResponse.data : [];
-        const feeReceiptByPaymentId = new Map(
-          receiptRows
-            .filter(
-              (item) =>
-                String(item?.receiptType || '').toUpperCase() === 'FEE' &&
-                String(item?.paymentId || '').trim()
-            )
-            .map((item) => [String(item.paymentId), item])
-        );
 
         const feeRows = (response.data || [])
           .slice()
@@ -215,8 +204,6 @@ export default function StudentFeesPage() {
 
         const paymentRows = (paymentHistoryResponse.data || []).map((item) => {
           const sourceType = String(item?.sourceType || '').toUpperCase();
-          const paymentId = sourceType === 'FEE' ? String(item?._id || '') : '';
-          const linkedReceipt = paymentId ? feeReceiptByPaymentId.get(paymentId) : null;
 
           return {
             id: item._id,
@@ -226,10 +213,7 @@ export default function StudentFeesPage() {
               (sourceType === 'NOTICE' ? 'Notice Payment' : 'Fee Payment'),
             amount: `INR ${item.amount || 0}`,
             screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
-            verificationStatus: mapVerificationStatus(item.paymentStatus),
-            paymentId,
-            canDownloadReceipt: Boolean(paymentId),
-            receiptNumber: linkedReceipt?.receiptNumber || ''
+            verificationStatus: mapVerificationStatus(item.paymentStatus)
           };
         });
 
@@ -253,26 +237,6 @@ export default function StudentFeesPage() {
     [rows]
   );
 
-  const paymentHistoryRows = paymentHistory.map((item) => ({
-    ...item,
-    action: item.canDownloadReceipt ? (
-      <button
-        type="button"
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          downloadReceiptPdf(item.paymentId, item.receiptNumber);
-        }}
-        disabled={downloadingReceiptPaymentId === item.paymentId}
-        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-      >
-        {downloadingReceiptPaymentId === item.paymentId ? t.downloadingReceipt : t.downloadReceipt}
-      </button>
-    ) : (
-      <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
-    )
-  }));
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -292,21 +256,18 @@ export default function StudentFeesPage() {
         }
       />
       <p className="text-sm font-medium text-slate-700">{t.monthlyFeeLabel}: INR {MONTHLY_FEE_AMOUNT}</p>
-      <Table columns={t.columns} rows={rows} loading={loading} scrollY maxHeightClass="max-h-[276px]" />
+      <Table columns={t.columns} rows={rows} loading={loading} scrollY maxHeightClass="max-h-[288px]" />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">{t.paymentHistoryTitle}</h3>
         <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
         <Table
           columns={t.paymentHistoryColumns}
-          rows={paymentHistoryRows}
+          rows={paymentHistory}
           loading={loading}
           scrollY
-          maxHeightClass="max-h-[320px]"
+          maxHeightClass="max-h-[288px]"
         />
-        {receiptDownloadError ? (
-          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
-        ) : null}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -352,6 +313,9 @@ export default function StudentFeesPage() {
             })}
           </div>
         )}
+        {receiptDownloadError ? (
+          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
+        ) : null}
       </div>
     </div>
   );

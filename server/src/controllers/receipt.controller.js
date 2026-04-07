@@ -58,6 +58,7 @@ const downloadStudentFeeReceipt = asyncHandler(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Length', Buffer.byteLength(pdfBuffer));
   res.setHeader('Cache-Control', 'no-store');
   res.send(pdfBuffer);
 });

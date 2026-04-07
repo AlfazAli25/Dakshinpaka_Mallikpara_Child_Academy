@@ -565,9 +565,9 @@ export default function TeacherMarksPage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-red-700 text-left">
+            <thead className="sticky top-0 z-10 bg-red-700 text-left">
               <tr>
                 <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>

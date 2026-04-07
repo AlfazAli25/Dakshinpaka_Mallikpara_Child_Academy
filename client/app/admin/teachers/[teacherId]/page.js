@@ -597,7 +597,7 @@ export default function TeacherProfilePage() {
         <Table
           columns={salaryColumns}
           scrollY
-          maxHeightClass="max-h-[340px]"
+          maxHeightClass="max-h-[288px]"
           rows={(profile.salaryHistory || []).map((item) => ({
             id: item._id,
             month: item.month,

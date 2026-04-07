@@ -40,8 +40,8 @@ function Table({
   loading = false,
   skeletonRowCount = 6,
   scrollY = false,
-  maxHeightClass = 'max-h-[312px]',
-  autoScrollThreshold = 10
+  maxHeightClass = 'max-h-[288px]',
+  autoScrollThreshold = 5
 }) {
   const router = useRouter();
 

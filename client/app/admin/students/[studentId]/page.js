@@ -408,7 +408,7 @@ export default function StudentProfilePage() {
         <Table
           columns={feeColumns}
           scrollY
-          maxHeightClass="max-h-[360px]"
+          maxHeightClass="max-h-[288px]"
           rows={(profile.fees || [])
             .map((item) => ({
               id: item._id,
@@ -429,7 +429,7 @@ export default function StudentProfilePage() {
         <Table
           columns={paymentColumns}
           scrollY
-          maxHeightClass="max-h-[320px]"
+          maxHeightClass="max-h-[288px]"
           rows={paymentRows}
         />
       </div>

@@ -85,9 +85,9 @@ export default function StudentTimetablePage() {
       />
 
       <section className="rounded-2xl border border-red-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-red-700 text-red-50">
+            <thead className="sticky top-0 z-10 bg-red-700 text-red-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">{t.dayPeriod}</th>
                 {TIMETABLE_PERIODS.map((periodNumber) => (

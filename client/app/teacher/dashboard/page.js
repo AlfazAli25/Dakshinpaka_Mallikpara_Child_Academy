@@ -431,7 +431,7 @@ export default function TeacherDashboardPage() {
           rows={salaryRows}
           loading={loading}
           scrollY
-          maxHeightClass="max-h-[340px]"
+          maxHeightClass="max-h-[288px]"
         />
       </div>
 

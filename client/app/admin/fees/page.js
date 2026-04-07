@@ -391,7 +391,7 @@ export default function AdminFeesPage() {
           columns={verificationColumns}
           loading={loadingData}
           scrollY
-          maxHeightClass="max-h-[320px]"
+          maxHeightClass="max-h-[288px]"
           rows={filteredPendingVerifications.map((item) => ({
             id: item._id,
             studentAdmissionNo: item.studentId?.admissionNo || '-',

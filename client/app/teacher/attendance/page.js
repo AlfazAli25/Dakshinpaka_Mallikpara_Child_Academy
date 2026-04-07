@@ -581,9 +581,9 @@ export default function TeacherAttendancePage() {
             <p className="mb-3 text-sm text-slate-600">Attendance already saved for this date. Click Edit Attendance to modify.</p>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-red-700 text-left text-red-50">
+              <thead className="sticky top-0 z-10 bg-red-700 text-left text-red-50">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Roll Number</th>
                   <th className="px-4 py-3 font-semibold">Student Name</th>

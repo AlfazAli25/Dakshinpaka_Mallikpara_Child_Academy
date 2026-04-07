@@ -810,9 +810,9 @@ export default function AdminNoticesPage() {
           <p className="text-xs text-slate-600">Review, edit, expire, publish, or delete notices.</p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-red-700 text-red-50">
+            <thead className="sticky top-0 z-10 bg-red-700 text-red-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Title</th>
                 <th className="px-3 py-3 text-left font-semibold">Audience</th>
@@ -1014,9 +1014,9 @@ export default function AdminNoticesPage() {
           <p className="text-xs text-slate-600">Approve or reject screenshots submitted for payment-related notices.</p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="bg-amber-600 text-amber-50">
+            <thead className="sticky top-0 z-10 bg-amber-600 text-amber-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Notice</th>
                 <th className="px-3 py-3 text-left font-semibold">Student</th>
@@ -1109,9 +1109,9 @@ export default function AdminNoticesPage() {
           <p className="text-xs text-slate-600">All notice payment records including verified, pending, and rejected statuses.</p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1300px] w-full text-sm">
-            <thead className="bg-blue-700 text-blue-50">
+            <thead className="sticky top-0 z-10 bg-blue-700 text-blue-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Notice</th>
                 <th className="px-3 py-3 text-left font-semibold">Student</th>

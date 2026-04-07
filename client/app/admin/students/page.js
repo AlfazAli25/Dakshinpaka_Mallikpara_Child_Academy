@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
@@ -52,6 +52,7 @@ const requiredLabel = (label) => (
 
 export default function AdminStudentsPage() {
   const pathname = usePathname();
+  const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(getInitialStudentForm());
@@ -109,6 +110,11 @@ export default function AdminStudentsPage() {
         id: String(item._id),
         profileId: item.isLinkedRecord ? String(item._id) : '',
         userProfileId: item.userId?._id ? String(item.userId._id) : '',
+        profileHref: item.isLinkedRecord
+          ? `/admin/students/${String(item._id)}`
+          : item.userId?._id
+            ? `/admin/students/user/${String(item.userId._id)}`
+            : '',
         admissionNo: item.admissionNo || '-',
         name: item.userId?.name || '-',
         className: formatClassLabel(item.classId),
@@ -119,19 +125,34 @@ export default function AdminStudentsPage() {
         mapped.map((row) => ({
           ...row,
           actions: (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                if (!row.userProfileId) {
-                  return;
-                }
-                openDeleteDialog(row);
-              }}
-              className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Remove
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!row.profileHref) {
+                    return;
+                  }
+                  router.push(row.profileHref);
+                }}
+                className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!row.userProfileId) {
+                    return;
+                  }
+                  openDeleteDialog(row);
+                }}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Remove
+              </button>
+            </div>
           )
         }))
       );
@@ -147,7 +168,7 @@ export default function AdminStudentsPage() {
         setLoadingStudents(false);
       }
     }
-  }, [openDeleteDialog]);
+  }, [openDeleteDialog, router]);
 
   const loadClasses = useCallback(async () => {
     const response = await get('/classes', getToken(), {
@@ -479,9 +500,7 @@ export default function AdminStudentsPage() {
         columns={columns}
         rows={filteredRows}
         loading={loadingStudents}
-        getRowHref={(row) =>
-          row.profileId ? `/admin/students/${row.profileId}` : row.userProfileId ? `/admin/students/user/${row.userProfileId}` : ''
-        }
+        getRowHref={(row) => row.profileHref || ''}
       />
 
       {deleteTarget && (

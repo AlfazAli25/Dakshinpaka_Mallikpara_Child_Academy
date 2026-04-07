@@ -354,7 +354,7 @@ export default function StudentCheckoutPage() {
         )}
       </div>
 
-      <Table columns={checkoutColumns} rows={checkoutHistory} loading={loading} scrollY maxHeightClass="max-h-[320px]" />
+      <Table columns={checkoutColumns} rows={checkoutHistory} loading={loading} scrollY maxHeightClass="max-h-[288px]" />
     </div>
   );
 }

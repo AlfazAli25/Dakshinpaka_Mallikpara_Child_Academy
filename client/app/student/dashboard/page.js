@@ -19,6 +19,8 @@ const text = {
     eyebrow: 'Student Portal',
     title: 'Student Dashboard',
     description: 'Track your attendance, exams, and fee status from a single place.',
+    profilePhotoTitle: 'Student Photo',
+    profilePhotoFallback: 'Using default profile photo',
     detailsTitle: 'Student Details',
     fields: {
       name: 'Name',
@@ -59,6 +61,8 @@ const text = {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
     title: 'স্টুডেন্ট ড্যাশবোর্ড',
     description: 'এক জায়গায় উপস্থিতি, পরীক্ষা ও ফি দেখুন।',
+    profilePhotoTitle: 'শিক্ষার্থীর ছবি',
+    profilePhotoFallback: 'ডিফল্ট প্রোফাইল ছবি ব্যবহার হচ্ছে',
     detailsTitle: 'শিক্ষার্থীর তথ্য',
     fields: {
       name: 'নাম',
@@ -297,7 +301,7 @@ export default function StudentDashboardPage() {
     setReceiptDownloadError('');
     setDownloadingReceiptPaymentId(normalizedPaymentId);
     try {
-      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 60000 });
+      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
       const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
     } catch (error) {
@@ -328,6 +332,29 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
+
+      {studentProfile ? (
+        <div className="flex justify-center">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-center text-sm font-semibold text-slate-700">{t.profilePhotoTitle}</p>
+            <div className="mt-3 flex justify-center">
+              <div className="h-28 w-28 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
+                <img
+                  src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
+                  alt="Student profile"
+                  className="h-full w-full object-cover"
+                  onError={(event) => {
+                    event.currentTarget.src = '/default-student-avatar.svg';
+                  }}
+                />
+              </div>
+            </div>
+            <p className="mt-3 text-center text-xs text-slate-500">
+              {studentProfile?.profileImageUrl ? (studentProfile?.admissionNo || '-') : t.profilePhotoFallback}
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
 
