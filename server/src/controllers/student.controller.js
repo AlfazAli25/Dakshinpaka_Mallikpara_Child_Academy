@@ -159,6 +159,15 @@ const listByClass = asyncHandler(async (req, res) => {
 	return res.status(403).json({ success: false, message: 'Forbidden' });
 });
 
+const create = asyncHandler(async (req, res) => {
+	const item = await studentService.create({
+		...(req.body || {}),
+		studentPhotoFile: req.file || null
+	});
+
+	return res.status(201).json({ success: true, data: item });
+});
+
 const getAdminProfile = asyncHandler(async (req, res) => {
 	const profile = await studentService.getAdminProfile(req.params.id);
 	res.json({ success: true, data: profile });
@@ -180,6 +189,7 @@ const removeByUserId = asyncHandler(async (req, res) => {
 
 module.exports = {
 	...base,
+	create,
 	list,
 	listByClass,
 	getMyProfile,

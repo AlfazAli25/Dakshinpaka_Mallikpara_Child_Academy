@@ -3,6 +3,7 @@ const { body, param } = require('express-validator');
 const { protect, requireRole } = require('../middleware/auth.middleware');
 const controller = require('../controllers/student.controller');
 const validate = require('../middleware/validate.middleware');
+const { profilePhotoUpload } = require('../middleware/upload.middleware');
 
 const router = express.Router();
 
@@ -25,11 +26,11 @@ router.post(
 	'/',
 	protect,
 	requireRole(['admin']),
+	profilePhotoUpload.single('studentPhoto'),
 	[
 		body('name').notEmpty().withMessage('Name is required'),
 		body('email').isEmail().withMessage('Please enter a valid email address.'),
 		body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-		body('admissionNo').notEmpty().withMessage('Admission number is required'),
 		body('classId').notEmpty().withMessage('Class is required').bail().isMongoId().withMessage('Invalid class selected'),
 		body('gender').isIn(['MALE', 'FEMALE', 'OTHER']).withMessage('Gender must be MALE, FEMALE, or OTHER'),
 		body('dob').isISO8601().withMessage('Please enter a valid date of birth'),

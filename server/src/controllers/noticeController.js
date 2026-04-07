@@ -3,6 +3,7 @@ const asyncHandler = require('../middleware/async.middleware');
 const Notice = require('../models/notice.model');
 const NoticePayment = require('../models/notice-payment.model');
 const Student = require('../models/student.model');
+const Teacher = require('../models/teacher.model');
 const ClassModel = require('../models/class.model');
 
 const DEFAULT_PAGE = 1;
@@ -55,6 +56,11 @@ const normalizeNoticeType = (value) => {
 const normalizeNoticeStatus = (value) => {
   const normalized = String(value || '').trim();
   return normalized || 'Active';
+};
+
+const normalizeRecipientRole = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || 'student';
 };
 
 const normalizeOptionalDate = (value) => {
@@ -127,6 +133,17 @@ const validateNoticeInput = async ({ payload = {}, existingNotice = null } = {})
     throw createHttpError(400, `Notice type must be one of: ${Notice.NOTICE_TYPES.join(', ')}`);
   }
 
+  const nextRecipientRole = normalizeRecipientRole(
+    payload.recipientRole !== undefined ? payload.recipientRole : existingNotice?.recipientRole
+  );
+  if (!Notice.RECIPIENT_ROLES.includes(nextRecipientRole)) {
+    throw createHttpError(400, `Recipient role must be one of: ${Notice.RECIPIENT_ROLES.join(', ')}`);
+  }
+
+  if (nextRecipientRole === 'teacher' && nextNoticeType === 'Payment') {
+    throw createHttpError(400, 'Payment notices can only be issued to students');
+  }
+
   const nextStatus = normalizeNoticeStatus(payload.status !== undefined ? payload.status : existingNotice?.status);
   if (!Notice.NOTICE_STATUS.includes(nextStatus)) {
     throw createHttpError(400, `Status must be one of: ${Notice.NOTICE_STATUS.join(', ')}`);
@@ -157,6 +174,7 @@ const validateNoticeInput = async ({ payload = {}, existingNotice = null } = {})
   return {
     title: nextTitle,
     description: nextDescription,
+    recipientRole: nextRecipientRole,
     classIds: nextClassIds,
     noticeType: nextNoticeType,
     amount: nextNoticeType === 'Payment' ? amount : undefined,
@@ -186,6 +204,14 @@ const getAllNotices = asyncHandler(async (req, res) => {
       throw createHttpError(400, `Notice type must be one of: ${Notice.NOTICE_TYPES.join(', ')}`);
     }
     filter.noticeType = noticeType;
+  }
+
+  if (req.query?.recipientRole) {
+    const recipientRole = normalizeRecipientRole(req.query.recipientRole);
+    if (!Notice.RECIPIENT_ROLES.includes(recipientRole)) {
+      throw createHttpError(400, `Recipient role must be one of: ${Notice.RECIPIENT_ROLES.join(', ')}`);
+    }
+    filter.recipientRole = recipientRole;
   }
 
   if (req.query?.isImportant !== undefined) {
@@ -255,10 +281,20 @@ const getStudentNotices = asyncHandler(async (req, res) => {
   const pagination = parsePagination(req.query || {});
   const filter = {
     status: 'Active',
-    $or: [
-      { classIds: student.classId },
-      { classIds: { $size: 0 } },
-      { classIds: { $exists: false } }
+    $and: [
+      {
+        $or: [
+          { recipientRole: 'student' },
+          { recipientRole: { $exists: false } }
+        ]
+      },
+      {
+        $or: [
+          { classIds: student.classId },
+          { classIds: { $size: 0 } },
+          { classIds: { $exists: false } }
+        ]
+      }
     ]
   };
 
@@ -313,6 +349,61 @@ const getStudentNotices = asyncHandler(async (req, res) => {
       isPendingVerification
     };
   });
+
+  res.json({
+    success: true,
+    data,
+    pagination: {
+      page: pagination.page,
+      limit: pagination.limit,
+      total,
+      totalPages: Math.ceil(total / pagination.limit) || 0
+    }
+  });
+});
+
+const getTeacherNotices = asyncHandler(async (req, res) => {
+  const teacher = await Teacher.findOne({ userId: req.user._id }).select('_id classIds').lean();
+  if (!teacher?._id) {
+    return res.status(404).json({ success: false, message: 'Teacher record not found' });
+  }
+
+  const pagination = parsePagination(req.query || {});
+  const teacherClassIds = Array.isArray(teacher.classIds)
+    ? teacher.classIds.map((item) => toId(item)).filter(Boolean)
+    : [];
+
+  const classScopeOr = [
+    { classIds: { $size: 0 } },
+    { classIds: { $exists: false } }
+  ];
+
+  if (teacherClassIds.length > 0) {
+    classScopeOr.push({ classIds: { $in: teacherClassIds } });
+  }
+
+  const filter = {
+    status: 'Active',
+    recipientRole: 'teacher',
+    $or: classScopeOr
+  };
+
+  if (req.query?.noticeId) {
+    const noticeId = String(req.query.noticeId || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(noticeId)) {
+      throw createHttpError(400, 'Notice is invalid');
+    }
+    filter._id = noticeId;
+  }
+
+  const [total, data] = await Promise.all([
+    Notice.countDocuments(filter),
+    Notice.find(filter)
+      .sort({ isImportant: -1, createdAt: -1 })
+      .skip(pagination.skip)
+      .limit(pagination.limit)
+      .lean()
+  ]);
 
   res.json({
     success: true,
@@ -427,6 +518,7 @@ module.exports = {
   createNotice,
   getAllNotices,
   getStudentNotices,
+  getTeacherNotices,
   updateNotice,
   deleteNotice,
   expireNotice

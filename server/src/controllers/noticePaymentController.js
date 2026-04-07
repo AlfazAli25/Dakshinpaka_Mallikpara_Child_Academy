@@ -4,6 +4,7 @@ const Notice = require('../models/notice.model');
 const NoticePayment = require('../models/notice-payment.model');
 const Student = require('../models/student.model');
 const { uploadPaymentScreenshot } = require('../services/cloudinary.service');
+const { createNoticeReceipt } = require('../services/receipt.service');
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -39,6 +40,23 @@ const mapPaymentForResponse = (payment) => {
   };
 };
 
+const mapReceiptForResponse = (receipt) => {
+  if (!receipt) {
+    return null;
+  }
+
+  return {
+    _id: receipt._id,
+    receiptNumber: receipt.receiptNumber,
+    receiptType: receipt.receiptType,
+    amount: receipt.amount,
+    paymentMethod: receipt.paymentMethod,
+    paymentDate: receipt.paymentDate,
+    transactionReference: receipt.transactionReference,
+    noticeTitle: receipt.noticeTitle
+  };
+};
+
 const payNotice = asyncHandler(async (req, res) => {
   const noticeId = String(req.body?.noticeId || '').trim();
   const payloadStudentId = String(req.body?.studentId || '').trim();
@@ -71,7 +89,7 @@ const payNotice = asyncHandler(async (req, res) => {
     throw createHttpError(403, 'You can only pay notices for your own student account');
   }
 
-  const notice = await Notice.findById(noticeId).select('_id noticeType amount status classIds dueDate').lean();
+  const notice = await Notice.findById(noticeId).select('_id recipientRole noticeType amount status classIds dueDate').lean();
   if (!notice) {
     throw createHttpError(404, 'Notice not found');
   }
@@ -82,6 +100,10 @@ const payNotice = asyncHandler(async (req, res) => {
 
   if (notice.noticeType !== 'Payment') {
     throw createHttpError(400, 'This notice does not require payment');
+  }
+
+  if (String(notice.recipientRole || 'student') !== 'student') {
+    throw createHttpError(400, 'Teacher notices cannot be paid from student accounts');
   }
 
   const targetClassIds = Array.isArray(notice.classIds)
@@ -200,7 +222,7 @@ const recordCashNoticePayment = asyncHandler(async (req, res) => {
     throw createHttpError(404, 'Student not found');
   }
 
-  const notice = await Notice.findById(noticeId).select('_id noticeType amount status classIds dueDate').lean();
+  const notice = await Notice.findById(noticeId).select('_id recipientRole noticeType amount status classIds dueDate').lean();
   if (!notice) {
     throw createHttpError(404, 'Notice not found');
   }
@@ -211,6 +233,10 @@ const recordCashNoticePayment = asyncHandler(async (req, res) => {
 
   if (notice.noticeType !== 'Payment') {
     throw createHttpError(400, 'This notice does not require payment');
+  }
+
+  if (String(notice.recipientRole || 'student') !== 'student') {
+    throw createHttpError(400, 'Teacher notices cannot be paid from student accounts');
   }
 
   const targetClassIds = Array.isArray(notice.classIds)
@@ -297,10 +323,23 @@ const recordCashNoticePayment = asyncHandler(async (req, res) => {
     })
     .lean();
 
+  const receipt = await createNoticeReceipt({
+    student: data?.studentId,
+    notice: data?.noticeId,
+    noticePayment: data,
+    amount: Number(data?.amount || 0),
+    paymentMethod: 'CASH',
+    transactionReference: data?.transactionReference,
+    generatedBy: req.user._id
+  });
+
   res.status(201).json({
     success: true,
     message: 'Cash notice payment recorded successfully',
-    data: mapPaymentForResponse(data)
+    data: {
+      ...mapPaymentForResponse(data),
+      receipt: mapReceiptForResponse(receipt)
+    }
   });
 });
 
@@ -388,10 +427,26 @@ const verifyNoticePayment = asyncHandler(async (req, res) => {
     })
     .lean();
 
+  let receipt = null;
+  if (decision === 'APPROVE') {
+    receipt = await createNoticeReceipt({
+      student: data?.studentId,
+      notice: data?.noticeId,
+      noticePayment: data,
+      amount: Number(data?.amount || 0),
+      paymentMethod: 'STATIC_QR',
+      transactionReference: data?.transactionReference,
+      generatedBy: req.user._id
+    });
+  }
+
   res.json({
     success: true,
     message: decision === 'APPROVE' ? 'Notice payment verified successfully' : 'Notice payment rejected',
-    data: mapPaymentForResponse(data)
+    data: {
+      ...mapPaymentForResponse(data),
+      receipt: mapReceiptForResponse(receipt)
+    }
   });
 });
 

@@ -39,6 +39,15 @@ const formatDateValue = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const formatDateTimeValue = (value) => {
+  const parsed = toValidDate(value);
+  if (!parsed) {
+    return '-';
+  }
+
+  return parsed.toLocaleString('en-GB');
+};
+
 const getExamWindow = (exam) => {
   const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
   const slotWindows = scheduleRows
@@ -87,6 +96,7 @@ export default function TeacherDashboardPage() {
   const [salaryRows, setSalaryRows] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [teacherProfile, setTeacherProfile] = useState(null);
+  const [teacherNotices, setTeacherNotices] = useState([]);
   const [paymentNotifications, setPaymentNotifications] = useState([]);
   const [respondingNotificationId, setRespondingNotificationId] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -121,6 +131,7 @@ export default function TeacherDashboardPage() {
           setTeacherProfile(null);
           setSalaryRows([]);
           setReceipts([]);
+          setTeacherNotices([]);
           setPaymentNotifications([]);
           setStats(getDefaultStats());
           return;
@@ -128,11 +139,15 @@ export default function TeacherDashboardPage() {
 
         setTeacherProfile(teacher);
 
-        const [examsRes, payrollRes, receiptRes, notificationRes] = await Promise.all([
+        const [examsRes, payrollRes, receiptRes, notificationRes, noticeRes] = await Promise.all([
           get('/exams', token),
           get('/payroll/my/history', token),
           get('/receipts/teacher', token),
           get('/notifications/teacher', token, {
+            forceRefresh: true,
+            cacheTtlMs: 0
+          }),
+          get('/notices/teacher?page=1&limit=8', token, {
             forceRefresh: true,
             cacheTtlMs: 0
           })
@@ -151,6 +166,7 @@ export default function TeacherDashboardPage() {
 
         setReceipts(receiptRes.data || []);
         setPaymentNotifications(notificationRes.data?.notifications || []);
+        setTeacherNotices(Array.isArray(noticeRes?.data) ? noticeRes.data : []);
 
         const exams = Array.isArray(examsRes.data) ? examsRes.data : [];
         const nowMs = Date.now();
@@ -192,6 +208,7 @@ export default function TeacherDashboardPage() {
         setTeacherProfile(null);
         setSalaryRows([]);
         setReceipts([]);
+        setTeacherNotices([]);
         setPaymentNotifications([]);
         setStats(getDefaultStats());
       } finally {
@@ -365,6 +382,37 @@ export default function TeacherDashboardPage() {
           </div>
         </div>
       )}
+
+      <InfoCard title="Latest Notices">
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`notice-skeleton-${index}`} className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
+            ))}
+          </div>
+        ) : teacherNotices.length === 0 ? (
+          <p className="text-sm text-slate-500">No teacher notices right now.</p>
+        ) : (
+          <div className="space-y-2">
+            {teacherNotices.map((notice, index) => {
+              const isImportant = Boolean(notice?.isImportant);
+              return (
+                <div
+                  key={String(notice?._id || `notice-${index}`)}
+                  className={`rounded-lg border px-3 py-2 ${isImportant ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{notice?.title || '-'}</p>
+                    <p className="text-xs text-slate-500">{formatDateTimeValue(notice?.createdAt)}</p>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-700">{notice?.description || '-'}</p>
+                  {isImportant ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700">Important</p> : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </InfoCard>
 
       <div>
         <h3 className="mb-2 text-base font-semibold text-slate-900">Salary History</h3>

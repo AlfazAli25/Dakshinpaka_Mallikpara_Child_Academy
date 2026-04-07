@@ -15,7 +15,7 @@ const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.heic', '.
 
 const storage = multer.memoryStorage();
 
-const fileFilter = (_req, file, cb) => {
+const screenshotFileFilter = (_req, file, cb) => {
   const mimeType = String(file?.mimetype || '').toLowerCase();
   const extension = String(path.extname(file?.originalname || '') || '').toLowerCase();
   const isImageMime = mimeType.startsWith('image/');
@@ -39,12 +39,44 @@ const fileFilter = (_req, file, cb) => {
   cb(null, true);
 };
 
+const profilePhotoFileFilter = (_req, file, cb) => {
+  const mimeType = String(file?.mimetype || '').toLowerCase();
+  const extension = String(path.extname(file?.originalname || '') || '').toLowerCase();
+  const isImageMime = mimeType.startsWith('image/');
+  const isAllowedMime = allowedMimeTypes.has(mimeType);
+  const isAllowedExtension = allowedExtensions.has(extension);
+
+  if (!isImageMime && !isAllowedExtension) {
+    const error = new Error('Only image files are allowed (JPG, PNG, WEBP, HEIC, AVIF)');
+    error.statusCode = 400;
+    cb(error);
+    return;
+  }
+
+  if (isImageMime && !isAllowedMime && !isAllowedExtension) {
+    const error = new Error('Unsupported image format. Please upload JPG, PNG, WEBP, HEIC, or AVIF image.');
+    error.statusCode = 400;
+    cb(error);
+    return;
+  }
+
+  cb(null, true);
+};
+
 const screenshotUpload = multer({
   storage,
-  fileFilter,
+  fileFilter: screenshotFileFilter,
   limits: {
     fileSize: 12 * 1024 * 1024
   }
 });
 
-module.exports = { screenshotUpload };
+const profilePhotoUpload = multer({
+  storage,
+  fileFilter: profilePhotoFileFilter,
+  limits: {
+    fileSize: 8 * 1024 * 1024
+  }
+});
+
+module.exports = { screenshotUpload, profilePhotoUpload };

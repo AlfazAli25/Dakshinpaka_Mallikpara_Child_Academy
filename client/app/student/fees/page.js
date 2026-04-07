@@ -230,7 +230,7 @@ export default function StudentFeesPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Payment Receipts</h3>
-        <p className="mb-3 text-sm text-slate-600">Receipts are generated automatically after successful fee updates.</p>
+        <p className="mb-3 text-sm text-slate-600">Receipts are generated automatically after successful fee or notice payment updates.</p>
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -241,16 +241,23 @@ export default function StudentFeesPage() {
           <p className="text-sm text-slate-500">No receipts available yet.</p>
         ) : (
           <div className="space-y-2">
-            {receipts.map((receipt) => (
-              <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-700">
-                  {receipt.receiptNumber} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}
-                </p>
+            {receipts.map((receipt) => {
+              const receiptTypeLabel = String(receipt?.receiptType || '') === 'NOTICE'
+                ? `Notice: ${receipt?.noticeTitle || 'Payment'}`
+                : 'Fee Payment';
+
+              return (
+                <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                  <p className="text-sm text-slate-700">
+                    {receipt.receiptNumber} - {receiptTypeLabel} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}
+                  </p>
                 <button
                   type="button"
                   onClick={() =>
                     downloadTextFile(`${receipt.receiptNumber}.txt`, [
                       `Receipt Number: ${receipt.receiptNumber}`,
+                      `Receipt Type: ${receipt.receiptType || '-'}`,
+                      `Notice Title: ${receipt.noticeTitle || '-'}`,
                       `Student Name: ${receipt.studentName || '-'}`,
                       `Class: ${receipt.className || '-'}`,
                       `Amount Paid: INR ${receipt.amount}`,
@@ -264,8 +271,9 @@ export default function StudentFeesPage() {
                 >
                   Download
                 </button>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

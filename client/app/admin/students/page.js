@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
-import { del, get, post } from '@/lib/api';
+import { del, get, postForm } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
@@ -16,7 +16,7 @@ const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const columns = [
-  { key: 'admissionNo', label: 'Admission No' },
+  { key: 'admissionNo', label: 'Student ID' },
   { key: 'name', label: 'Name' },
   { key: 'className', label: 'Class' },
   { key: 'guardianContact', label: 'Guardian Contact' },
@@ -28,7 +28,6 @@ const getInitialStudentForm = () => ({
   email: '',
   password: '',
   confirmPassword: '',
-  admissionNo: '',
   classId: '',
   gender: '',
   dob: '',
@@ -56,6 +55,8 @@ export default function AdminStudentsPage() {
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(getInitialStudentForm());
+  const [studentPhotoFile, setStudentPhotoFile] = useState(null);
+  const [studentPhotoPreview, setStudentPhotoPreview] = useState('');
   const [classOptions, setClassOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -79,6 +80,12 @@ export default function AdminStudentsPage() {
       toast.error(error);
     }
   }, [error, toast]);
+
+  useEffect(() => () => {
+    if (studentPhotoPreview) {
+      URL.revokeObjectURL(studentPhotoPreview);
+    }
+  }, [studentPhotoPreview]);
 
   const openDeleteDialog = useCallback((row) => {
     setDeleteTarget(row);
@@ -229,6 +236,17 @@ export default function AdminStudentsPage() {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
+  const onStudentPhotoChange = (event) => {
+    const nextFile = event.target.files?.[0] || null;
+
+    if (studentPhotoPreview) {
+      URL.revokeObjectURL(studentPhotoPreview);
+    }
+
+    setStudentPhotoFile(nextFile);
+    setStudentPhotoPreview(nextFile ? URL.createObjectURL(nextFile) : '');
+  };
+
   const onCreate = async (event) => {
     event.preventDefault();
 
@@ -277,25 +295,36 @@ export default function AdminStudentsPage() {
     setError('');
 
     try {
-      await post(
-        '/students',
-        {
-          name: String(form.name || '').trim(),
-          email: String(form.email || '').trim(),
-          password: form.password,
-          admissionNo: String(form.admissionNo || '').trim(),
-          classId: form.classId,
-          gender: form.gender,
-          dob: form.dob,
-          guardianContact: String(form.guardianContact || '').trim(),
-          address: String(form.address || '').trim(),
-          pendingFees: normalizedPendingFees,
-          attendance: normalizedAttendance
-        },
-        getToken()
+      const formData = new FormData();
+      formData.append('name', String(form.name || '').trim());
+      formData.append('email', String(form.email || '').trim());
+      formData.append('password', form.password);
+      formData.append('classId', form.classId);
+      formData.append('gender', form.gender);
+      formData.append('dob', form.dob);
+      formData.append('guardianContact', String(form.guardianContact || '').trim());
+      formData.append('address', String(form.address || '').trim());
+      formData.append('pendingFees', String(normalizedPendingFees));
+      formData.append('attendance', String(normalizedAttendance));
+
+      if (studentPhotoFile) {
+        formData.append('studentPhoto', studentPhotoFile);
+      }
+
+      const response = await postForm('/students', formData, getToken(), { timeoutMs: 90000 });
+      const generatedStudentId = String(response?.data?.admissionNo || '').trim();
+      setMessage(
+        generatedStudentId
+          ? `Student account created successfully. Student ID: ${generatedStudentId}`
+          : 'Student account created successfully'
       );
-      setMessage('Student account created successfully');
       setForm(getInitialStudentForm());
+
+      if (studentPhotoPreview) {
+        URL.revokeObjectURL(studentPhotoPreview);
+      }
+      setStudentPhotoFile(null);
+      setStudentPhotoPreview('');
       await loadStudents();
     } catch (apiError) {
       setError(apiError.message);
@@ -327,18 +356,12 @@ export default function AdminStudentsPage() {
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Student</h3>
-        <p className="mb-4 text-sm text-slate-600">Admin must register each student one by one with all profile details.</p>
+        <p className="mb-2 text-sm text-slate-600">Admin must register each student one by one with all profile details.</p>
+        <p className="mb-4 text-xs text-slate-500">Student ID is generated automatically after account creation.</p>
         <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
           <Input label={requiredLabel('Email')} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />
-          <Input
-            label={requiredLabel('Admission No')}
-            value={form.admissionNo}
-            onChange={onChange('admissionNo')}
-            required
-            className="h-11"
-          />
           <Select
             label={requiredLabel('Class')}
             value={form.classId}
@@ -408,6 +431,31 @@ export default function AdminStudentsPage() {
             className="h-11"
           />
         </div>
+
+        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-1.5 text-sm font-medium text-slate-700">Student Picture (optional)</p>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif"
+            onChange={onStudentPhotoChange}
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <p className="mt-1 text-xs text-slate-500">If no photo is uploaded, a default profile picture will be assigned.</p>
+
+          <div className="mt-3 flex items-center gap-3">
+            <div className="h-14 w-14 overflow-hidden rounded-full border border-slate-300 bg-white">
+              <img
+                src={studentPhotoPreview || '/default-student-avatar.svg'}
+                alt="Student profile preview"
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <p className="text-xs text-slate-600">
+              {studentPhotoFile ? `Selected: ${studentPhotoFile.name}` : 'Using default profile picture'}
+            </p>
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={loading}

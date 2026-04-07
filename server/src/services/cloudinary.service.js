@@ -55,6 +55,35 @@ const uploadPaymentScreenshot = async ({ buffer, mimeType, originalName }) => {
   };
 };
 
+const uploadStudentPhoto = async ({ buffer, mimeType, originalName }) => {
+  if (!buffer || buffer.length === 0) {
+    const error = new Error('Student photo file is empty');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  ensureConfigured();
+
+  const base64File = buffer.toString('base64');
+  const dataUri = `data:${mimeType || 'image/png'};base64,${base64File}`;
+
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder: process.env.CLOUDINARY_STUDENT_PHOTO_FOLDER || 'sms/student-photos',
+    resource_type: 'image',
+    use_filename: false,
+    unique_filename: true,
+    overwrite: false,
+    tags: ['student-photo'],
+    context: originalName ? `original_name=${originalName}` : undefined
+  });
+
+  return {
+    secureUrl: result.secure_url,
+    publicId: result.public_id
+  };
+};
+
 module.exports = {
-  uploadPaymentScreenshot
+  uploadPaymentScreenshot,
+  uploadStudentPhoto
 };

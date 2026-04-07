@@ -12,6 +12,7 @@ const Marks = require('../models/marks.model');
 const createCrudService = require('./crud.service');
 const { isValidEmail } = require('../utils/validation');
 const { ensureMonthlyFeesForStudent, applyManualPendingFeesOverride } = require('./monthly-fee-ledger.service');
+const { uploadStudentPhoto } = require('./cloudinary.service');
 
 const base = createCrudService(Student);
 
@@ -21,6 +22,7 @@ const STUDENT_POPULATE = [
 ];
 
 const withSession = (query, session) => (session ? query.session(session) : query);
+const DEFAULT_STUDENT_PROFILE_IMAGE_URL = '/default-student-avatar.svg';
 
 const runWithOptionalTransaction = async (handler) => {
 	const session = await mongoose.startSession();
@@ -58,6 +60,41 @@ const toPositiveInt = (value, fallback) => {
 	return Math.floor(parsed);
 };
 
+const generateStudentAdmissionNo = async () => {
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const suffix = `${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+		const candidate = `STU-${suffix}`;
+		const existing = await Student.findOne({ admissionNo: candidate }).select('_id');
+		if (!existing) {
+			return candidate;
+		}
+	}
+
+	const error = new Error('Unable to generate a unique Student ID. Please try again.');
+	error.statusCode = 500;
+	throw error;
+};
+
+const uploadStudentPhotoIfProvided = async (studentPhotoFile) => {
+	if (!studentPhotoFile?.buffer) {
+		return null;
+	}
+
+	try {
+		return await uploadStudentPhoto({
+			buffer: studentPhotoFile.buffer,
+			mimeType: studentPhotoFile.mimetype,
+			originalName: studentPhotoFile.originalname
+		});
+	} catch (error) {
+		if (!error.statusCode || error.statusCode >= 500) {
+			error.statusCode = 502;
+			error.message = 'Failed to upload student photo to storage provider';
+		}
+		throw error;
+	}
+};
+
 const findAll = (filter = {}) => base.findAll(filter, STUDENT_POPULATE);
 const findById = (id) => base.findById(id, STUDENT_POPULATE);
 const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_POPULATE).lean();
@@ -65,7 +102,7 @@ const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_PO
 const findAllForAdmin = async ({ search, page, limit } = {}) => {
 	const [students, studentUsers] = await Promise.all([
 		Student.find({})
-			.select('userId admissionNo classId guardianContact pendingFees attendance createdAt')
+			.select('userId admissionNo profileImageUrl classId guardianContact pendingFees attendance createdAt')
 			.populate({ path: 'userId', select: 'name email role' })
 			.populate({ path: 'classId', select: 'name section' })
 			.sort({ createdAt: -1 })
@@ -85,6 +122,7 @@ const findAllForAdmin = async ({ search, page, limit } = {}) => {
 			_id: `user-${user._id.toString()}`,
 			userId: user,
 			admissionNo: '-',
+			profileImageUrl: DEFAULT_STUDENT_PROFILE_IMAGE_URL,
 			classId: null,
 			guardianContact: '-',
 			pendingFees: 0,
@@ -142,7 +180,7 @@ const findAllForAdmin = async ({ search, page, limit } = {}) => {
 };
 
 const create = async (payload) => {
-	const { name, email, password, admissionNo, classId, gender, dob, guardianContact, address, pendingFees, attendance } = payload;
+	const { name, email, password, classId, gender, dob, guardianContact, address, pendingFees, attendance, studentPhotoFile } = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
 	const normalizedGender = String(gender || '').toUpperCase().trim();
 	const normalizedGuardianContact = String(guardianContact || '').trim();
@@ -158,7 +196,6 @@ const create = async (payload) => {
 		!name ||
 		!email ||
 		!password ||
-		!admissionNo ||
 		!classId ||
 		!normalizedGender ||
 		!dob ||
@@ -167,7 +204,7 @@ const create = async (payload) => {
 		attendance === undefined
 	) {
 		const error = new Error(
-			'All student details are required: name, email, password, admission number, class, gender, date of birth, guardian contact, address, and attendance'
+			'All student details are required: name, email, password, class, gender, date of birth, guardian contact, address, and attendance'
 		);
 		error.statusCode = 400;
 		throw error;
@@ -210,13 +247,6 @@ const create = async (payload) => {
 		throw error;
 	}
 
-	const existingAdmissionNo = await Student.findOne({ admissionNo: String(admissionNo).trim() });
-	if (existingAdmissionNo) {
-		const error = new Error('Admission number already in use');
-		error.statusCode = 409;
-		throw error;
-	}
-
 	const passwordHash = await bcrypt.hash(password, 10);
 	const user = await User.create({
 		name: String(name).trim(),
@@ -226,9 +256,14 @@ const create = async (payload) => {
 	});
 
 	try {
+		const generatedAdmissionNo = await generateStudentAdmissionNo();
+		const uploadedStudentPhoto = await uploadStudentPhotoIfProvided(studentPhotoFile);
+
 		const student = await Student.create({
 			userId: user._id,
-			admissionNo: String(admissionNo).trim(),
+			admissionNo: generatedAdmissionNo,
+			profileImageUrl: uploadedStudentPhoto?.secureUrl || DEFAULT_STUDENT_PROFILE_IMAGE_URL,
+			profileImagePublicId: uploadedStudentPhoto?.publicId || undefined,
 			classId,
 			gender: normalizedGender,
 			dob: parsedDob,

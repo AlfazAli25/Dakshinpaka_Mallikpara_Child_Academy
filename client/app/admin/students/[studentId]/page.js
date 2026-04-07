@@ -287,7 +287,7 @@ export default function StudentProfilePage() {
     { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString('en-GB') : '-' },
     { label: 'Guardian Contact', value: student?.guardianContact || '-' },
     { label: 'Email', value: student?.userId?.email || '-' },
-    { label: 'Admission No', value: student?.admissionNo || '-' },
+    { label: 'Student ID', value: student?.admissionNo || '-' },
     { label: 'Address', value: student?.address || '-' },
     { label: 'Pending Fees', value: `INR ${student?.pendingFees || 0}`, highlight: true },
     { label: 'Attendance', value: `${student?.attendance || 0}%` }
@@ -303,6 +303,23 @@ export default function StudentProfilePage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <InfoCard title="Student Details">
+          <div className="mb-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-300 bg-white">
+              <img
+                src={student?.profileImageUrl || '/default-student-avatar.svg'}
+                alt="Student profile"
+                onError={(event) => {
+                  event.currentTarget.src = '/default-student-avatar.svg';
+                }}
+                className="h-full w-full object-cover"
+              />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{student?.userId?.name || 'Student'}</p>
+              <p className="text-xs text-slate-600">Student ID: {student?.admissionNo || '-'}</p>
+            </div>
+          </div>
+
           {!editMode ? (
             <>
               <DetailsGrid items={studentDetailItems} />
@@ -323,7 +340,7 @@ export default function StudentProfilePage() {
               <div className="grid gap-3 md:grid-cols-2">
                 <Input label="Name" value={editForm.name} onChange={onEditChange('name')} className="h-10" />
                 <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} className="h-10" />
-                <Input label="Admission No" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} className="h-10" />
+                <Input label="Student ID" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} className="h-10" />
                 <Select label="Class" value={editForm.classId} onChange={onEditChange('classId')} className="h-10" options={classSelectOptions} />
                 <Select label="Gender" value={editForm.gender} onChange={onEditChange('gender')} className="h-10" options={genderOptions} />
                 <Input label="Date of Birth" type="date" value={editForm.dob} onChange={onEditChange('dob')} className="h-10" />

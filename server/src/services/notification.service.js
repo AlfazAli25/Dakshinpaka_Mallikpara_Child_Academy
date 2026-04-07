@@ -43,15 +43,34 @@ const notifyAdminPaymentSubmitted = async ({ studentId, studentName, paymentId }
     status: 'UNREAD'
   });
 
-const listAdminNotifications = async () =>
-  Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'admin' }))
-    .sort({ status: 1, submittedAt: -1 })
-    .limit(30);
+const purgeReadNotificationsPastRetention = async ({ recipientRole, teacherId } = {}) => {
+  const cutoff = new Date(Date.now() - READ_RETENTION_MS);
+  const filter = {
+    recipientRole,
+    status: 'READ',
+    readAt: { $lt: cutoff }
+  };
 
-const listTeacherNotifications = async ({ teacherId }) =>
-  Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'teacher', teacherId }))
+  if (teacherId) {
+    filter.teacherId = teacherId;
+  }
+
+  await Notification.deleteMany(filter);
+};
+
+const listAdminNotifications = async () => {
+  await purgeReadNotificationsPastRetention({ recipientRole: 'admin' });
+  return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'admin' }))
     .sort({ status: 1, submittedAt: -1 })
     .limit(30);
+};
+
+const listTeacherNotifications = async ({ teacherId }) => {
+  await purgeReadNotificationsPastRetention({ recipientRole: 'teacher', teacherId });
+  return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'teacher', teacherId }))
+    .sort({ status: 1, submittedAt: -1 })
+    .limit(30);
+};
 
 const markAdminNotificationRead = async (notificationId) =>
   Notification.findByIdAndUpdate(notificationId, { status: 'READ', readAt: new Date() }, { new: true });

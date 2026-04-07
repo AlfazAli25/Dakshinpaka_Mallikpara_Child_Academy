@@ -4,6 +4,8 @@ const studentSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     admissionNo: { type: String, required: true, unique: true, trim: true },
+    profileImageUrl: { type: String, trim: true, default: '/default-student-avatar.svg' },
+    profileImagePublicId: { type: String, trim: true },
     classId: { type: mongoose.Schema.Types.ObjectId, ref: 'Class' },
     gender: { type: String, trim: true },
     dob: { type: Date },

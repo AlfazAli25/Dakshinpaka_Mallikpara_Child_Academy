@@ -9,10 +9,15 @@ import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
 const NOTICE_TYPES = ['General', 'Payment'];
+const RECIPIENT_ROLES = [
+  { value: 'student', label: 'Students' },
+  { value: 'teacher', label: 'Teachers' }
+];
 
 const getInitialForm = () => ({
   title: '',
   description: '',
+  recipientRole: 'student',
   classIds: [],
   noticeType: 'General',
   amount: '',
@@ -105,7 +110,12 @@ export default function AdminNoticesPage() {
   });
 
   const paymentNoticeOptions = useMemo(
-    () => notices.filter((item) => String(item?.noticeType || '') === 'Payment' && String(item?.status || '') === 'Active'),
+    () => notices.filter(
+      (item) =>
+        String(item?.noticeType || '') === 'Payment' &&
+        String(item?.status || '') === 'Active' &&
+        String(item?.recipientRole || 'student') === 'student'
+    ),
     [notices]
   );
 
@@ -290,6 +300,19 @@ export default function AdminNoticesPage() {
         };
       }
 
+      if (field === 'recipientRole') {
+        const nextRecipientRole = String(nextValue || 'student');
+        const enforceGeneralType = nextRecipientRole === 'teacher' && prev.noticeType === 'Payment';
+
+        return {
+          ...prev,
+          recipientRole: nextRecipientRole,
+          noticeType: enforceGeneralType ? 'General' : prev.noticeType,
+          amount: enforceGeneralType ? '' : prev.amount,
+          dueDate: enforceGeneralType ? '' : prev.dueDate
+        };
+      }
+
       return {
         ...prev,
         [field]: nextValue
@@ -341,18 +364,24 @@ export default function AdminNoticesPage() {
       return;
     }
 
+    if (form.recipientRole === 'teacher' && form.noticeType === 'Payment') {
+      toast.error('Payment notices can only be issued to students');
+      return;
+    }
+
     setSaving(true);
 
     try {
       const payload = {
         title,
         description,
+        recipientRole: form.recipientRole,
         classIds: form.classIds,
         noticeType: form.noticeType,
         amount: form.noticeType === 'Payment' ? amount : undefined,
         dueDate: form.noticeType === 'Payment' && form.dueDate ? form.dueDate : undefined,
         isImportant: Boolean(form.isImportant),
-        status: form.status
+        status: editingId ? form.status : undefined
       };
 
       if (editingId) {
@@ -372,14 +401,18 @@ export default function AdminNoticesPage() {
   };
 
   const onEditNotice = (notice) => {
+    const nextRecipientRole = String(notice?.recipientRole || 'student');
+    const nextNoticeType = String(notice?.noticeType || 'General');
+
     setEditingId(toId(notice));
     setForm({
       title: String(notice?.title || ''),
       description: String(notice?.description || ''),
+      recipientRole: nextRecipientRole,
       classIds: Array.isArray(notice?.classIds)
         ? notice.classIds.map((item) => toId(item)).filter(Boolean)
         : [],
-      noticeType: String(notice?.noticeType || 'General'),
+      noticeType: nextRecipientRole === 'teacher' && nextNoticeType === 'Payment' ? 'General' : nextNoticeType,
       amount: notice?.amount !== undefined && notice?.amount !== null ? String(notice.amount) : '',
       dueDate: toDateInputValue(notice?.dueDate),
       isImportant: Boolean(notice?.isImportant),
@@ -544,9 +577,10 @@ export default function AdminNoticesPage() {
     const ids = Array.isArray(notice?.classIds)
       ? notice.classIds.map((item) => toId(item)).filter(Boolean)
       : [];
+    const isTeacherNotice = String(notice?.recipientRole || 'student') === 'teacher';
 
     if (ids.length === 0) {
-      return 'All Classes';
+      return isTeacherNotice ? 'All Teachers' : 'All Classes';
     }
 
     return ids.map((id) => classLabelMap[id] || 'Class').join(', ');
@@ -557,11 +591,11 @@ export default function AdminNoticesPage() {
       <PageHeader
         eyebrow="Administration"
         title="Notice Management"
-        description="Create notices for one or more classes, mark important updates, and collect notice-specific payments."
+        description="Create notices for students or teachers, mark important updates, and collect notice-specific payments."
       />
 
       <form onSubmit={onSubmit} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Input
             label="Title"
             value={form.title}
@@ -578,8 +612,27 @@ export default function AdminNoticesPage() {
               disabled={saving}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
             >
-              {NOTICE_TYPES.map((item) => (
-                <option key={item} value={item}>{item}</option>
+              {NOTICE_TYPES.map((item) => {
+                const disabled = form.recipientRole === 'teacher' && item === 'Payment';
+                return (
+                  <option key={item} value={item} disabled={disabled}>
+                    {disabled ? 'Payment (Students only)' : item}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div className="mb-3 block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-700">Audience</span>
+            <select
+              value={form.recipientRole}
+              onChange={onFieldChange('recipientRole')}
+              disabled={saving}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+            >
+              {RECIPIENT_ROLES.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
               ))}
             </select>
           </div>
@@ -600,7 +653,9 @@ export default function AdminNoticesPage() {
 
         <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">Target Classes</p>
+            <p className="text-sm font-medium text-slate-700">
+              {form.recipientRole === 'teacher' ? 'Target Teacher Classes' : 'Target Classes'}
+            </p>
             <label className="inline-flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -609,7 +664,7 @@ export default function AdminNoticesPage() {
                 disabled={saving}
                 className="h-4 w-4"
               />
-              All Classes
+              {form.recipientRole === 'teacher' ? 'All Teachers' : 'All Classes'}
             </label>
           </div>
 
@@ -632,7 +687,11 @@ export default function AdminNoticesPage() {
               );
             })}
           </div>
-          <p className="mt-2 text-xs text-slate-500">Leave class selection empty (All Classes checked) to publish to every class.</p>
+          <p className="mt-2 text-xs text-slate-500">
+            {form.recipientRole === 'teacher'
+              ? 'Leave class selection empty (All Teachers checked) to publish to every teacher.'
+              : 'Leave class selection empty (All Classes checked) to publish to every class.'}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -657,18 +716,24 @@ export default function AdminNoticesPage() {
             </>
           ) : null}
 
-          <div className="mb-3 block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">Status</span>
-            <select
-              value={form.status}
-              onChange={onFieldChange('status')}
-              disabled={saving}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
-            >
-              <option value="Active">Active</option>
-              <option value="Expired">Expired</option>
-            </select>
-          </div>
+          {editingId ? (
+            <div className="mb-3 block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Status</span>
+              <select
+                value={form.status}
+                onChange={onFieldChange('status')}
+                disabled={saving}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              >
+                <option value="Active">Active</option>
+                <option value="Expired">Expired</option>
+              </select>
+            </div>
+          ) : (
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 md:col-span-3">
+              New notices are created as Active by default. Use the expire action later when needed.
+            </div>
+          )}
         </div>
 
         <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-700">
@@ -712,6 +777,7 @@ export default function AdminNoticesPage() {
             <thead className="bg-red-700 text-red-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Title</th>
+                <th className="px-3 py-3 text-left font-semibold">Audience</th>
                 <th className="px-3 py-3 text-left font-semibold">Type</th>
                 <th className="px-3 py-3 text-left font-semibold">Classes</th>
                 <th className="px-3 py-3 text-left font-semibold">Amount</th>
@@ -725,11 +791,11 @@ export default function AdminNoticesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">Loading notices...</td>
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate-500">Loading notices...</td>
                 </tr>
               ) : notices.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-slate-500">No notices found.</td>
+                  <td colSpan={9} className="px-4 py-6 text-center text-slate-500">No notices found.</td>
                 </tr>
               ) : notices.map((notice, rowIndex) => {
                 const noticeId = toId(notice);
@@ -741,6 +807,9 @@ export default function AdminNoticesPage() {
                     <td className="border-t border-slate-100 px-3 py-3">
                       <p className="font-semibold text-slate-900">{notice?.title || '-'}</p>
                       <p className="mt-1 text-xs text-slate-600">{notice?.description || '-'}</p>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      {String(notice?.recipientRole || 'student') === 'teacher' ? 'Teachers' : 'Students'}
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">{notice?.noticeType || '-'}</td>
                     <td className="border-t border-slate-100 px-3 py-3">{getClassLabelForNotice(notice)}</td>
@@ -841,7 +910,7 @@ export default function AdminNoticesPage() {
                 </option>
                 {scopedStudentOptions.map((student) => (
                   <option key={toId(student)} value={toId(student)}>
-                    {`${student?.userId?.name || '-'} | Adm ${student?.admissionNo || '-'} | ${formatClassLabel(student?.classId, 'Class')}`}
+                    {`${student?.userId?.name || '-'} | ID ${student?.admissionNo || '-'} | ${formatClassLabel(student?.classId, 'Class')}`}
                   </option>
                 ))}
                 {cashPaymentForm.noticeId && !loadingSelectedNoticePayments && scopedStudentOptions.length === 0 ? (
@@ -947,7 +1016,7 @@ export default function AdminNoticesPage() {
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">
                       <p className="font-semibold text-slate-900">{studentUser?.name || '-'}</p>
-                      <p className="mt-1 text-xs text-slate-600">Adm: {student?.admissionNo || '-'} | Class: {formatClassLabel(classInfo, 'Class')}</p>
+                      <p className="mt-1 text-xs text-slate-600">ID: {student?.admissionNo || '-'} | Class: {formatClassLabel(classInfo, 'Class')}</p>
                     </td>
                     <td className="border-t border-slate-100 px-3 py-3">INR {Number(payment?.amount || 0)}</td>
                     <td className="border-t border-slate-100 px-3 py-3">{formatDateTimeLabel(payment?.paymentDate || payment?.createdAt)}</td>

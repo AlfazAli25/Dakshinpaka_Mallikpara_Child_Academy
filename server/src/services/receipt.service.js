@@ -106,8 +106,54 @@ const createSalaryReceipt = async ({
   return receipt;
 };
 
+const createNoticeReceipt = async ({
+  student,
+  notice,
+  noticePayment,
+  amount,
+  paymentMethod,
+  transactionReference,
+  generatedBy,
+  session
+}) => {
+  const existing = noticePayment?._id ? await Receipt.findOne({ noticePaymentId: noticePayment._id }).session(session || null) : null;
+  if (existing) {
+    return existing;
+  }
+
+  let receipt;
+  try {
+    [receipt] = await Receipt.create([
+      {
+        receiptNumber: buildReceiptNumber('NOT'),
+        receiptType: 'NOTICE',
+        studentId: student?._id,
+        noticeId: notice?._id,
+        noticePaymentId: noticePayment?._id,
+        generatedBy,
+        studentName: student?.userId?.name || student?.name || 'Student',
+        className: student?.classId?.name || '',
+        noticeTitle: notice?.title || 'Notice Payment',
+        amount,
+        paymentMethod,
+        paymentDate: noticePayment?.paymentDate || noticePayment?.verifiedAt || new Date(),
+        transactionReference: transactionReference || noticePayment?.transactionReference,
+        status: 'PAID'
+      }
+    ], { session });
+  } catch (error) {
+    if (Number(error?.code || 0) === 11000 && noticePayment?._id) {
+      return Receipt.findOne({ noticePaymentId: noticePayment._id }).session(session || null);
+    }
+
+    throw error;
+  }
+
+  return receipt;
+};
+
 const findStudentReceipts = async (studentId) =>
-  Receipt.find({ studentId, receiptType: 'FEE' }).sort({ createdAt: -1 });
+  Receipt.find({ studentId, receiptType: { $in: ['FEE', 'NOTICE'] } }).sort({ createdAt: -1 });
 
 const findTeacherReceipts = async (teacherId) =>
   Receipt.find({ teacherId, receiptType: 'SALARY' }).sort({ createdAt: -1 });
@@ -115,6 +161,7 @@ const findTeacherReceipts = async (teacherId) =>
 module.exports = {
   createFeeReceipt,
   createSalaryReceipt,
+  createNoticeReceipt,
   findStudentReceipts,
   findTeacherReceipts
 };
