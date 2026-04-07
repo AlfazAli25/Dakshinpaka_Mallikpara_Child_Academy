@@ -234,7 +234,7 @@ export default function StudentNoticePaymentPage() {
                   <label className="mb-1 block text-sm font-medium text-slate-700">Payment Screenshot</label>
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp"
+                    accept="image/*"
                     onChange={(event) => setScreenshotFile(event.target.files?.[0] || null)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                   />
