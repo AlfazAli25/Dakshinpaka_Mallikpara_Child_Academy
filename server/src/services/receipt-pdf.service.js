@@ -1,6 +1,8 @@
 const fs = require('fs/promises');
 const path = require('path');
 const puppeteer = require('puppeteer');
+const puppeteerCore = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 const { amountToWordsINR } = require('../utils/amount-in-words');
 const {
   SCHOOL_NAME,
@@ -14,6 +16,11 @@ const PDF_MARGIN = { top: '0', right: '0', bottom: '0', left: '0' };
 
 let cachedLogoDataUri = '';
 let logoLookupAttempted = false;
+const isServerlessRuntime = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.LAMBDA_TASK_ROOT
+);
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -438,16 +445,46 @@ const getPuppeteerLaunchOptions = () => {
   return launchOptions;
 };
 
+const getServerlessLaunchOptions = async () => {
+  const executablePath =
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    (typeof chromium.executablePath === 'function' ? await chromium.executablePath() : '');
+
+  if (!executablePath) {
+    return null;
+  }
+
+  const chromiumArgs = Array.isArray(chromium.args) ? chromium.args : [];
+
+  return {
+    executablePath,
+    headless: true,
+    args: [...new Set([...chromiumArgs, '--no-sandbox', '--disable-setuid-sandbox'])],
+    defaultViewport: chromium.defaultViewport || { width: 1240, height: 1754, deviceScaleFactor: 2 }
+  };
+};
+
+const launchReceiptBrowser = async () => {
+  if (isServerlessRuntime) {
+    const serverlessLaunchOptions = await getServerlessLaunchOptions();
+    if (serverlessLaunchOptions) {
+      return puppeteerCore.launch(serverlessLaunchOptions);
+    }
+  }
+
+  return puppeteer.launch(getPuppeteerLaunchOptions());
+};
+
 const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, receipt }) => {
   const model = buildStudentReceiptViewModel({ payment, student, classRecord, receipt });
   const logoDataUri = await getLogoDataUri();
   const html = buildStudentReceiptHtml({ model, logoDataUri });
 
-  const browser = await puppeteer.launch(getPuppeteerLaunchOptions());
+  const browser = await launchReceiptBrowser();
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
-    await page.setContent(html, { waitUntil: ['domcontentloaded', 'networkidle0'] });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 45000 });
 
     const pdfBuffer = await page.pdf({
       format: 'A4',
