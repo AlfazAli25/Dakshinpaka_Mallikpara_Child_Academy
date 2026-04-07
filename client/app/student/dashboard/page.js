@@ -269,17 +269,15 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={
           <div className="flex w-full items-center justify-end gap-3 md:w-[380px] md:justify-between">
-            <div className="rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm">
-              <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-200 bg-slate-50 md:h-20 md:w-20">
-                <img
-                  src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
-                  alt={t.profilePhotoTitle}
-                  className="h-full w-full object-cover"
-                  onError={(event) => {
-                    event.currentTarget.src = '/default-student-avatar.svg';
-                  }}
-                />
-              </div>
+            <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:h-28 md:w-28">
+              <img
+                src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
+                alt={t.profilePhotoTitle}
+                className="h-full w-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.src = '/default-student-avatar.svg';
+                }}
+              />
             </div>
             <LanguageToggle />
           </div>
