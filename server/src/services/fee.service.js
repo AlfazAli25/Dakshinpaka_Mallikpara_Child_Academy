@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Fee = require('../models/fee.model');
 const Student = require('../models/student.model');
 const Payment = require('../models/payment.model');
+const NoticePayment = require('../models/notice-payment.model');
 const createCrudService = require('./crud.service');
 const smepayService = require('./smepay.service');
 const { createFeeReceipt } = require('./receipt.service');
@@ -19,6 +20,20 @@ const base = createCrudService(Fee);
 
 const PENDING_SCREENSHOT_VERIFICATION_MESSAGE =
 'Payment screenshot pending verification. Please verify before processing payment.';
+
+const normalizeNoticePaymentStatus = (status) => {
+const normalized = String(status || '').trim().toUpperCase();
+if (normalized === 'VERIFIED' || normalized === 'PAID') {
+return 'SUCCESS';
+}
+if (normalized === 'REJECTED') {
+return 'FAILED';
+}
+if (normalized === 'PENDING' || normalized === 'PENDING_VERIFICATION') {
+return 'PENDING_VERIFICATION';
+}
+return 'PENDING_VERIFICATION';
+};
 
 const findAll = async (filter = {}) => {
 if (filter?.studentId) {
@@ -861,9 +876,46 @@ error.statusCode = 404;
 throw error;
 }
 
-return Payment.find({ studentId: student._id })
+const [feePayments, noticePayments] = await Promise.all([
+Payment.find({ studentId: student._id })
+.select('amount paymentStatus paymentMethod screenshotPath transactionReference createdAt paidAt processedByAdmin')
 .populate('processedByAdmin', 'name email')
-.sort({ createdAt: -1 });
+.sort({ createdAt: -1 })
+.lean(),
+NoticePayment.find({ studentId: student._id })
+.select('amount paymentStatus screenshotPath transactionReference paymentDate createdAt verifiedBy noticeId')
+.populate({ path: 'verifiedBy', select: 'name email' })
+.populate({ path: 'noticeId', select: 'title' })
+.sort({ paymentDate: -1, createdAt: -1 })
+.lean()
+]);
+
+const mappedFeePayments = feePayments.map((item) => ({
+...item,
+sourceType: 'FEE',
+sourceLabel: 'Fee Payment'
+}));
+
+const mappedNoticePayments = noticePayments.map((item) => ({
+_id: `notice-${String(item._id || '')}`,
+amount: item.amount,
+paymentStatus: normalizeNoticePaymentStatus(item.paymentStatus),
+paymentMethod: 'NOTICE_PAYMENT',
+screenshotPath: item.screenshotPath,
+transactionReference: item.transactionReference,
+createdAt: item.paymentDate || item.createdAt,
+paidAt: item.paymentDate || item.createdAt,
+processedByAdmin: item.verifiedBy || null,
+sourceType: 'NOTICE',
+sourceLabel: item.noticeId?.title ? `Notice: ${item.noticeId.title}` : 'Notice Payment'
+}));
+
+return [...mappedFeePayments, ...mappedNoticePayments]
+.sort((left, right) => {
+const leftTime = new Date(left.paidAt || left.createdAt || 0).getTime();
+const rightTime = new Date(right.paidAt || right.createdAt || 0).getTime();
+return rightTime - leftTime;
+});
 };
 
 const getPaymentScreenshotPathForAdmin = async ({ paymentId }) => {

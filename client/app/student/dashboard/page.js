@@ -43,10 +43,8 @@ const text = {
       dueDate: 'Due Date',
       amount: 'Amount',
       important: 'Important',
-      paid: 'Paid',
-      pendingVerification: 'Pending Verification',
-      rejected: 'Rejected - Upload Again',
-      payNow: 'Pay Now'
+      payNow: 'Pay Now',
+      viewInFees: 'View Payment History in Fees'
     }
   },
   bn: {
@@ -78,26 +76,10 @@ const text = {
       dueDate: 'শেষ তারিখ',
       amount: 'পরিমাণ',
       important: 'গুরুত্বপূর্ণ',
-      paid: 'পরিশোধিত',
-      pendingVerification: 'ভেরিফিকেশন অপেক্ষায়',
-      rejected: 'রিজেক্টেড - আবার আপলোড করুন',
-      payNow: 'এখনই পরিশোধ করুন'
+      payNow: 'এখনই পরিশোধ করুন',
+      viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন'
     }
   }
-};
-
-const normalizePaymentStatus = (status) => {
-  const normalized = String(status || '').trim().toUpperCase();
-  if (normalized === 'PAID') {
-    return 'VERIFIED';
-  }
-  if (normalized === 'PENDING') {
-    return 'PENDING_VERIFICATION';
-  }
-  if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED'].includes(normalized)) {
-    return normalized;
-  }
-  return '';
 };
 
 const DEFAULT_STATS = [
@@ -333,10 +315,6 @@ export default function StudentDashboardPage() {
               const noticeId = String(notice?._id || '');
               const isImportant = Boolean(notice?.isImportant);
               const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
-              const paymentStatus = normalizePaymentStatus(notice?.payment?.paymentStatus);
-              const hasPaid = paymentStatus === 'VERIFIED';
-              const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
-              const isRejected = paymentStatus === 'REJECTED';
 
               return (
                 <div
@@ -366,20 +344,19 @@ export default function StudentDashboardPage() {
 
                   {isPaymentNotice ? (
                     <div className="mt-3">
-                      {hasPaid ? (
-                        <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white">
-                          {t.notices.paid}
-                        </span>
-                      ) : isPendingVerification ? (
-                        <span className="rounded-full bg-amber-500 px-2.5 py-1 text-[11px] font-semibold text-white">
-                          {t.notices.pendingVerification}
-                        </span>
-                      ) : (
+                      {notice?.canPay ? (
                         <Link
                           href={`/student/payment/${noticeId}`}
                           className="inline-flex rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
                         >
-                          {isRejected ? t.notices.rejected : t.notices.payNow}
+                          {t.notices.payNow}
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/student/fees"
+                          className="inline-flex rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+                        >
+                          {t.notices.viewInFees}
                         </Link>
                       )}
                     </div>

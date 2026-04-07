@@ -10,6 +10,7 @@ import { useToast } from '@/lib/toast-context';
 
 const checkoutColumns = [
   { key: 'paymentDate', label: 'Payment Date' },
+  { key: 'paymentFor', label: 'Payment For' },
   { key: 'amount', label: 'Amount' },
   { key: 'screenshotStatus', label: 'Screenshot Status' },
   { key: 'verificationStatus', label: 'Verification Status' }
@@ -17,11 +18,14 @@ const checkoutColumns = [
 
 const mapVerificationStatus = (status) => {
   const normalized = String(status || '').toUpperCase();
-  if (normalized === 'SUCCESS') {
+  if (normalized === 'SUCCESS' || normalized === 'VERIFIED') {
     return 'VERIFIED';
   }
-  if (normalized === 'FAILED' || normalized === 'CANCELLED') {
+  if (normalized === 'FAILED' || normalized === 'CANCELLED' || normalized === 'REJECTED') {
     return 'REJECTED';
+  }
+  if (normalized === 'PENDING_VERIFICATION') {
+    return 'PENDING_VERIFICATION';
   }
   return 'PENDING';
 };
@@ -123,6 +127,7 @@ export default function StudentCheckoutPage() {
       const paymentRows = (paymentsResponse.data || []).map((item) => ({
         id: item._id,
         paymentDate: formatDateValue(item.paidAt || item.createdAt),
+        paymentFor: item.sourceLabel || (String(item.sourceType || '').toUpperCase() === 'NOTICE' ? 'Notice Payment' : 'Fee Payment'),
         amount: `INR ${item.amount || 0}`,
         screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
         verificationStatus: mapVerificationStatus(item.paymentStatus)

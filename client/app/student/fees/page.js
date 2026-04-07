@@ -17,6 +17,15 @@ const text = {
     title: 'Fees',
     description: 'View month-wise fee records and payment status.',
     monthlyFeeLabel: 'Monthly Fee',
+    paymentHistoryTitle: 'Payment History',
+    paymentHistoryDescription: 'All fee and payment-notice transactions are shown here.',
+    paymentHistoryColumns: [
+      { key: 'paymentDate', label: 'Payment Date' },
+      { key: 'paymentFor', label: 'Payment For' },
+      { key: 'amount', label: 'Amount' },
+      { key: 'screenshotStatus', label: 'Screenshot Status' },
+      { key: 'verificationStatus', label: 'Verification Status' }
+    ],
     columns: [
       { key: 'month', label: 'Month' },
       { key: 'amountPaid', label: 'Amount Paid' },
@@ -29,6 +38,15 @@ const text = {
     title: 'ফি',
     description: 'মাসভিত্তিক ফি রেকর্ড ও পেমেন্ট স্ট্যাটাস দেখুন।',
     monthlyFeeLabel: 'মাসিক ফি',
+    paymentHistoryTitle: 'পেমেন্ট হিস্টোরি',
+    paymentHistoryDescription: 'ফি এবং পেমেন্ট-নোটিশের সব লেনদেন এখানে দেখা যাবে।',
+    paymentHistoryColumns: [
+      { key: 'paymentDate', label: 'পেমেন্ট তারিখ' },
+      { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
+      { key: 'amount', label: 'পরিমাণ' },
+      { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
+    ],
     columns: [
       { key: 'month', label: 'মাস' },
       { key: 'amountPaid', label: 'পরিশোধিত' },
@@ -64,11 +82,39 @@ const deriveStatusFromAmountPaid = (amountPaid) => {
   return 'PAID';
 };
 
+const mapVerificationStatus = (status) => {
+  const normalized = String(status || '').toUpperCase();
+  if (normalized === 'SUCCESS' || normalized === 'VERIFIED') {
+    return 'VERIFIED';
+  }
+  if (normalized === 'FAILED' || normalized === 'CANCELLED' || normalized === 'REJECTED') {
+    return 'REJECTED';
+  }
+  if (normalized === 'PENDING_VERIFICATION') {
+    return 'PENDING_VERIFICATION';
+  }
+  return 'PENDING';
+};
+
+const formatDateValue = (value) => {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return parsed.toLocaleDateString('en-GB');
+};
+
 export default function StudentFeesPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
+  const [paymentHistory, setPaymentHistory] = useState([]);
   const [receipts, setReceipts] = useState([]);
 
   const downloadTextFile = (filename, lines) => {
@@ -90,13 +136,15 @@ export default function StudentFeesPage() {
         const { token } = getAuthContext();
         if (!token) {
           setRows([]);
+          setPaymentHistory([]);
           setReceipts([]);
           return;
         }
 
-        const [response, receiptResponse] = await Promise.all([
+        const [response, receiptResponse, paymentHistoryResponse] = await Promise.all([
           get('/student/fees', token),
-          get('/receipts/student', token)
+          get('/receipts/student', token),
+          get('/fees/my/payments', token)
         ]);
 
         const feeRows = (response.data || [])
@@ -118,10 +166,21 @@ export default function StudentFeesPage() {
           }))
           .filter((item) => item.amountDueValue > 0 || item.amountPaidValue > 0);
 
+        const paymentRows = (paymentHistoryResponse.data || []).map((item) => ({
+          id: item._id,
+          paymentDate: formatDateValue(item.paidAt || item.createdAt),
+          paymentFor: item.sourceLabel || (String(item.sourceType || '').toUpperCase() === 'NOTICE' ? 'Notice Payment' : 'Fee Payment'),
+          amount: `INR ${item.amount || 0}`,
+          screenshotStatus: item.screenshotPath ? 'UPLOADED' : 'NOT_UPLOADED',
+          verificationStatus: mapVerificationStatus(item.paymentStatus)
+        }));
+
         setRows(feeRows);
+        setPaymentHistory(paymentRows);
         setReceipts(receiptResponse.data || []);
       } catch (_error) {
         setRows([]);
+        setPaymentHistory([]);
         setReceipts([]);
       } finally {
         setLoading(false);
@@ -156,6 +215,18 @@ export default function StudentFeesPage() {
       />
       <p className="text-sm font-medium text-slate-700">{t.monthlyFeeLabel}: INR {MONTHLY_FEE_AMOUNT}</p>
       <Table columns={t.columns} rows={rows} loading={loading} scrollY maxHeightClass="max-h-[276px]" />
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-slate-900">{t.paymentHistoryTitle}</h3>
+        <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
+        <Table
+          columns={t.paymentHistoryColumns}
+          rows={paymentHistory}
+          loading={loading}
+          scrollY
+          maxHeightClass="max-h-[320px]"
+        />
+      </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Payment Receipts</h3>
