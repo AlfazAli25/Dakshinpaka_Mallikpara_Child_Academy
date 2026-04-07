@@ -1,4 +1,7 @@
-const PDFDocument = require('pdfkit');
+const fs = require('fs/promises');
+const path = require('path');
+const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 
 const { amountToWordsINR } = require('../utils/amount-in-words');
 const {
@@ -8,31 +11,66 @@ const {
   SCHOOL_MOBILE
 } = require('../config/school');
 
+const TEMPLATE_PATH = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'templates',
+  'receipts',
+  'payment-receipt-design.html'
+);
+
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const SERVER_ROOT = path.resolve(__dirname, '..', '..');
+const SCHOOL_LOGO_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'School_Logo.png');
+const DEFAULT_AVATAR_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'default-student-avatar.svg');
+
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
+
+const LOCAL_CHROME_CANDIDATES = [
+  'C:/Program Files/Google/Chrome/Application/chrome.exe',
+  'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium-browser',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+];
+
+let templateCache = '';
+
+const createHttpError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 
 const toSafeText = (value, fallback = '-') => {
   const normalized = String(value ?? '').trim();
   return normalized || fallback;
 };
 
-const toSafeFileToken = (value, fallback = 'Receipt') => {
-  const normalized = toSafeText(value, fallback);
-  return normalized.replace(/[^A-Za-z0-9_-]/g, '_');
-};
-
-const toCurrency = (value) => {
-  const numeric = Number(value);
-  const normalized = Number.isFinite(numeric) ? Math.max(numeric, 0) : 0;
-
-  return `INR ${normalized.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-};
+const toSafeFileToken = (value, fallback = 'Receipt') =>
+  toSafeText(value, fallback).replace(/[^A-Za-z0-9_-]/g, '_');
 
 const padNumber = (value) => String(value).padStart(2, '0');
 
-const toDateTime = (value) => {
+const formatDate = (value) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return '-';
+  }
+
+  return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()}`;
+};
+
+const formatDateTime = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return '-';
@@ -42,11 +80,21 @@ const toDateTime = (value) => {
   const meridian = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12 || 12;
 
-  return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()} ${padNumber(hours)}:${padNumber(parsed.getMinutes())} ${meridian}`;
+  return `${formatDate(parsed)} ${padNumber(hours)}:${padNumber(parsed.getMinutes())} ${meridian}`;
 };
 
-const normalizePaymentStatus = (value) => {
-  const normalized = String(value || '').trim().toUpperCase();
+const formatAmount = (value) => {
+  const numeric = Number(value);
+  const normalized = Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+
+  return `INR ${normalized.toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+};
+
+const normalizePaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
 
   if (SUCCESSFUL_PAYMENT_STATUSES.has(normalized)) {
     return 'PAID';
@@ -83,6 +131,15 @@ const buildPaymentForLabel = (payment = {}) => {
   return `School Fee (${monthKeys[0]} to ${monthKeys[monthKeys.length - 1]})`;
 };
 
+const resolvePaymentThrough = (payment = {}) => {
+  const processedBy = String(payment?.processedBy || '').trim().toUpperCase();
+  if (processedBy === 'ADMIN' || payment?.processedByAdmin) {
+    return 'Admin Panel';
+  }
+
+  return 'Student Panel';
+};
+
 const resolveReceiptNumber = ({ payment, receipt }) => {
   const existingReceiptNumber = String(receipt?.receiptNumber || '').trim();
   if (existingReceiptNumber) {
@@ -94,167 +151,242 @@ const resolveReceiptNumber = ({ payment, receipt }) => {
     return `FEE-${transactionId}`;
   }
 
-  const paymentIdToken = String(payment?._id || '').slice(-10);
-  return `FEE-${paymentIdToken || Date.now()}`;
+  return `FEE-${String(payment?._id || '').slice(-10) || Date.now()}`;
 };
 
-const collectPdfBuffer = (doc) =>
-  new Promise((resolve, reject) => {
-    const chunks = [];
+const resolveMimeType = (filePath) => {
+  const extension = String(path.extname(filePath) || '').toLowerCase();
 
-    doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+  if (extension === '.png') {
+    return 'image/png';
+  }
+
+  if (extension === '.jpg' || extension === '.jpeg') {
+    return 'image/jpeg';
+  }
+
+  if (extension === '.svg') {
+    return 'image/svg+xml';
+  }
+
+  if (extension === '.webp') {
+    return 'image/webp';
+  }
+
+  return 'application/octet-stream';
+};
+
+const fileExists = async (filePath) => {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+};
+
+const toDataUriFromBuffer = (buffer, mimeType) => `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+const loadLocalImageDataUri = async (filePath) => {
+  const fileBuffer = await fs.readFile(filePath);
+  return toDataUriFromBuffer(fileBuffer, resolveMimeType(filePath));
+};
+
+const loadRemoteImageDataUri = async (imageUrl) => {
+  const response = await fetch(imageUrl);
+  if (!response.ok) {
+    throw new Error('Unable to fetch remote image');
+  }
+
+  const mimeType = response.headers.get('content-type') || 'image/png';
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  return toDataUriFromBuffer(buffer, mimeType);
+};
+
+const resolveStudentImageDataUri = async (student = {}) => {
+  const profileImageUrl = String(student?.profileImageUrl || '').trim();
+
+  if (profileImageUrl.startsWith('data:')) {
+    return profileImageUrl;
+  }
+
+  if (/^https?:\/\//i.test(profileImageUrl)) {
+    try {
+      return await loadRemoteImageDataUri(profileImageUrl);
+    } catch (_error) {
+      // Continue to local fallbacks.
+    }
+  }
+
+  if (profileImageUrl.startsWith('/')) {
+    const normalized = profileImageUrl.replace(/^\/+/, '');
+    const publicPath = path.resolve(REPO_ROOT, 'client', 'public', normalized);
+    if (await fileExists(publicPath)) {
+      return loadLocalImageDataUri(publicPath);
+    }
+
+    const serverRelativePath = path.resolve(SERVER_ROOT, normalized);
+    if (await fileExists(serverRelativePath)) {
+      return loadLocalImageDataUri(serverRelativePath);
+    }
+  }
+
+  return loadLocalImageDataUri(DEFAULT_AVATAR_PATH);
+};
+
+const resolveSchoolLogoDataUri = async () => {
+  if (await fileExists(SCHOOL_LOGO_PATH)) {
+    return loadLocalImageDataUri(SCHOOL_LOGO_PATH);
+  }
+
+  throw createHttpError('School logo is missing', 500);
+};
+
+const loadTemplateHtml = async () => {
+  if (templateCache) {
+    return templateCache;
+  }
+
+  try {
+    templateCache = await fs.readFile(TEMPLATE_PATH, 'utf8');
+    return templateCache;
+  } catch (_error) {
+    throw createHttpError('Receipt template missing', 500);
+  }
+};
+
+const renderTemplate = (templateHtml, model) =>
+  String(templateHtml || '').replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_fullMatch, key) => {
+    if (key === 'schoolLogo' || key === 'studentProfileImage') {
+      return String(model[key] || '');
+    }
+
+    return escapeHtml(model[key] ?? '');
   });
 
-const drawKeyValueRow = (doc, label, value) => {
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(10)
-    .fillColor('#1f2937')
-    .text(`${label}: `, {
-      continued: true,
-      width: 520,
-      lineGap: 2
-    });
+const findLocalChromeExecutable = async () => {
+  for (const candidate of LOCAL_CHROME_CANDIDATES) {
+    if (await fileExists(candidate)) {
+      return candidate;
+    }
+  }
 
-  doc
-    .font('Helvetica')
-    .fontSize(10)
-    .fillColor('#111827')
-    .text(toSafeText(value), {
-      width: 520,
-      lineGap: 2
-    });
+  return '';
 };
 
-const drawSectionHeading = (doc, title) => {
-  doc.moveDown(0.8);
-  doc
-    .font('Helvetica-Bold')
-    .fontSize(12)
-    .fillColor('#0f172a')
-    .text(title, {
-      underline: true
+const launchBrowser = async () => {
+  const safetyArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'];
+  let launchError = null;
+
+  try {
+    const executablePath = await chromium.executablePath();
+    if (executablePath) {
+      return await puppeteer.launch({
+        args: [...chromium.args, ...safetyArgs],
+        defaultViewport: chromium.defaultViewport,
+        executablePath,
+        headless: chromium.headless
+      });
+    }
+  } catch (error) {
+    launchError = error;
+  }
+
+  const configuredExecutablePath =
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    process.env.CHROME_PATH ||
+    (await findLocalChromeExecutable());
+
+  try {
+    return await puppeteer.launch({
+      executablePath: configuredExecutablePath || undefined,
+      args: safetyArgs,
+      headless: true
     });
-  doc.moveDown(0.4);
+  } catch (error) {
+    launchError = error;
+  }
+
+  throw createHttpError(launchError?.message || 'PDF generation failure', 500);
 };
 
-const buildViewModel = ({ payment, student, receipt }) => {
+const buildTemplateModel = async ({ payment, student, receipt }) => {
+  const [schoolLogo, studentProfileImage] = await Promise.all([
+    resolveSchoolLogoDataUri(),
+    resolveStudentImageDataUri(student)
+  ]);
+
   const className = toSafeText(student?.classId?.name || receipt?.className);
   const sectionName = toSafeText(student?.classId?.section || '-');
   const amountPaid = Number(payment?.amount || receipt?.amount || 0);
-  const paymentDateTime = payment?.paidAt || payment?.verifiedAt || payment?.updatedAt || payment?.createdAt || receipt?.paymentDate;
-  const transactionReference = payment?.providerReferenceId || payment?.transactionId || receipt?.transactionReference;
+  const paymentDateTimeValue = payment?.paidAt || payment?.verifiedAt || payment?.updatedAt || payment?.createdAt || receipt?.paymentDate;
 
   return {
-    receiptNumber: resolveReceiptNumber({ payment, receipt }),
+    schoolLogo,
+    studentProfileImage,
     schoolName: toSafeText(SCHOOL_BRANCH_NAME || SCHOOL_NAME, SCHOOL_NAME),
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
-    schoolMobile: toSafeText(SCHOOL_MOBILE),
+    schoolPhone: toSafeText(SCHOOL_MOBILE),
+    receiptNumber: resolveReceiptNumber({ payment, receipt }),
     studentName: toSafeText(student?.userId?.name || receipt?.studentName, 'Student'),
     studentId: toSafeText(student?.admissionNo || student?._id),
-    classLabel: sectionName === '-' ? className : `${className} (${sectionName})`,
-    paymentId: toSafeText(payment?._id),
-    transactionId: toSafeText(payment?.transactionId),
-    transactionReference: toSafeText(transactionReference),
+    studentRollNumber: toSafeText(student?.rollNo),
+    class: className,
+    section: sectionName,
+    amountPaid: formatAmount(amountPaid),
     paymentFor: buildPaymentForLabel(payment),
     paymentMethod: normalizePaymentMethod(payment?.paymentMethod || receipt?.paymentMethod),
-    paymentStatus: normalizePaymentStatus(payment?.paymentStatus || receipt?.status),
-    paymentDateTime: toDateTime(paymentDateTime),
-    amountPaid,
-    amountPaidFormatted: toCurrency(amountPaid),
+    paymentThrough: resolvePaymentThrough(payment),
+    paymentDateTime: formatDateTime(paymentDateTimeValue),
+    status: normalizePaymentStatus(payment?.paymentStatus || receipt?.status),
     amountInWords: amountToWordsINR(amountPaid),
-    remainingBalanceFormatted: toCurrency(payment?.remainingBalance || 0),
-    processedBy: toSafeText(payment?.processedByAdmin?.name || payment?.processedBy || '-'),
-    generatedAt: toDateTime(new Date())
+    receiptDownloadDate: formatDate(new Date())
   };
 };
 
-const createDynamicStudentReceiptPdf = async ({ payment, student, receipt }) => {
-  const model = buildViewModel({ payment, student, receipt });
-  const document = new PDFDocument({
-    size: 'A4',
-    margin: 46,
-    info: {
-      Title: `Fee Receipt ${model.receiptNumber}`,
-      Author: model.schoolName,
-      Subject: 'Student Fee Payment Receipt'
-    }
-  });
+const createTemplateReceiptPdf = async ({ payment, student, receipt }) => {
+  const templateHtml = await loadTemplateHtml();
+  const model = await buildTemplateModel({ payment, student, receipt });
+  const finalHtml = renderTemplate(templateHtml, model);
 
-  const pdfBufferPromise = collectPdfBuffer(document);
+  let browser;
 
-  document
-    .font('Helvetica-Bold')
-    .fontSize(18)
-    .fillColor('#111827')
-    .text('FEE PAYMENT RECEIPT', { align: 'center' });
-
-  document.moveDown(0.4);
-  document
-    .font('Helvetica-Bold')
-    .fontSize(12)
-    .fillColor('#0f172a')
-    .text(model.schoolName, { align: 'center' });
-
-  document
-    .font('Helvetica')
-    .fontSize(10)
-    .fillColor('#1f2937')
-    .text(model.schoolAddress, { align: 'center' });
-
-  document
-    .font('Helvetica')
-    .fontSize(10)
-    .fillColor('#1f2937')
-    .text(`Contact: ${model.schoolMobile}`, { align: 'center' });
-
-  document.moveDown(1);
-  drawSectionHeading(document, 'Receipt Details');
-  drawKeyValueRow(document, 'Receipt Number', model.receiptNumber);
-  drawKeyValueRow(document, 'Payment ID', model.paymentId);
-  drawKeyValueRow(document, 'Transaction ID', model.transactionId);
-  drawKeyValueRow(document, 'Transaction Reference', model.transactionReference);
-  drawKeyValueRow(document, 'Payment For', model.paymentFor);
-
-  drawSectionHeading(document, 'Student Details');
-  drawKeyValueRow(document, 'Student Name', model.studentName);
-  drawKeyValueRow(document, 'Student ID', model.studentId);
-  drawKeyValueRow(document, 'Class', model.classLabel);
-
-  drawSectionHeading(document, 'Payment Summary');
-  drawKeyValueRow(document, 'Amount Paid', model.amountPaidFormatted);
-  drawKeyValueRow(document, 'Amount in Words', model.amountInWords);
-  drawKeyValueRow(document, 'Payment Method', model.paymentMethod);
-  drawKeyValueRow(document, 'Payment Date and Time', model.paymentDateTime);
-  drawKeyValueRow(document, 'Payment Status', model.paymentStatus);
-  drawKeyValueRow(document, 'Remaining Balance', model.remainingBalanceFormatted);
-  drawKeyValueRow(document, 'Processed By', model.processedBy);
-
-  document.moveDown(1.4);
-  drawKeyValueRow(document, 'Receipt Download Date', model.generatedAt);
-
-  document
-    .moveDown(1.8)
-    .font('Helvetica')
-    .fontSize(9)
-    .fillColor('#475569')
-    .text('This is a system-generated receipt and does not require a signature.', {
-      align: 'left'
+  try {
+    browser = await launchBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
+    await page.setContent(finalHtml, {
+      waitUntil: 'networkidle0',
+      timeout: 45000
     });
 
-  document.end();
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0',
+        right: '0',
+        bottom: '0',
+        left: '0'
+      }
+    });
 
-  const pdfBuffer = await pdfBufferPromise;
-
-  return {
-    pdfBuffer,
-    fileName: `Fee_Receipt_${toSafeFileToken(model.receiptNumber)}.pdf`,
-    generator: 'pdfkit-dynamic-v1'
-  };
+    return {
+      pdfBuffer,
+      fileName: `Fee_Receipt_${toSafeFileToken(model.receiptNumber)}.pdf`,
+      generator: 'template-html-puppeteer-v2'
+    };
+  } catch (error) {
+    throw createHttpError(error?.message || 'PDF generation failure', Number(error?.statusCode || 500));
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
 };
 
 module.exports = {
-  createDynamicStudentReceiptPdf
+  createTemplateReceiptPdf
 };

@@ -3,7 +3,7 @@ const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
 const Payment = require('../models/payment.model');
 const Receipt = require('../models/receipt.model');
-const { createDynamicStudentReceiptPdf } = require('../services/receipt-pdf.service');
+const { createTemplateReceiptPdf } = require('../services/receipt-pdf.service');
 const { logError, logInfo } = require('../utils/logger');
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
@@ -27,8 +27,8 @@ const sendPdfResponse = (res, generatedReceipt) => {
   res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   res.setHeader('Content-Length', normalizedPdfBuffer.length);
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Receipt-Generator', String(generatedReceipt?.generator || 'pdfkit-dynamic-v1'));
-  res.setHeader('X-Receipt-Version', '2026-04-07-dynamic-rebuild');
+  res.setHeader('X-Receipt-Generator', String(generatedReceipt?.generator || 'template-html-puppeteer-v2'));
+  res.setHeader('X-Receipt-Version', '2026-04-07-template-design');
   res.send(normalizedPdfBuffer);
 };
 
@@ -65,7 +65,7 @@ const downloadPaymentReceipt = asyncHandler(async (req, res) => {
   }
 
   if (!isSuccessfulPaymentStatus(payment.paymentStatus)) {
-    throw createHttpError('Receipt is available only for successful payments', 409);
+    throw createHttpError('Payment not found', 404);
   }
 
   const student = await Student.findById(payment.studentId)
@@ -85,21 +85,25 @@ const downloadPaymentReceipt = asyncHandler(async (req, res) => {
 
   let generatedReceipt;
   try {
-    generatedReceipt = await createDynamicStudentReceiptPdf({
+    generatedReceipt = await createTemplateReceiptPdf({
       payment,
       student,
       receipt,
       requestId: req.requestId
     });
   } catch (error) {
+    const statusCode = Number(error?.statusCode || 500);
+    const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
+
     logError('receipt_generation_failed', {
       requestId: req.requestId,
       paymentId,
       requesterId: String(req.user?._id || ''),
-      message: error?.message || 'Unknown receipt generation error'
+      statusCode,
+      message: message || 'Unknown receipt generation error'
     });
 
-    throw createHttpError('Failed to generate receipt', 500);
+    throw createHttpError(message || 'Failed to generate receipt', statusCode);
   }
 
   sendPdfResponse(res, generatedReceipt);

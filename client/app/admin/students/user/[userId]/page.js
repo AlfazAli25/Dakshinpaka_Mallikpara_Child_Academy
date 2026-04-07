@@ -366,7 +366,7 @@ export default function StudentUserProfilePage() {
                 disabled={downloadingReceiptPaymentId === paymentId}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {downloadingReceiptPaymentId === paymentId ? 'Downloading...' : 'Download'}
+                {downloadingReceiptPaymentId === paymentId ? 'Downloading...' : 'Download Receipt'}
               </button>
             ) : (
               <span className="text-xs font-semibold text-slate-400">Not available</span>
