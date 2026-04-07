@@ -12,6 +12,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [markingReadId, setMarkingReadId] = useState('');
   const [user, setUser] = useState(null);
   const notifPanelRef = useRef(null);
   const notifButtonRef = useRef(null);
@@ -97,14 +98,57 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
   const unreadCount = notifications.filter((item) => item.status === 'UNREAD').length;
 
-  const markRead = async (notificationId) => {
+  const markRead = async (notification) => {
+    const notificationId = String(notification?._id || '').trim();
+    if (!notificationId) {
+      return false;
+    }
+
+    if (String(notification?.status || '').toUpperCase() === 'READ') {
+      return true;
+    }
+
+    const previousStatus = notification?.status;
+    const previousReadAt = notification?.readAt;
+
+    setNotifications((prev) =>
+      prev.map((item) =>
+        item._id === notificationId
+          ? { ...item, status: 'READ', readAt: new Date().toISOString() }
+          : item
+      )
+    );
+
+    setMarkingReadId(notificationId);
+
     try {
       await post(`/notifications/${notificationId}/read`, {}, getToken());
-      setNotifications((prev) =>
-        prev.map((item) => (item._id === notificationId ? { ...item, status: 'READ', readAt: new Date().toISOString() } : item))
-      );
+      return true;
     } catch (_error) {
-      // no-op
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item._id === notificationId
+            ? { ...item, status: previousStatus, readAt: previousReadAt }
+            : item
+        )
+      );
+      return false;
+    } finally {
+      setMarkingReadId('');
+    }
+  };
+
+  const onNotificationClick = async (notification) => {
+    if (!notification) {
+      return;
+    }
+
+    setNotifOpen(false);
+    await markRead(notification);
+
+    const targetPath = String(notification.targetPath || '').trim();
+    if (targetPath) {
+      router.push(targetPath);
     }
   };
 
@@ -185,13 +229,11 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                         <p className="px-2 py-3 text-sm text-slate-500">No notifications.</p>
                       ) : (
                         notifications.map((item) => (
-                          <Link
+                          <button
                             key={item._id}
-                            href={item.targetPath}
-                            onClick={() => {
-                              setNotifOpen(false);
-                              markRead(item._id);
-                            }}
+                            type="button"
+                            onClick={() => onNotificationClick(item)}
+                            disabled={markingReadId === item._id}
                             className={`block rounded-lg px-2 py-2 text-sm hover:bg-red-50 ${
                               item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
                             }`}
@@ -199,7 +241,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                             <p className="break-words font-semibold">{item.title || 'Notification'}</p>
                             <p className="break-words text-xs text-slate-600">{item.message || '-'}</p>
                             <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString('en-GB')}</p>
-                          </Link>
+                          </button>
                         ))
                       )}
                     </div>

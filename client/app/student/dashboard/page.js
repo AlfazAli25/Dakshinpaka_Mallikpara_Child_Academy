@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
@@ -20,7 +20,6 @@ const text = {
     title: 'Student Dashboard',
     description: 'Track your attendance, exams, and fee status from a single place.',
     profilePhotoTitle: 'Student Photo',
-    profilePhotoFallback: 'Using default profile photo',
     detailsTitle: 'Student Details',
     fields: {
       name: 'Name',
@@ -49,13 +48,6 @@ const text = {
       important: 'Important',
       payNow: 'Pay Now',
       viewInFees: 'View Payment History in Fees'
-    },
-    receipts: {
-      title: 'Recent Fee Receipts',
-      empty: 'No fee receipts available yet.',
-      download: 'Download Receipt',
-      downloading: 'Downloading...',
-      downloadFailed: 'Failed to download receipt'
     }
   },
   bn: {
@@ -63,7 +55,6 @@ const text = {
     title: 'স্টুডেন্ট ড্যাশবোর্ড',
     description: 'এক জায়গায় উপস্থিতি, পরীক্ষা ও ফি দেখুন।',
     profilePhotoTitle: 'শিক্ষার্থীর ছবি',
-    profilePhotoFallback: 'ডিফল্ট প্রোফাইল ছবি ব্যবহার হচ্ছে',
     detailsTitle: 'শিক্ষার্থীর তথ্য',
     fields: {
       name: 'নাম',
@@ -92,13 +83,6 @@ const text = {
       important: 'গুরুত্বপূর্ণ',
       payNow: 'এখনই পরিশোধ করুন',
       viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন'
-    },
-    receipts: {
-      title: 'সাম্প্রতিক ফি রিসিপ্ট',
-      empty: 'এখনও কোনো ফি রিসিপ্ট নেই।',
-      download: 'রিসিপ্ট ডাউনলোড',
-      downloading: 'ডাউনলোড হচ্ছে...',
-      downloadFailed: 'এই মুহূর্তে রিসিপ্ট ডাউনলোড করা যাচ্ছে না।'
     }
   }
 };
@@ -108,19 +92,6 @@ const DEFAULT_STATS = [
   { title: 'Upcoming Exam', value: 'No Upcoming Exam' },
   { title: 'Pending Fees', value: 'INR 0' }
 ];
-
-const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
-
-const isSuccessfulPaymentStatus = (status) => {
-  const normalized = String(status || '').trim().toUpperCase();
-  return normalized === 'SUCCESS' || normalized === 'PAID' || normalized === 'VERIFIED';
-};
-
-const canDownloadFeeReceipt = (payment) => {
-  const sourceType = String(payment?.sourceType || '').trim().toUpperCase();
-  const paymentId = String(payment?._id || '').trim();
-  return sourceType === 'FEE' && OBJECT_ID_REGEX.test(paymentId) && isSuccessfulPaymentStatus(payment?.paymentStatus);
-};
 
 const toValidDate = (value) => {
   if (!value) {
@@ -210,8 +181,7 @@ const fetchStudentDashboardData = async () => {
     return {
       studentProfile: null,
       stats: DEFAULT_STATS,
-      notices: [],
-      feeReceipts: []
+      notices: []
     };
   }
 
@@ -224,20 +194,15 @@ const fetchStudentDashboardData = async () => {
     return {
       studentProfile: null,
       stats: DEFAULT_STATS,
-      notices: [],
-      feeReceipts: []
+      notices: []
     };
   }
 
-  const [attendanceRes, examsRes, feesRes, noticesRes, paymentHistoryRes] = await Promise.all([
+  const [attendanceRes, examsRes, feesRes, noticesRes] = await Promise.all([
     get('/student/attendance', token),
     get(`/exams?classId=${student.classId?._id || ''}`, token),
     get('/student/fees', token),
     get('/notices/student?page=1&limit=12', token, {
-      forceRefresh: true,
-      cacheTtlMs: 0
-    }),
-    get('/fees/my/payments', token, {
       forceRefresh: true,
       cacheTtlMs: 0
     })
@@ -267,25 +232,13 @@ const fetchStudentDashboardData = async () => {
       { title: 'Upcoming Exam', value: upcomingExamValue },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ],
-    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
-    feeReceipts: (Array.isArray(paymentHistoryRes?.data) ? paymentHistoryRes.data : [])
-      .filter((item) => canDownloadFeeReceipt(item))
-      .slice(0, 10)
-      .map((item) => ({
-        id: String(item?._id || ''),
-        paymentId: String(item?._id || ''),
-        amount: Number(item?.amount || 0),
-        paymentDate: item?.paidAt || item?.createdAt,
-        receiptToken: String(item?.transactionId || item?.transactionReference || item?._id || '')
-      }))
+    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : []
   };
 };
 
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
-  const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
-  const [receiptDownloadError, setReceiptDownloadError] = useState('');
 
   const { data, isLoading } = useSWR('student-dashboard', fetchStudentDashboardData, {
     refreshInterval: 60000
@@ -294,66 +247,6 @@ export default function StudentDashboardPage() {
   const studentProfile = data?.studentProfile || null;
   const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : DEFAULT_STATS), [data]);
   const notices = useMemo(() => (Array.isArray(data?.notices) ? data.notices : []), [data]);
-  const feeReceipts = useMemo(() => (Array.isArray(data?.feeReceipts) ? data.feeReceipts : []), [data]);
-
-  const downloadBlob = (blob, fileName) => {
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(href);
-  };
-
-  const onDownloadReceipt = async (paymentId, receiptNumber) => {
-    const normalizedPaymentId = String(paymentId || '').trim();
-    if (!normalizedPaymentId) {
-      return;
-    }
-
-    const { token } = getAuthContext();
-    if (!token) {
-      return;
-    }
-
-    setReceiptDownloadError('');
-    setDownloadingReceiptPaymentId(normalizedPaymentId);
-    try {
-      const endpointCandidates = [
-        `/receipt/download/${normalizedPaymentId}`,
-        `/receipts/student/${normalizedPaymentId}`
-      ];
-
-      let blob = null;
-      let lastError = null;
-
-      for (const endpoint of endpointCandidates) {
-        try {
-          blob = await getBlob(endpoint, token, { timeoutMs: 120000 });
-          break;
-        } catch (error) {
-          lastError = error;
-          const statusCode = Number(error?.statusCode || 0);
-          if (statusCode && statusCode !== 404 && statusCode !== 405) {
-            break;
-          }
-        }
-      }
-
-      if (!blob) {
-        throw lastError || new Error('Unable to download receipt right now.');
-      }
-
-      const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
-      downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
-    } catch (error) {
-      setReceiptDownloadError(String(error?.message || t.receipts.downloadFailed));
-    } finally {
-      setDownloadingReceiptPaymentId('');
-    }
-  };
 
   const formatDate = (value) => {
     if (!value) {
@@ -374,18 +267,13 @@ export default function StudentDashboardPage() {
         eyebrow={t.eyebrow}
         title={t.title}
         description={t.description}
-        rightSlot={<LanguageToggle />}
-      />
-
-      {studentProfile ? (
-        <div className="flex justify-center">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-center text-sm font-semibold text-slate-700">{t.profilePhotoTitle}</p>
-            <div className="mt-3 flex justify-center">
-              <div className="h-28 w-28 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-50">
+        rightSlot={
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm">
+              <div className="h-14 w-14 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                 <img
                   src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
-                  alt="Student profile"
+                  alt={t.profilePhotoTitle}
                   className="h-full w-full object-cover"
                   onError={(event) => {
                     event.currentTarget.src = '/default-student-avatar.svg';
@@ -393,12 +281,10 @@ export default function StudentDashboardPage() {
                 />
               </div>
             </div>
-            <p className="mt-3 text-center text-xs text-slate-500">
-              {studentProfile?.profileImageUrl ? (studentProfile?.admissionNo || '-') : t.profilePhotoFallback}
-            </p>
+            <LanguageToggle />
           </div>
-        </div>
-      ) : null}
+        }
+      />
 
       <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
 
@@ -468,43 +354,6 @@ export default function StudentDashboardPage() {
             })}
           </div>
         )}
-      </InfoCard>
-
-      <InfoCard title={t.receipts.title}>
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`receipt-dashboard-skeleton-${index}`} className="h-10 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
-            ))}
-          </div>
-        ) : feeReceipts.length === 0 ? (
-          <p className="text-sm font-semibold text-slate-600">{t.receipts.empty}</p>
-        ) : (
-          <div className="space-y-2">
-            {feeReceipts.slice(0, 5).map((receipt) => {
-              const paymentId = String(receipt?.paymentId || '').trim();
-
-              return (
-                <div key={receipt.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                  <p className="text-sm text-slate-700">
-                    {receipt.receiptToken || paymentId} - INR {receipt.amount} - {formatDate(receipt.paymentDate)}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => onDownloadReceipt(paymentId, receipt.receiptToken)}
-                    disabled={!paymentId || downloadingReceiptPaymentId === paymentId}
-                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {downloadingReceiptPaymentId === paymentId ? t.receipts.downloading : t.receipts.download}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {receiptDownloadError ? (
-          <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
-        ) : null}
       </InfoCard>
 
       <div className="grid gap-4 md:grid-cols-3">

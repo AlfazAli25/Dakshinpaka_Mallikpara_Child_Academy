@@ -1,16 +1,13 @@
 const Notification = require('../models/notification.model');
 const payrollService = require('./payroll.service');
 
-const READ_RETENTION_MS = 24 * 60 * 60 * 1000;
+const NOTIFICATION_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 const buildVisibleNotificationsQuery = ({ recipientRole, teacherId } = {}) => {
-  const cutoff = new Date(Date.now() - READ_RETENTION_MS);
+  const cutoff = new Date(Date.now() - NOTIFICATION_RETENTION_MS);
   const query = {
     recipientRole,
-    $or: [
-      { status: 'UNREAD' },
-      { status: 'READ', readAt: { $gte: cutoff } }
-    ]
+    submittedAt: { $gte: cutoff }
   };
 
   if (teacherId) {
@@ -43,12 +40,11 @@ const notifyAdminPaymentSubmitted = async ({ studentId, studentName, paymentId }
     status: 'UNREAD'
   });
 
-const purgeReadNotificationsPastRetention = async ({ recipientRole, teacherId } = {}) => {
-  const cutoff = new Date(Date.now() - READ_RETENTION_MS);
+const purgeNotificationsPastRetention = async ({ recipientRole, teacherId } = {}) => {
+  const cutoff = new Date(Date.now() - NOTIFICATION_RETENTION_MS);
   const filter = {
     recipientRole,
-    status: 'READ',
-    readAt: { $lt: cutoff }
+    submittedAt: { $lt: cutoff }
   };
 
   if (teacherId) {
@@ -59,21 +55,25 @@ const purgeReadNotificationsPastRetention = async ({ recipientRole, teacherId } 
 };
 
 const listAdminNotifications = async () => {
-  await purgeReadNotificationsPastRetention({ recipientRole: 'admin' });
+  await purgeNotificationsPastRetention({ recipientRole: 'admin' });
   return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'admin' }))
     .sort({ status: 1, submittedAt: -1 })
     .limit(30);
 };
 
 const listTeacherNotifications = async ({ teacherId }) => {
-  await purgeReadNotificationsPastRetention({ recipientRole: 'teacher', teacherId });
+  await purgeNotificationsPastRetention({ recipientRole: 'teacher', teacherId });
   return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'teacher', teacherId }))
     .sort({ status: 1, submittedAt: -1 })
     .limit(30);
 };
 
 const markAdminNotificationRead = async (notificationId) =>
-  Notification.findByIdAndUpdate(notificationId, { status: 'READ', readAt: new Date() }, { new: true });
+  Notification.findOneAndUpdate(
+    { _id: notificationId, recipientRole: 'admin' },
+    { status: 'READ', readAt: new Date() },
+    { new: true }
+  );
 
 const respondTeacherSalaryConfirmation = async ({ notificationId, teacherId, decision }) => {
   const normalizedDecision = String(decision || '').trim().toUpperCase();
