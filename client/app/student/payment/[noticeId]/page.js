@@ -217,6 +217,13 @@ export default function StudentNoticePaymentPage() {
                   </p>
                 </div>
 
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                  <p className="text-sm font-semibold text-emerald-800">Want to pay via Cash?</p>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    Visit the admin office and request a cash notice payment. Admin can record your notice payment directly.
+                  </p>
+                </div>
+
                 {notice?.payment?.verificationNotes ? (
                   <p className="text-xs text-slate-600">
                     <span className="font-semibold">Admin Note:</span> {notice.payment.verificationNotes}

@@ -180,6 +180,130 @@ const payNotice = asyncHandler(async (req, res) => {
   }
 });
 
+const recordCashNoticePayment = asyncHandler(async (req, res) => {
+  const noticeId = String(req.body?.noticeId || '').trim();
+  const studentId = String(req.body?.studentId || '').trim();
+  const requestedAmount = req.body?.amount;
+  const transactionReference = String(req.body?.transactionReference || '').trim();
+  const notes = String(req.body?.notes || '').trim();
+
+  if (!mongoose.Types.ObjectId.isValid(noticeId)) {
+    throw createHttpError(400, 'Notice is invalid');
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    throw createHttpError(400, 'Student is invalid');
+  }
+
+  const student = await Student.findById(studentId).select('_id classId').lean();
+  if (!student?._id) {
+    throw createHttpError(404, 'Student not found');
+  }
+
+  const notice = await Notice.findById(noticeId).select('_id noticeType amount status classIds dueDate').lean();
+  if (!notice) {
+    throw createHttpError(404, 'Notice not found');
+  }
+
+  if (notice.status !== 'Active') {
+    throw createHttpError(400, 'Notice is not active');
+  }
+
+  if (notice.noticeType !== 'Payment') {
+    throw createHttpError(400, 'This notice does not require payment');
+  }
+
+  const targetClassIds = Array.isArray(notice.classIds)
+    ? notice.classIds.map((item) => toId(item)).filter(Boolean)
+    : [];
+
+  const studentClassId = toId(student.classId);
+  if (targetClassIds.length > 0 && !targetClassIds.includes(studentClassId)) {
+    throw createHttpError(400, 'Selected student is not assigned to this notice');
+  }
+
+  const requiredAmount = Number(notice.amount || 0);
+  if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) {
+    throw createHttpError(400, 'Payment amount is not configured for this notice');
+  }
+
+  let amount = requiredAmount;
+  if (requestedAmount !== undefined && requestedAmount !== null && String(requestedAmount).trim() !== '') {
+    amount = Number(requestedAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw createHttpError(400, 'Amount must be greater than 0');
+    }
+  }
+
+  if (Math.abs(amount - requiredAmount) > 0.0001) {
+    throw createHttpError(400, `Amount must be exactly ${requiredAmount}`);
+  }
+
+  const existingPayment = await NoticePayment.findOne({
+    studentId: student._id,
+    noticeId: notice._id
+  });
+
+  const existingStatus = normalizePaymentStatus(existingPayment?.paymentStatus);
+  if (existingPayment && existingStatus === 'VERIFIED') {
+    throw createHttpError(409, 'Payment already verified for this notice');
+  }
+
+  if (existingPayment && existingStatus === 'PENDING_VERIFICATION') {
+    throw createHttpError(409, 'A screenshot submission is already pending. Verify or reject it before recording cash payment.');
+  }
+
+  const paidAt = new Date();
+  const verificationNotePrefix = 'Paid via cash at admin desk';
+  const verificationNotes = notes ? `${verificationNotePrefix}. ${notes}` : verificationNotePrefix;
+
+  let paymentDoc = existingPayment;
+  if (existingPayment) {
+    paymentDoc.set({
+      amount,
+      paymentStatus: 'VERIFIED',
+      paymentDate: paidAt,
+      screenshotPath: undefined,
+      screenshotPublicId: undefined,
+      transactionReference: transactionReference || undefined,
+      verifiedBy: req.user._id,
+      verifiedAt: paidAt,
+      verificationNotes
+    });
+    await paymentDoc.save();
+  } else {
+    paymentDoc = await NoticePayment.create({
+      studentId: student._id,
+      noticeId: notice._id,
+      amount,
+      paymentStatus: 'VERIFIED',
+      paymentDate: paidAt,
+      transactionReference: transactionReference || undefined,
+      verifiedBy: req.user._id,
+      verifiedAt: paidAt,
+      verificationNotes
+    });
+  }
+
+  const data = await NoticePayment.findById(paymentDoc._id)
+    .populate({ path: 'noticeId', select: 'title noticeType amount dueDate' })
+    .populate({
+      path: 'studentId',
+      select: 'admissionNo userId classId',
+      populate: [
+        { path: 'userId', select: 'name email' },
+        { path: 'classId', select: 'name section' }
+      ]
+    })
+    .lean();
+
+  res.status(201).json({
+    success: true,
+    message: 'Cash notice payment recorded successfully',
+    data: mapPaymentForResponse(data)
+  });
+});
+
 const listPendingNoticePayments = asyncHandler(async (_req, res) => {
   const pendingItems = await NoticePayment.find({
     paymentStatus: { $in: ['PENDING_VERIFICATION', 'Pending'] }
@@ -256,6 +380,7 @@ const verifyNoticePayment = asyncHandler(async (req, res) => {
 
 module.exports = {
   payNotice,
+  recordCashNoticePayment,
   listPendingNoticePayments,
   verifyNoticePayment
 };

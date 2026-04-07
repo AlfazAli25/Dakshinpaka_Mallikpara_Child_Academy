@@ -63,6 +63,21 @@ router.get(
 );
 
 router.post(
+  '/payments/cash',
+  protect,
+  requireRole(['admin']),
+  [
+    body('studentId').notEmpty().withMessage('Student is required').bail().isMongoId().withMessage('Student is invalid'),
+    body('noticeId').notEmpty().withMessage('Notice is required').bail().isMongoId().withMessage('Notice is invalid'),
+    body('amount').optional().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0'),
+    body('transactionReference').optional().isString().isLength({ max: 120 }).withMessage('Transaction reference is too long'),
+    body('notes').optional().isString().isLength({ max: 500 }).withMessage('Notes must be under 500 characters')
+  ],
+  validate,
+  noticePaymentController.recordCashNoticePayment
+);
+
+router.post(
   '/payments/:paymentId/verify',
   protect,
   requireRole(['admin']),

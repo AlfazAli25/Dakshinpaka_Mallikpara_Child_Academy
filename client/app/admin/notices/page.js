@@ -22,6 +22,7 @@ const getInitialForm = () => ({
 });
 
 const toId = (value) => String(value?._id || value || '');
+const isMongoId = (value) => /^[a-f\d]{24}$/i.test(String(value || '').trim());
 
 const toDateInputValue = (value) => {
   if (!value) {
@@ -86,12 +87,35 @@ export default function AdminNoticesPage() {
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState('');
   const [classes, setClasses] = useState([]);
+  const [students, setStudents] = useState([]);
   const [notices, setNotices] = useState([]);
   const [pendingNoticePayments, setPendingNoticePayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [processingId, setProcessingId] = useState('');
   const [verifyingPaymentId, setVerifyingPaymentId] = useState('');
+  const [recordingCashPayment, setRecordingCashPayment] = useState(false);
+  const [cashPaymentForm, setCashPaymentForm] = useState({
+    noticeId: '',
+    studentId: '',
+    transactionReference: '',
+    notes: ''
+  });
+
+  const paymentNoticeOptions = useMemo(
+    () => notices.filter((item) => String(item?.noticeType || '') === 'Payment' && String(item?.status || '') === 'Active'),
+    [notices]
+  );
+
+  const studentOptions = useMemo(
+    () => students.filter((item) => item?.isLinkedRecord && isMongoId(toId(item))),
+    [students]
+  );
+
+  const selectedCashNotice = useMemo(
+    () => paymentNoticeOptions.find((item) => toId(item) === cashPaymentForm.noticeId) || null,
+    [cashPaymentForm.noticeId, paymentNoticeOptions]
+  );
 
   const classLabelMap = useMemo(
     () => classes.reduce((acc, item) => {
@@ -108,10 +132,11 @@ export default function AdminNoticesPage() {
 
     try {
       const token = getToken();
-      const [classResult, noticeResult, pendingPaymentResult] = await Promise.allSettled([
+      const [classResult, noticeResult, pendingPaymentResult, studentResult] = await Promise.allSettled([
         get('/classes', token, { forceRefresh: true, cacheTtlMs: 0 }),
         get('/notices?page=1&limit=100', token, { forceRefresh: true, cacheTtlMs: 0 }),
-        get('/notices/payments/pending', token, { forceRefresh: true, cacheTtlMs: 0 })
+        get('/notices/payments/pending', token, { forceRefresh: true, cacheTtlMs: 0 }),
+        get('/students/admin/all', token, { forceRefresh: true, cacheTtlMs: 0 })
       ]);
 
       if (classResult.status === 'fulfilled') {
@@ -132,6 +157,13 @@ export default function AdminNoticesPage() {
       } else {
         setPendingNoticePayments([]);
         toast.error(pendingPaymentResult.reason?.message || 'Failed to load pending notice payments');
+      }
+
+      if (studentResult.status === 'fulfilled') {
+        setStudents(Array.isArray(studentResult.value?.data) ? studentResult.value.data : []);
+      } else {
+        setStudents([]);
+        toast.error(studentResult.reason?.message || 'Failed to load students');
       }
     } finally {
       setLoading(false);
@@ -356,6 +388,59 @@ export default function AdminNoticesPage() {
       toast.error(apiError.message || 'Failed to update notice payment verification');
     } finally {
       setVerifyingPaymentId('');
+    }
+  };
+
+  const onCashPaymentFieldChange = (field) => (event) => {
+    const nextValue = String(event.target.value || '');
+    setCashPaymentForm((prev) => ({
+      ...prev,
+      [field]: nextValue
+    }));
+  };
+
+  const resetCashPaymentForm = () => {
+    setCashPaymentForm({
+      noticeId: '',
+      studentId: '',
+      transactionReference: '',
+      notes: ''
+    });
+  };
+
+  const onRecordCashNoticePayment = async (event) => {
+    event.preventDefault();
+
+    const noticeId = String(cashPaymentForm.noticeId || '').trim();
+    const studentId = String(cashPaymentForm.studentId || '').trim();
+    if (!noticeId || !studentId) {
+      toast.error('Select both notice and student');
+      return;
+    }
+
+    const selectedNoticeAmount = Number(selectedCashNotice?.amount || 0);
+    if (!Number.isFinite(selectedNoticeAmount) || selectedNoticeAmount <= 0) {
+      toast.error('Selected notice amount is invalid');
+      return;
+    }
+
+    setRecordingCashPayment(true);
+    try {
+      await post('/notices/payments/cash', {
+        noticeId,
+        studentId,
+        amount: selectedNoticeAmount,
+        transactionReference: String(cashPaymentForm.transactionReference || '').trim() || undefined,
+        notes: String(cashPaymentForm.notes || '').trim() || undefined
+      }, getToken());
+
+      toast.success('Cash notice payment recorded successfully');
+      resetCashPaymentForm();
+      await loadData();
+    } catch (apiError) {
+      toast.error(apiError.message || 'Failed to record cash notice payment');
+    } finally {
+      setRecordingCashPayment(false);
     }
   };
 
@@ -616,6 +701,98 @@ export default function AdminNoticesPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
+        <div className="border-b border-emerald-100 px-4 py-3 md:px-5">
+          <h2 className="text-base font-semibold text-slate-900">Record Notice Payment by Cash (Admin)</h2>
+          <p className="text-xs text-slate-600">Use this when a student pays notice amount at the admin desk in cash.</p>
+        </div>
+
+        <form onSubmit={onRecordCashNoticePayment} className="space-y-3 px-4 py-4 md:px-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="mb-1 block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Payment Notice</span>
+              <select
+                value={cashPaymentForm.noticeId}
+                onChange={onCashPaymentFieldChange('noticeId')}
+                disabled={loading || recordingCashPayment}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              >
+                <option value="">Select payment notice</option>
+                {paymentNoticeOptions.map((notice) => (
+                  <option key={toId(notice)} value={toId(notice)}>
+                    {`${notice?.title || 'Payment Notice'} | INR ${Number(notice?.amount || 0)} | Due ${formatDateLabel(notice?.dueDate)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="mb-1 block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-700">Student</span>
+              <select
+                value={cashPaymentForm.studentId}
+                onChange={onCashPaymentFieldChange('studentId')}
+                disabled={loading || recordingCashPayment}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              >
+                <option value="">Select student</option>
+                {studentOptions.map((student) => (
+                  <option key={toId(student)} value={toId(student)}>
+                    {`${student?.userId?.name || '-'} | Adm ${student?.admissionNo || '-'} | ${formatClassLabel(student?.classId, 'Class')}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              label="Cash Reference (optional)"
+              value={cashPaymentForm.transactionReference}
+              onChange={onCashPaymentFieldChange('transactionReference')}
+              disabled={loading || recordingCashPayment}
+              placeholder="Receipt no / voucher no"
+            />
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-semibold text-slate-600">Selected Notice Amount</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {selectedCashNotice ? `INR ${Number(selectedCashNotice?.amount || 0)}` : '-'}
+              </p>
+            </div>
+          </div>
+
+          <label className="mb-1 block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-700">Notes (optional)</span>
+            <textarea
+              value={cashPaymentForm.notes}
+              onChange={onCashPaymentFieldChange('notes')}
+              disabled={loading || recordingCashPayment}
+              rows={2}
+              placeholder="Optional note for this cash collection"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={loading || recordingCashPayment}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {recordingCashPayment ? 'Recording...' : 'Record Cash Payment'}
+            </button>
+            <button
+              type="button"
+              onClick={resetCashPaymentForm}
+              disabled={loading || recordingCashPayment}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
       </section>
 
       <section className="rounded-2xl border border-amber-100 bg-white shadow-sm">
