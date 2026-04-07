@@ -5,6 +5,7 @@ import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
+import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -42,6 +43,8 @@ const formatDateValue = (value) => {
 
   return parsed.toLocaleDateString('en-GB');
 };
+
+const formatMb = (bytes) => (Number(bytes || 0) / (1024 * 1024)).toFixed(1);
 
 export default function StudentCheckoutPage() {
   const toast = useToast();
@@ -184,8 +187,21 @@ export default function StudentCheckoutPage() {
     setMessage('');
 
     try {
+      const preparedScreenshot = await prepareScreenshotForUpload(screenshotFile, {
+        maxBytes: SCREENSHOT_UPLOAD_MAX_BYTES
+      });
+
+      if (!preparedScreenshot || preparedScreenshot.size > SCREENSHOT_UPLOAD_MAX_BYTES) {
+        setError(`Screenshot is too large. Please upload up to ${formatMb(SCREENSHOT_UPLOAD_MAX_BYTES)} MB.`);
+        return;
+      }
+
+      if (preparedScreenshot.size < screenshotFile.size) {
+        toast.info('Screenshot optimized for upload.');
+      }
+
       const formData = new FormData();
-      formData.append('screenshot', screenshotFile);
+      formData.append('screenshot', preparedScreenshot, preparedScreenshot.name);
       formData.append('amount', String(enteredAmount));
       if (transactionReference) {
         formData.append('transactionReference', transactionReference);

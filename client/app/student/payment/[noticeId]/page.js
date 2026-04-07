@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import { get, postForm } from '@/lib/api';
+import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -35,6 +36,8 @@ const normalizePaymentStatus = (status) => {
   }
   return '';
 };
+
+const formatMb = (bytes) => (Number(bytes || 0) / (1024 * 1024)).toFixed(1);
 
 export default function StudentNoticePaymentPage() {
   const params = useParams();
@@ -115,11 +118,24 @@ export default function StudentNoticePaymentPage() {
     setPaying(true);
     try {
       const auth = getAuthContext();
+      const preparedScreenshot = await prepareScreenshotForUpload(screenshotFile, {
+        maxBytes: SCREENSHOT_UPLOAD_MAX_BYTES
+      });
+
+      if (!preparedScreenshot || preparedScreenshot.size > SCREENSHOT_UPLOAD_MAX_BYTES) {
+        toast.error(`Screenshot is too large. Please upload up to ${formatMb(SCREENSHOT_UPLOAD_MAX_BYTES)} MB.`);
+        return;
+      }
+
+      if (preparedScreenshot.size < screenshotFile.size) {
+        toast.info('Screenshot optimized for upload.');
+      }
+
       const formData = new FormData();
       formData.append('studentId', student._id);
       formData.append('noticeId', noticeId);
       formData.append('amount', String(payableAmount));
-      formData.append('screenshot', screenshotFile);
+      formData.append('screenshot', preparedScreenshot, preparedScreenshot.name);
 
       const normalizedReference = String(transactionReference || '').trim();
       if (normalizedReference) {
