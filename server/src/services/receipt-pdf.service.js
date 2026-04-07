@@ -3,6 +3,7 @@ const path = require('path');
 const puppeteer = require('puppeteer');
 const puppeteerCore = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
+const PDFDocument = require('pdfkit');
 const { amountToWordsINR } = require('../utils/amount-in-words');
 const {
   SCHOOL_NAME,
@@ -475,13 +476,72 @@ const launchReceiptBrowser = async () => {
   return puppeteer.launch(getPuppeteerLaunchOptions());
 };
 
+const buildFallbackStudentReceiptPdfBuffer = async (model) =>
+  new Promise((resolve, reject) => {
+    const document = new PDFDocument({ size: 'A4', margin: 40 });
+    const chunks = [];
+
+    document.on('data', (chunk) => chunks.push(chunk));
+    document.on('error', reject);
+    document.on('end', () => resolve(Buffer.concat(chunks)));
+
+    document
+      .fontSize(22)
+      .fillColor('#132a56')
+      .text('FEE PAYMENT RECEIPT', { align: 'center' });
+
+    document
+      .moveDown(0.6)
+      .fontSize(12)
+      .fillColor('#111827')
+      .text(model.schoolName, { align: 'center' })
+      .fontSize(10)
+      .text(`Address: ${model.schoolAddress}`, { align: 'center' })
+      .text(`Mob.: ${model.schoolMobile}`, { align: 'center' });
+
+    document.moveDown(1.2);
+
+    const fields = [
+      ['Receipt Number', model.receiptNumber],
+      ['Student Name', model.studentName],
+      ['Student ID', model.studentId],
+      ['Class', `${model.className} | Sec: ${model.section}`],
+      ['Amount Paid', model.amountPaid],
+      ['Payment For', model.paymentFor],
+      ['Payment Method', model.paymentMethod],
+      ['Payment Date and Time', model.paymentDateTime],
+      ['Status', model.status],
+      ['Amount in words', model.amountInWords],
+      ['Receipt Download Date', model.receiptDownloadDate]
+    ];
+
+    fields.forEach(([label, value]) => {
+      document
+        .fontSize(10)
+        .fillColor('#334155')
+        .text(`${label}:`, { continued: true })
+        .fillColor('#0f172a')
+        .text(` ${toSafeLabelValue(value)}`)
+        .moveDown(0.25);
+    });
+
+    document.end();
+  });
+
 const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, receipt }) => {
   const model = buildStudentReceiptViewModel({ payment, student, classRecord, receipt });
   const logoDataUri = await getLogoDataUri();
   const html = buildStudentReceiptHtml({ model, logoDataUri });
 
-  const browser = await launchReceiptBrowser();
+  const toResult = (pdfBuffer) => ({
+    pdfBuffer,
+    receiptNumber: model.receiptNumber,
+    fileName: buildReceiptFileName(model.receiptNumber)
+  });
+
+  let browser;
   try {
+    browser = await launchReceiptBrowser();
     const page = await browser.newPage();
     await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 45000 });
@@ -493,13 +553,15 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
       preferCSSPageSize: true
     });
 
-    return {
-      pdfBuffer,
-      receiptNumber: model.receiptNumber,
-      fileName: buildReceiptFileName(model.receiptNumber)
-    };
+    return toResult(pdfBuffer);
+  } catch (error) {
+    console.error('[receipt-pdf] Chromium generation failed, using fallback PDF:', error?.message || error);
+    const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
+    return toResult(fallbackBuffer);
   } finally {
-    await browser.close();
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
   }
 };
 
