@@ -6,7 +6,10 @@ const Class = require('../models/class.model');
 const Payment = require('../models/payment.model');
 const Receipt = require('../models/receipt.model');
 const receiptService = require('../services/receipt.service');
-const { createStudentFeeReceiptPdf } = require('../services/receipt-pdf.service');
+const {
+  createStudentFeeReceiptPdf,
+  createStudentFeeReceiptFallbackPdf
+} = require('../services/receipt-pdf.service');
 
 const listStudentReceipts = asyncHandler(async (req, res) => {
   const student = await Student.findOne({ userId: req.user._id });
@@ -49,12 +52,25 @@ const downloadStudentFeeReceipt = asyncHandler(async (req, res) => {
     Receipt.findOne({ paymentId: payment._id, receiptType: 'FEE' }).lean()
   ]);
 
-  const { pdfBuffer, fileName } = await createStudentFeeReceiptPdf({
-    payment,
-    student,
-    classRecord,
-    receipt
-  });
+  let generatedReceipt;
+  try {
+    generatedReceipt = await createStudentFeeReceiptPdf({
+      payment,
+      student,
+      classRecord,
+      receipt
+    });
+  } catch (error) {
+    console.error('[receipt.controller] Primary receipt generation failed, using fallback:', error?.message || error);
+    generatedReceipt = await createStudentFeeReceiptFallbackPdf({
+      payment,
+      student,
+      classRecord,
+      receipt
+    });
+  }
+
+  const { pdfBuffer, fileName } = generatedReceipt;
 
   const normalizedPdfBuffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer || []);
 

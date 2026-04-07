@@ -21,6 +21,9 @@ const isServerlessRuntime = Boolean(
   process.env.AWS_LAMBDA_FUNCTION_NAME ||
   process.env.LAMBDA_TASK_ROOT
 );
+const isProductionEnvironment = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+const allowBrowserPdfInProduction =
+  String(process.env.RECEIPT_ENABLE_BROWSER_PDF || '').toLowerCase() === 'true';
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -541,12 +544,24 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
     fileName: buildReceiptFileName(model.receiptNumber)
   });
 
+  const buildFallbackResult = async () => {
+    const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
+    return toResult(fallbackBuffer);
+  };
+
+  const shouldForceFallback =
+    isServerlessRuntime ||
+    (isProductionEnvironment && !allowBrowserPdfInProduction);
+
+  if (shouldForceFallback) {
+    return buildFallbackResult();
+  }
+
   let browser;
   try {
     browser = await launchReceiptBrowser();
     if (!browser) {
-      const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
-      return toResult(fallbackBuffer);
+      return buildFallbackResult();
     }
 
     const page = await browser.newPage();
@@ -563,8 +578,7 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
     return toResult(pdfBuffer);
   } catch (error) {
     console.error('[receipt-pdf] Chromium generation failed, using fallback PDF:', error?.message || error);
-    const fallbackBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
-    return toResult(fallbackBuffer);
+    return buildFallbackResult();
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
@@ -572,7 +586,19 @@ const createStudentFeeReceiptPdf = async ({ payment, student, classRecord, recei
   }
 };
 
+const createStudentFeeReceiptFallbackPdf = async ({ payment, student, classRecord, receipt }) => {
+  const model = buildStudentReceiptViewModel({ payment, student, classRecord, receipt });
+  const pdfBuffer = await buildFallbackStudentReceiptPdfBuffer(model);
+
+  return {
+    pdfBuffer,
+    receiptNumber: model.receiptNumber,
+    fileName: buildReceiptFileName(model.receiptNumber)
+  };
+};
+
 module.exports = {
   createStudentFeeReceiptPdf,
+  createStudentFeeReceiptFallbackPdf,
   buildReceiptFileName
 };
