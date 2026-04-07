@@ -269,7 +269,7 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={
           <div className="flex w-full items-center justify-end gap-3 md:w-[560px] md:justify-between">
-            <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:h-[152px] md:w-[152px]">
+            <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:-mt-8 md:h-[152px] md:w-[152px]">
               <img
                 src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
                 alt={t.profilePhotoTitle}
