@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
+import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
@@ -264,6 +265,9 @@ export default function TeacherDashboardPage() {
         title="Teacher Dashboard"
         description="Review today's classes, attendance work, and exam tasks at a glance."
       />
+
+      <SchoolBrandPanel subtitle="Guide students confidently with school updates, class insights, and exam readiness tools." />
+
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => {
           const jumpToDetails = item.id === 'assignedClasses' || item.id === 'assignedSubjects';

@@ -6,6 +6,7 @@ import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
+import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get } from '@/lib/api';
@@ -264,6 +265,8 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={<LanguageToggle />}
       />
+
+      <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
 
       <InfoCard title={t.notices.title}>
         {isLoading ? (

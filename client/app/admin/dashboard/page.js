@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import useSWR from 'swr';
 import PageHeader from '@/components/PageHeader';
+import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import { get } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
@@ -47,6 +48,9 @@ export default function AdminDashboardPage() {
         title="Admin Dashboard"
         description="Track key school metrics and quickly navigate core management operations."
       />
+
+      <SchoolBrandPanel subtitle="Manage academics, communication, and operations from one trusted school platform." />
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {stats.map((item) => (
           <StatCard key={item.title} title={item.title} value={item.value} loading={isLoading} />
