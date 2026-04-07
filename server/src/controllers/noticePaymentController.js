@@ -28,6 +28,23 @@ const normalizePaymentStatus = (status) => {
   return '';
 };
 
+const buildPaymentStatusFilter = (status) => {
+  const normalized = normalizePaymentStatus(status);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === 'PENDING_VERIFICATION') {
+    return { $in: ['PENDING_VERIFICATION', 'Pending'] };
+  }
+
+  if (normalized === 'VERIFIED') {
+    return { $in: ['VERIFIED', 'Paid'] };
+  }
+
+  return normalized;
+};
+
 const mapPaymentForResponse = (payment) => {
   if (!payment) {
     return null;
@@ -365,6 +382,66 @@ const listPendingNoticePayments = asyncHandler(async (_req, res) => {
   });
 });
 
+const listNoticePaymentHistory = asyncHandler(async (req, res) => {
+  const noticeId = String(req.query?.noticeId || '').trim();
+  const paymentStatus = String(req.query?.paymentStatus || '').trim();
+  const pageRaw = Number(req.query?.page || 1);
+  const limitRaw = Number(req.query?.limit || 50);
+
+  const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 50;
+  const skip = (page - 1) * limit;
+
+  const filter = {};
+
+  if (noticeId) {
+    if (!mongoose.Types.ObjectId.isValid(noticeId)) {
+      throw createHttpError(400, 'Notice is invalid');
+    }
+
+    filter.noticeId = noticeId;
+  }
+
+  if (paymentStatus) {
+    const statusFilter = buildPaymentStatusFilter(paymentStatus);
+    if (!statusFilter) {
+      throw createHttpError(400, 'Payment status must be one of: PENDING_VERIFICATION, VERIFIED, REJECTED');
+    }
+
+    filter.paymentStatus = statusFilter;
+  }
+
+  const [historyItems, total] = await Promise.all([
+    NoticePayment.find(filter)
+      .sort({ updatedAt: -1, paymentDate: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate({ path: 'noticeId', select: 'title amount dueDate' })
+      .populate({
+        path: 'studentId',
+        select: 'admissionNo userId classId',
+        populate: [
+          { path: 'userId', select: 'name email' },
+          { path: 'classId', select: 'name section' }
+        ]
+      })
+      .populate({ path: 'verifiedBy', select: 'name email role' })
+      .lean(),
+    NoticePayment.countDocuments(filter)
+  ]);
+
+  res.json({
+    success: true,
+    data: historyItems.map(mapPaymentForResponse),
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1)
+    }
+  });
+});
+
 const listNoticePaymentsByNotice = asyncHandler(async (req, res) => {
   const noticeId = String(req.query?.noticeId || '').trim();
 
@@ -454,6 +531,7 @@ module.exports = {
   payNotice,
   recordCashNoticePayment,
   listPendingNoticePayments,
+  listNoticePaymentHistory,
   listNoticePaymentsByNotice,
   verifyNoticePayment
 };

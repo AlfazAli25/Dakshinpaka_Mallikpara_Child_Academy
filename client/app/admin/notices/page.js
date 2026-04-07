@@ -96,6 +96,7 @@ export default function AdminNoticesPage() {
   const [students, setStudents] = useState([]);
   const [notices, setNotices] = useState([]);
   const [pendingNoticePayments, setPendingNoticePayments] = useState([]);
+  const [noticePaymentHistory, setNoticePaymentHistory] = useState([]);
   const [selectedNoticePayments, setSelectedNoticePayments] = useState([]);
   const [loadingSelectedNoticePayments, setLoadingSelectedNoticePayments] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -183,10 +184,11 @@ export default function AdminNoticesPage() {
 
     try {
       const token = getToken();
-      const [classResult, noticeResult, pendingPaymentResult, studentResult] = await Promise.allSettled([
+      const [classResult, noticeResult, pendingPaymentResult, historyPaymentResult, studentResult] = await Promise.allSettled([
         get('/classes', token, { forceRefresh: true, cacheTtlMs: 0 }),
         get('/notices?page=1&limit=100', token, { forceRefresh: true, cacheTtlMs: 0 }),
         get('/notices/payments/pending', token, { forceRefresh: true, cacheTtlMs: 0 }),
+        get('/notices/payments/history?page=1&limit=200', token, { forceRefresh: true, cacheTtlMs: 0 }),
         get('/students/admin/all', token, { forceRefresh: true, cacheTtlMs: 0 })
       ]);
 
@@ -208,6 +210,13 @@ export default function AdminNoticesPage() {
       } else {
         setPendingNoticePayments([]);
         toast.error(pendingPaymentResult.reason?.message || 'Failed to load pending notice payments');
+      }
+
+      if (historyPaymentResult.status === 'fulfilled') {
+        setNoticePaymentHistory(Array.isArray(historyPaymentResult.value?.data) ? historyPaymentResult.value.data : []);
+      } else {
+        setNoticePaymentHistory([]);
+        toast.error(historyPaymentResult.reason?.message || 'Failed to load notice payment history');
       }
 
       if (studentResult.status === 'fulfilled') {
@@ -593,6 +602,20 @@ export default function AdminNoticesPage() {
     }
 
     return ids.map((id) => classLabelMap[id] || 'Class').join(', ');
+  };
+
+  const getStatusBadgeClassName = (status) => {
+    const normalized = normalizeNoticePaymentStatus(status);
+    if (normalized === 'VERIFIED') {
+      return 'bg-emerald-100 text-emerald-800';
+    }
+    if (normalized === 'PENDING_VERIFICATION') {
+      return 'bg-amber-100 text-amber-800';
+    }
+    if (normalized === 'REJECTED') {
+      return 'bg-red-100 text-red-800';
+    }
+    return 'bg-slate-100 text-slate-700';
   };
 
   return (
@@ -1071,6 +1094,90 @@ export default function AdminNoticesPage() {
                           Reject
                         </button>
                       </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-blue-100 bg-white shadow-sm">
+        <div className="border-b border-blue-100 px-4 py-3 md:px-5">
+          <h2 className="text-base font-semibold text-slate-900">Notice Payment History</h2>
+          <p className="text-xs text-slate-600">All notice payment records including verified, pending, and rejected statuses.</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-[1300px] w-full text-sm">
+            <thead className="bg-blue-700 text-blue-50">
+              <tr>
+                <th className="px-3 py-3 text-left font-semibold">Notice</th>
+                <th className="px-3 py-3 text-left font-semibold">Student</th>
+                <th className="px-3 py-3 text-left font-semibold">Amount</th>
+                <th className="px-3 py-3 text-left font-semibold">Payment Date</th>
+                <th className="px-3 py-3 text-left font-semibold">Status</th>
+                <th className="px-3 py-3 text-left font-semibold">Reference</th>
+                <th className="px-3 py-3 text-left font-semibold">Verified At</th>
+                <th className="px-3 py-3 text-left font-semibold">Verified By</th>
+                <th className="px-3 py-3 text-left font-semibold">Notes</th>
+                <th className="px-3 py-3 text-left font-semibold">Screenshot</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-6 text-center text-slate-500">Loading payment history...</td>
+                </tr>
+              ) : noticePaymentHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-6 text-center text-slate-500">No notice payment history found.</td>
+                </tr>
+              ) : noticePaymentHistory.map((payment, rowIndex) => {
+                const paymentId = toId(payment);
+                const student = payment?.studentId || {};
+                const studentUser = student?.userId || {};
+                const classInfo = student?.classId || {};
+                const verifiedBy = payment?.verifiedBy || {};
+                const status = normalizeNoticePaymentStatus(payment?.paymentStatus);
+                const screenshotPath = String(payment?.screenshotPath || '').trim();
+
+                return (
+                  <tr key={paymentId} className={rowIndex % 2 === 1 ? 'bg-blue-50/20' : ''}>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <p className="font-semibold text-slate-900">{payment?.noticeId?.title || '-'}</p>
+                      <p className="mt-1 text-xs text-slate-600">Due: {formatDateLabel(payment?.noticeId?.dueDate)}</p>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <p className="font-semibold text-slate-900">{studentUser?.name || '-'}</p>
+                      <p className="mt-1 text-xs text-slate-600">ID: {student?.admissionNo || '-'} | Class: {formatClassLabel(classInfo, 'Class')}</p>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">INR {Number(payment?.amount || 0)}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{formatDateTimeLabel(payment?.paymentDate || payment?.createdAt)}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${getStatusBadgeClassName(status)}`}>
+                        {status || '-'}
+                      </span>
+                    </td>
+                    <td className="border-t border-slate-100 px-3 py-3">{payment?.transactionReference || '-'}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{formatDateTimeLabel(payment?.verifiedAt)}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{verifiedBy?.name || verifiedBy?.email || '-'}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">{payment?.verificationNotes || '-'}</td>
+                    <td className="border-t border-slate-100 px-3 py-3">
+                      {screenshotPath ? (
+                        <a
+                          href={screenshotPath}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded bg-slate-800 px-2 py-1 text-[11px] font-semibold text-white hover:bg-slate-900"
+                        >
+                          View
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-500">Not available</span>
+                      )}
                     </td>
                   </tr>
                 );

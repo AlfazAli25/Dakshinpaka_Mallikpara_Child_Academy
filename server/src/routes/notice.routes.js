@@ -77,6 +77,29 @@ router.get(
 );
 
 router.get(
+  '/payments/history',
+  protect,
+  requireRole(['admin']),
+  [
+    query('noticeId').optional().isMongoId().withMessage('Notice is invalid'),
+    query('paymentStatus')
+      .optional()
+      .custom((value) => {
+        const normalized = String(value || '').trim().toUpperCase();
+        if (['PENDING_VERIFICATION', 'VERIFIED', 'REJECTED', 'PENDING', 'PAID'].includes(normalized)) {
+          return true;
+        }
+
+        throw new Error('Payment status must be PENDING_VERIFICATION, VERIFIED, or REJECTED');
+      }),
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be at least 1'),
+    query('limit').optional().isInt({ min: 1, max: 200 }).withMessage('Limit must be between 1 and 200')
+  ],
+  validate,
+  noticePaymentController.listNoticePaymentHistory
+);
+
+router.get(
   '/payments/by-notice',
   protect,
   requireRole(['admin']),
