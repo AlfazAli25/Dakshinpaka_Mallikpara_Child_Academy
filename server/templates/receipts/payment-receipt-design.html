@@ -30,8 +30,9 @@
       min-height: 297mm;
       padding: 11mm 9mm 10mm;
       overflow: hidden;
-      border: 0.4mm solid #9ec4e8;
-      background: linear-gradient(180deg, #f4faff 0%, #ffffff 36%, #f1f8ff 100%);
+      border: 1mm solid #6f97c8;
+      box-shadow: inset 0 0 0 0.25mm #dcecff;
+      background: linear-gradient(180deg, #eaf4ff 0%, #f8fbff 34%, #e4f1ff 100%);
     }
 
     .watermark {
@@ -53,7 +54,7 @@
       height: 170mm;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(147, 197, 253, 0.28) 0%, rgba(186, 230, 253, 0.16) 45%, rgba(255, 255, 255, 0) 78%);
+      background: radial-gradient(circle, rgba(147, 197, 253, 0.36) 0%, rgba(191, 229, 255, 0.2) 46%, rgba(255, 255, 255, 0) 80%);
       pointer-events: none;
       z-index: 0;
     }
@@ -148,6 +149,10 @@
     .row.download-row {
       margin-top: 6.2mm;
       grid-template-columns: 78mm 1fr;
+    }
+
+    .row.long-label-row {
+      grid-template-columns: 66mm 1fr;
     }
 
     .label {
@@ -248,7 +253,7 @@
             <div class="value">{{paymentThrough}}</div>
           </div>
 
-          <div class="row">
+          <div class="row long-label-row">
             <div class="label">Payment Date and Time:</div>
             <div class="value">{{paymentDateTime}}</div>
           </div>
