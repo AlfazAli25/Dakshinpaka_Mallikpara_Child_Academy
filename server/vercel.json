@@ -11,12 +11,6 @@
       "schedule": "30 18 * * *"
     }
   ],
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    }
-  ],
   "routes": [
     {
       "src": "/(.*)",
