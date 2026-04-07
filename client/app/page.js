@@ -208,6 +208,16 @@ export default function HomePage() {
               </div>
             </div>
             <div className="grid gap-3 rounded-2xl border border-white/20 bg-white/10 p-5 text-sm text-red-50 md:p-6">
+              <div className="rounded-xl border border-white/40 bg-white/95 p-4 shadow-sm">
+                <p className="text-xs uppercase tracking-wider text-red-500">Official School Emblem</p>
+                <div className="mt-3 grid place-items-center rounded-xl border border-red-100 bg-white p-4">
+                  <img
+                    src="/School_Logo.png"
+                    alt={`${SCHOOL_NAME} Emblem`}
+                    className="h-36 w-36 object-contain md:h-52 md:w-52"
+                  />
+                </div>
+              </div>
               <div className="rounded-xl bg-white p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-wider text-red-500">School Name</p>
                 <p className="mt-1 text-base font-semibold text-red-900">{SCHOOL_NAME}</p>
