@@ -109,6 +109,19 @@ const DEFAULT_STATS = [
   { title: 'Pending Fees', value: 'INR 0' }
 ];
 
+const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
+
+const isSuccessfulPaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  return normalized === 'SUCCESS' || normalized === 'PAID' || normalized === 'VERIFIED';
+};
+
+const canDownloadFeeReceipt = (payment) => {
+  const sourceType = String(payment?.sourceType || '').trim().toUpperCase();
+  const paymentId = String(payment?._id || '').trim();
+  return sourceType === 'FEE' && OBJECT_ID_REGEX.test(paymentId) && isSuccessfulPaymentStatus(payment?.paymentStatus);
+};
+
 const toValidDate = (value) => {
   if (!value) {
     return null;
@@ -216,7 +229,7 @@ const fetchStudentDashboardData = async () => {
     };
   }
 
-  const [attendanceRes, examsRes, feesRes, noticesRes, receiptsRes] = await Promise.all([
+  const [attendanceRes, examsRes, feesRes, noticesRes, paymentHistoryRes] = await Promise.all([
     get('/student/attendance', token),
     get(`/exams?classId=${student.classId?._id || ''}`, token),
     get('/student/fees', token),
@@ -224,7 +237,7 @@ const fetchStudentDashboardData = async () => {
       forceRefresh: true,
       cacheTtlMs: 0
     }),
-    get('/receipts/student', token, {
+    get('/fees/my/payments', token, {
       forceRefresh: true,
       cacheTtlMs: 0
     })
@@ -255,11 +268,16 @@ const fetchStudentDashboardData = async () => {
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ],
     notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
-    feeReceipts: (Array.isArray(receiptsRes?.data) ? receiptsRes.data : []).filter(
-      (item) =>
-        String(item?.receiptType || '').toUpperCase() === 'FEE' &&
-        String(item?.paymentId || '').trim()
-    )
+    feeReceipts: (Array.isArray(paymentHistoryRes?.data) ? paymentHistoryRes.data : [])
+      .filter((item) => canDownloadFeeReceipt(item))
+      .slice(0, 10)
+      .map((item) => ({
+        id: String(item?._id || ''),
+        paymentId: String(item?._id || ''),
+        amount: Number(item?.amount || 0),
+        paymentDate: item?.paidAt || item?.createdAt,
+        receiptToken: String(item?.transactionId || item?.transactionReference || item?._id || '')
+      }))
   };
 };
 
@@ -303,7 +321,7 @@ export default function StudentDashboardPage() {
     setReceiptDownloadError('');
     setDownloadingReceiptPaymentId(normalizedPaymentId);
     try {
-      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
+      const blob = await getBlob(`/receipt/download/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
       const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
     } catch (_error) {
@@ -443,13 +461,13 @@ export default function StudentDashboardPage() {
               const paymentId = String(receipt?.paymentId || '').trim();
 
               return (
-                <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                <div key={receipt.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
                   <p className="text-sm text-slate-700">
-                    {receipt.receiptNumber} - INR {receipt.amount} - {formatDate(receipt.paymentDate)}
+                    {receipt.receiptToken || paymentId} - INR {receipt.amount} - {formatDate(receipt.paymentDate)}
                   </p>
                   <button
                     type="button"
-                    onClick={() => onDownloadReceipt(paymentId, receipt.receiptNumber)}
+                    onClick={() => onDownloadReceipt(paymentId, receipt.receiptToken)}
                     disabled={!paymentId || downloadingReceiptPaymentId === paymentId}
                     className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
                   >

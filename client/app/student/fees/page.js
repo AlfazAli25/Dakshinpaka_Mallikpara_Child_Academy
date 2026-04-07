@@ -10,6 +10,7 @@ import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
 
 const MONTHLY_FEE_AMOUNT = 200;
+const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
 
 const text = {
   en: {
@@ -24,7 +25,8 @@ const text = {
       { key: 'paymentFor', label: 'Payment For' },
       { key: 'amount', label: 'Amount' },
       { key: 'screenshotStatus', label: 'Screenshot Status' },
-      { key: 'verificationStatus', label: 'Verification Status' }
+      { key: 'verificationStatus', label: 'Verification Status' },
+      { key: 'receipt', label: 'Receipt' }
     ],
     downloadReceipt: 'Download Receipt',
     downloadingReceipt: 'Downloading...',
@@ -49,7 +51,8 @@ const text = {
       { key: 'paymentFor', label: 'পেমেন্টের ধরন' },
       { key: 'amount', label: 'পরিমাণ' },
       { key: 'screenshotStatus', label: 'স্ক্রিনশট স্ট্যাটাস' },
-      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' }
+      { key: 'verificationStatus', label: 'ভেরিফিকেশন স্ট্যাটাস' },
+      { key: 'receipt', label: 'রিসিপ্ট' }
     ],
     downloadReceipt: 'রিসিপ্ট ডাউনলোড',
     downloadingReceipt: 'ডাউনলোড হচ্ছে...',
@@ -104,6 +107,11 @@ const mapVerificationStatus = (status) => {
   return 'PENDING';
 };
 
+const isSuccessfulPaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  return normalized === 'SUCCESS' || normalized === 'PAID' || normalized === 'VERIFIED';
+};
+
 const formatDateValue = (value) => {
   if (!value) {
     return '-';
@@ -123,7 +131,6 @@ export default function StudentFeesPage() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
-  const [receipts, setReceipts] = useState([]);
   const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
   const [receiptDownloadError, setReceiptDownloadError] = useState('');
 
@@ -153,7 +160,7 @@ export default function StudentFeesPage() {
     setDownloadingReceiptPaymentId(normalizedPaymentId);
 
     try {
-      const blob = await getBlob(`/receipts/student/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
+      const blob = await getBlob(`/receipt/download/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
       const fallbackReceiptToken = String(receiptNumber || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${fallbackReceiptToken}.pdf`);
     } catch (_error) {
@@ -171,17 +178,13 @@ export default function StudentFeesPage() {
         if (!token) {
           setRows([]);
           setPaymentHistory([]);
-          setReceipts([]);
           return;
         }
 
-        const [response, receiptResponse, paymentHistoryResponse] = await Promise.all([
+        const [response, paymentHistoryResponse] = await Promise.all([
           get('/student/fees', token),
-          get('/receipts/student', token),
           get('/fees/my/payments', token)
         ]);
-
-        const receiptRows = Array.isArray(receiptResponse?.data) ? receiptResponse.data : [];
 
         const feeRows = (response.data || [])
           .slice()
@@ -205,8 +208,17 @@ export default function StudentFeesPage() {
         const paymentRows = (paymentHistoryResponse.data || []).map((item) => {
           const sourceType = String(item?.sourceType || '').toUpperCase();
 
+          const paymentId = String(item?._id || '').trim();
+          const canDownloadReceipt =
+            sourceType === 'FEE' &&
+            OBJECT_ID_REGEX.test(paymentId) &&
+            isSuccessfulPaymentStatus(item?.paymentStatus);
+
           return {
             id: item._id,
+            paymentId,
+            receiptToken: String(item?.transactionId || item?.transactionReference || paymentId),
+            canDownloadReceipt,
             paymentDate: formatDateValue(item.paidAt || item.createdAt),
             paymentFor:
               item.sourceLabel ||
@@ -219,11 +231,9 @@ export default function StudentFeesPage() {
 
         setRows(feeRows);
         setPaymentHistory(paymentRows);
-        setReceipts(receiptRows);
       } catch (_error) {
         setRows([]);
         setPaymentHistory([]);
-        setReceipts([]);
       } finally {
         setLoading(false);
       }
@@ -235,6 +245,31 @@ export default function StudentFeesPage() {
   const pendingTotal = useMemo(
     () => rows.reduce((sum, row) => sum + (row.pendingAmountValue || 0), 0),
     [rows]
+  );
+
+  const paymentHistoryRows = useMemo(
+    () =>
+      paymentHistory.map((row) => {
+        const paymentId = String(row?.paymentId || '').trim();
+        const canDownloadReceipt = Boolean(row?.canDownloadReceipt) && Boolean(paymentId);
+
+        return {
+          ...row,
+          receipt: canDownloadReceipt ? (
+            <button
+              type="button"
+              onClick={() => downloadReceiptPdf(paymentId, row?.receiptToken)}
+              disabled={downloadingReceiptPaymentId === paymentId}
+              className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {downloadingReceiptPaymentId === paymentId ? t.downloadingReceipt : t.downloadReceipt}
+            </button>
+          ) : (
+            <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
+          )
+        };
+      }),
+    [paymentHistory, downloadingReceiptPaymentId, t]
   );
 
   return (
@@ -263,56 +298,11 @@ export default function StudentFeesPage() {
         <p className="mb-3 text-sm text-slate-600">{t.paymentHistoryDescription}</p>
         <Table
           columns={t.paymentHistoryColumns}
-          rows={paymentHistory}
+          rows={paymentHistoryRows}
           loading={loading}
           scrollY
           maxHeightClass="max-h-[288px]"
         />
-      </div>
-
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Payment Receipts</h3>
-        <p className="mb-3 text-sm text-slate-600">Receipts are generated automatically after successful fee or notice payment updates.</p>
-        {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`receipt-skeleton-${index}`} className="h-10 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
-            ))}
-          </div>
-        ) : receipts.length === 0 ? (
-          <p className="text-sm text-slate-500">No receipts available yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {receipts.map((receipt) => {
-              const receiptTypeLabel = String(receipt?.receiptType || '') === 'NOTICE'
-                ? `Notice: ${receipt?.noticeTitle || 'Payment'}`
-                : 'Fee Payment';
-              const isFeeReceipt = String(receipt?.receiptType || '').toUpperCase() === 'FEE';
-              const paymentId = String(receipt?.paymentId || '').trim();
-              const canDownloadReceipt = isFeeReceipt && Boolean(paymentId);
-
-              return (
-                <div key={receipt._id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
-                  <p className="text-sm text-slate-700">
-                    {receipt.receiptNumber} - {receiptTypeLabel} - INR {receipt.amount} - {new Date(receipt.paymentDate).toLocaleDateString('en-GB')}
-                  </p>
-                  {canDownloadReceipt ? (
-                    <button
-                      type="button"
-                      onClick={() => downloadReceiptPdf(paymentId, receipt.receiptNumber)}
-                      disabled={downloadingReceiptPaymentId === paymentId}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {downloadingReceiptPaymentId === paymentId ? t.downloadingReceipt : t.downloadReceipt}
-                    </button>
-                  ) : (
-                    <span className="text-xs font-semibold text-slate-400">{t.receiptNotAvailable}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
         {receiptDownloadError ? (
           <p className="mt-3 text-sm font-medium text-red-600">{receiptDownloadError}</p>
         ) : null}

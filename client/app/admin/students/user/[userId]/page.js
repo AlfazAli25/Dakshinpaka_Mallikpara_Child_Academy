@@ -8,7 +8,7 @@ import Table from '@/components/Table';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import DetailsGrid from '@/components/DetailsGrid';
-import { get, put } from '@/lib/api';
+import { get, getBlob, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
@@ -26,7 +26,9 @@ const feeColumns = [
 const paymentColumns = [
   { key: 'createdAt', label: 'Date' },
   { key: 'amount', label: 'Amount' },
-  { key: 'paymentMethod', label: 'Payment Method' }
+  { key: 'paymentMethod', label: 'Payment Method' },
+  { key: 'paymentStatus', label: 'Status' },
+  { key: 'receipt', label: 'Receipt' }
 ];
 
 const formatMonth = (dateValue) => {
@@ -43,6 +45,19 @@ const formatMonth = (dateValue) => {
 };
 
 const toPaymentMode = (paymentMethod) => (String(paymentMethod || '').toUpperCase().includes('CASH') ? 'Via Cash' : 'Via Online');
+
+const isSuccessfulPaymentStatus = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  return normalized === 'SUCCESS' || normalized === 'PAID' || normalized === 'VERIFIED';
+};
+
+const normalizePaymentStatusLabel = (status) => {
+  const normalized = String(status || '').trim().toUpperCase();
+  if (normalized === 'PENDING_VERIFICATION') {
+    return 'PENDING VERIFICATION';
+  }
+  return normalized || 'PENDING';
+};
 
 const deriveStatusFromAmountPaid = (amountPaid) => {
   const paid = Number(amountPaid || 0);
@@ -87,6 +102,8 @@ export default function StudentUserProfilePage() {
   const [message, setMessage] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
+  const [receiptError, setReceiptError] = useState('');
   const [classOptions, setClassOptions] = useState([]);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -113,6 +130,41 @@ export default function StudentUserProfilePage() {
       toast.success(message);
     }
   }, [message, toast]);
+
+  const downloadBlob = (blob, filename) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const downloadReceiptPdf = async (paymentId, receiptToken) => {
+    const normalizedPaymentId = String(paymentId || '').trim();
+    if (!normalizedPaymentId) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      return;
+    }
+
+    setReceiptError('');
+    setDownloadingReceiptPaymentId(normalizedPaymentId);
+    try {
+      const blob = await getBlob(`/receipt/download/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
+      const safeToken = String(receiptToken || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Fee_Receipt_${safeToken}.pdf`);
+    } catch (_error) {
+      setReceiptError('Failed to download receipt');
+    } finally {
+      setDownloadingReceiptPaymentId('');
+    }
+  };
 
   const loadProfile = async () => {
     if (!userId) {
@@ -272,17 +324,34 @@ export default function StudentUserProfilePage() {
         .map((item, index) => {
           const parsed = item.createdAt ? new Date(item.createdAt) : null;
           const timestamp = parsed && !Number.isNaN(parsed.getTime()) ? parsed.getTime() : 0;
+          const paymentId = String(item._id || '').trim();
+          const canDownloadReceipt = Boolean(paymentId) && isSuccessfulPaymentStatus(item.paymentStatus);
+          const receiptToken = String(item.transactionId || item.transactionReference || paymentId);
+
           return {
             id: String(item._id || `${item.createdAt || 'payment'}-${index}`),
             timestamp,
             createdAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString('en-GB') : '-',
             amount: `INR ${Number(item.amount || 0)}`,
-            paymentMethod: toPaymentMode(item.paymentMethod)
+            paymentMethod: toPaymentMode(item.paymentMethod),
+            paymentStatus: normalizePaymentStatusLabel(item.paymentStatus),
+            receipt: canDownloadReceipt ? (
+              <button
+                type="button"
+                onClick={() => downloadReceiptPdf(paymentId, receiptToken)}
+                disabled={downloadingReceiptPaymentId === paymentId}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {downloadingReceiptPaymentId === paymentId ? 'Downloading...' : 'Download'}
+              </button>
+            ) : (
+              <span className="text-xs font-semibold text-slate-400">Not available</span>
+            )
           };
         })
         .sort((a, b) => b.timestamp - a.timestamp)
         .map(({ timestamp, ...row }) => row),
-    [profile?.payments]
+    [profile?.payments, downloadingReceiptPaymentId]
   );
 
   if (!profile) {
@@ -458,6 +527,7 @@ export default function StudentUserProfilePage() {
           maxHeightClass="max-h-[288px]"
           rows={paymentRows}
         />
+        {receiptError ? <p className="mt-3 text-sm font-medium text-red-600">{receiptError}</p> : null}
       </div>
     </div>
   );
