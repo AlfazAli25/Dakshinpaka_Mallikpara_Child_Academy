@@ -1,4 +1,17 @@
-const CONTROL_KEYS = new Set(['_page', '_limit', '_sort', '_order', '_select', '_lean']);
+const CONTROL_KEYS = new Set([
+  '_page',
+  '_limit',
+  '_sort',
+  '_order',
+  '_select',
+  '_lean',
+  'page',
+  'limit',
+  'sort',
+  'order',
+  'select',
+  'lean'
+]);
 
 const toPositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -11,19 +24,23 @@ const toPositiveInt = (value, fallback) => {
 
 const parseReadOptions = (inputFilter = {}) => {
   const filter = { ...inputFilter };
-  const rawPage = filter._page;
-  const rawLimit = filter._limit;
-  const rawSort = filter._sort;
-  const rawOrder = String(filter._order || 'desc').toLowerCase();
-  const rawSelect = filter._select;
-  const rawLean = filter._lean;
+  const rawPage = filter.page ?? filter._page;
+  const rawLimit = filter.limit ?? filter._limit;
+  const rawSort = filter.sort ?? filter._sort;
+  const rawOrder = String(filter.order ?? filter._order ?? 'desc').toLowerCase();
+  const rawSelect = filter.select ?? filter._select;
+  const rawLean = filter.lean ?? filter._lean;
 
   for (const key of CONTROL_KEYS) {
     delete filter[key];
   }
 
+  const hasExplicitLimit = rawLimit !== undefined && rawLimit !== null && String(rawLimit).trim() !== '';
+  const hasExplicitPage = rawPage !== undefined && rawPage !== null && String(rawPage).trim() !== '';
+
   const page = toPositiveInt(rawPage, 1);
-  const limit = Math.min(toPositiveInt(rawLimit, 0), 200);
+  const defaultLimit = hasExplicitLimit || hasExplicitPage ? 20 : 0;
+  const limit = Math.min(toPositiveInt(rawLimit, defaultLimit), 200);
   const skip = limit > 0 ? (page - 1) * limit : 0;
   const sort = rawSort
     ? {
@@ -33,10 +50,11 @@ const parseReadOptions = (inputFilter = {}) => {
 
   return {
     filter,
+    page,
+    limit,
     select: rawSelect ? String(rawSelect) : '',
     sort,
     skip,
-    limit,
     lean: String(rawLean || 'true').toLowerCase() !== 'false'
   };
 };
@@ -63,6 +81,10 @@ const createCrudService = (Model) => ({
     }
 
     return query;
+  },
+  countDocuments: async (inputFilter = {}) => {
+    const { filter } = parseReadOptions(inputFilter);
+    return Model.countDocuments(filter);
   },
   findById: async (id, populate = '') => {
     let query = Model.findById(id);

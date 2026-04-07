@@ -1,9 +1,63 @@
 const asyncHandler = require('../middleware/async.middleware');
 
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.floor(parsed);
+};
+
+const parsePaginationFromQuery = (query = {}) => {
+  const rawPage = query.page ?? query._page;
+  const rawLimit = query.limit ?? query._limit;
+  const hasPagination =
+    rawPage !== undefined || rawLimit !== undefined;
+
+  if (!hasPagination) {
+    return {
+      hasPagination: false,
+      page: 1,
+      limit: 0
+    };
+  }
+
+  const page = toPositiveInt(rawPage, 1);
+  const limit = Math.min(toPositiveInt(rawLimit, 20), 200);
+
+  return {
+    hasPagination: true,
+    page,
+    limit
+  };
+};
+
 const createCrudController = (service, moduleName) => {
   const list = asyncHandler(async (req, res) => {
-    const data = await service.findAll(req.query || {});
-    res.json({ success: true, data });
+    const query = req.query || {};
+    const pagination = parsePaginationFromQuery(query);
+
+    if (pagination.hasPagination && typeof service.countDocuments === 'function') {
+      const [data, total] = await Promise.all([
+        service.findAll(query),
+        service.countDocuments(query)
+      ]);
+
+      return res.json({
+        success: true,
+        data,
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          total,
+          totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+        }
+      });
+    }
+
+    const data = await service.findAll(query);
+    return res.json({ success: true, data });
   });
 
   const get = asyncHandler(async (req, res) => {

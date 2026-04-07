@@ -49,18 +49,28 @@ const runWithOptionalTransaction = async (handler) => {
 	}
 };
 
+const toPositiveInt = (value, fallback) => {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+
+	return Math.floor(parsed);
+};
+
 const findAll = (filter = {}) => base.findAll(filter, STUDENT_POPULATE);
 const findById = (id) => base.findById(id, STUDENT_POPULATE);
 const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_POPULATE).lean();
 
-const findAllForAdmin = async ({ search } = {}) => {
+const findAllForAdmin = async ({ search, page, limit } = {}) => {
 	const [students, studentUsers] = await Promise.all([
 		Student.find({})
+			.select('userId admissionNo classId guardianContact pendingFees attendance createdAt')
 			.populate({ path: 'userId', select: 'name email role' })
 			.populate({ path: 'classId', select: 'name section' })
 			.sort({ createdAt: -1 })
 			.lean(),
-		User.find({ role: 'student' }).select('name email role').sort({ createdAt: -1 }).lean()
+		User.find({ role: 'student' }).select('name email role createdAt').sort({ createdAt: -1 }).lean()
 	]);
 
 	const linkedUserIds = new Set(
@@ -89,18 +99,45 @@ const findAllForAdmin = async ({ search } = {}) => {
 
 	const mergedRows = [...linkedRows, ...unlinkedAccounts];
 	const normalizedSearch = String(search || '').trim().toLowerCase();
+	const toPaginatedResult = (items) => {
+		const rawPage = page;
+		const rawLimit = limit;
+		const hasPagination = rawPage !== undefined || rawLimit !== undefined;
+		if (!hasPagination) {
+			return items;
+		}
+
+		const safePage = toPositiveInt(rawPage, 1);
+		const safeLimit = Math.min(toPositiveInt(rawLimit, 20), 200);
+		const total = items.length;
+		const start = (safePage - 1) * safeLimit;
+		const end = start + safeLimit;
+
+		return {
+			data: items.slice(start, end),
+			pagination: {
+				page: safePage,
+				limit: safeLimit,
+				total,
+				totalPages: total === 0 ? 0 : Math.ceil(total / safeLimit)
+			}
+		};
+	};
+
 	if (!normalizedSearch) {
-		return mergedRows;
+		return toPaginatedResult(mergedRows);
 	}
 
 	const exactAdmissionMatches = mergedRows.filter(
 		(item) => String(item.admissionNo || '').toLowerCase() === normalizedSearch
 	);
 	if (exactAdmissionMatches.length > 0) {
-		return exactAdmissionMatches;
+		return toPaginatedResult(exactAdmissionMatches);
 	}
 
-	return mergedRows.filter((item) => String(item.userId?.name || '').toLowerCase().includes(normalizedSearch));
+	return toPaginatedResult(
+		mergedRows.filter((item) => String(item.userId?.name || '').toLowerCase().includes(normalizedSearch))
+	);
 
 };
 

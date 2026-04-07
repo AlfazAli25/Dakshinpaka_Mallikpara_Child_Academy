@@ -21,6 +21,7 @@ const payrollRoutes = require('./routes/payroll.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const noticeRoutes = require('./routes/notice.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const { SCHOOL_NAME } = require('./config/school');
 const { notFound, errorHandler } = require('./middleware/error.middleware');
 const { attachRequestContext } = require('./middleware/request-context.middleware');
@@ -88,6 +89,7 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/notices', noticeRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

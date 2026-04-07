@@ -1,99 +1,21 @@
 "use client";
 
 import { useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import useSWR from 'swr';
-import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
 import { get } from '@/lib/api';
 import { getToken } from '@/lib/session';
 
+const StatCard = dynamic(() => import('@/components/StatCard'));
+
 const DEFAULT_STATS = [
   { title: 'Total Students', value: '0' },
   { title: 'Total Teachers', value: '0' },
+  { title: 'Total Classes', value: '0' },
+  { title: 'Attendance Avg', value: '0%' },
   { title: 'Upcoming Exam', value: 'No Upcoming Exam' }
 ];
-
-const toValidDate = (value) => {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-};
-
-const getExamWindow = (exam) => {
-  const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
-  const slotWindows = scheduleRows
-    .map((slot) => {
-      const startDate = toValidDate(slot?.startDate);
-      const endDate = toValidDate(slot?.endDate);
-
-      if (!startDate || !endDate) {
-        return null;
-      }
-
-      return { startDate, endDate };
-    })
-    .filter(Boolean);
-
-  if (slotWindows.length > 0) {
-    return {
-      startDate: new Date(Math.min(...slotWindows.map((item) => item.startDate.getTime()))),
-      endDate: new Date(Math.max(...slotWindows.map((item) => item.endDate.getTime())))
-    };
-  }
-
-  const fallbackStartDate = toValidDate(exam?.startDate || exam?.date || exam?.examDate);
-  const fallbackEndDate = toValidDate(exam?.endDate) || fallbackStartDate;
-
-  if (!fallbackStartDate || !fallbackEndDate) {
-    return null;
-  }
-
-  return {
-    startDate: fallbackStartDate,
-    endDate: fallbackEndDate
-  };
-};
-
-const getUpcomingExamValue = (exams) => {
-  const nowMs = Date.now();
-
-  const examWindows = (Array.isArray(exams) ? exams : [])
-    .map((item) => {
-      const examWindow = getExamWindow(item);
-      if (!examWindow) {
-        return null;
-      }
-
-      const examName = String(item?.examName || item?.description || 'Exam').trim();
-      return {
-        name: examName || 'Exam',
-        startDate: examWindow.startDate,
-        endDate: examWindow.endDate
-      };
-    })
-    .filter(Boolean);
-
-  const ongoingExam = examWindows
-    .filter((item) => nowMs >= item.startDate.getTime() && nowMs <= item.endDate.getTime())
-    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
-
-  if (ongoingExam) {
-    return 'Ongoing';
-  }
-
-  const nextScheduledExam = examWindows
-    .filter((item) => item.startDate.getTime() > nowMs)
-    .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
-
-  return nextScheduledExam?.name || 'No Upcoming Exam';
-};
 
 const fetchAdminDashboardStats = async () => {
   const token = getToken();
@@ -101,18 +23,16 @@ const fetchAdminDashboardStats = async () => {
     return DEFAULT_STATS;
   }
 
-  const [studentsRes, teachersRes, examsRes] = await Promise.all([
-    get('/students', token),
-    get('/teachers', token),
-    get('/exams', token)
-  ]);
-
-  const upcomingExamName = getUpcomingExamValue(examsRes.data || []);
+  const summaryRes = await get('/dashboard/summary', token);
+  const summary = summaryRes.data || {};
+  const attendanceAverage = Number(summary?.attendanceSummary?.averagePercent || 0);
 
   return [
-    { title: 'Total Students', value: String(studentsRes.data?.length || 0) },
-    { title: 'Total Teachers', value: String(teachersRes.data?.length || 0) },
-    { title: 'Upcoming Exam', value: upcomingExamName }
+    { title: 'Total Students', value: String(summary.studentsCount || 0) },
+    { title: 'Total Teachers', value: String(summary.teachersCount || 0) },
+    { title: 'Total Classes', value: String(summary.classesCount || 0) },
+    { title: 'Attendance Avg', value: `${attendanceAverage}%` },
+    { title: 'Upcoming Exam', value: String(summary.upcomingExam || 'No Upcoming Exam') }
   ];
 };
 
@@ -130,7 +50,7 @@ export default function AdminDashboardPage() {
         title="Admin Dashboard"
         description="Track key school metrics and quickly navigate core management operations."
       />
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {stats.map((item) => (
           <StatCard key={item.title} title={item.title} value={item.value} loading={isLoading} />
         ))}

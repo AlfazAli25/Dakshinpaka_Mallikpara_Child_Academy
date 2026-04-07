@@ -27,7 +27,7 @@ const requestPerformanceLogger = (req, res, next) => {
     };
 
     if (elapsedMs >= SLOW_ENDPOINT_THRESHOLD_MS) {
-      logWarn('slow_api_endpoint', payload);
+      logWarn('Slow API detected', payload);
       return;
     }
 

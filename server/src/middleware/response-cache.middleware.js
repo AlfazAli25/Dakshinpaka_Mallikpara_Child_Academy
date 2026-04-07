@@ -1,4 +1,4 @@
-const DEFAULT_CACHE_TTL_MS = Number(process.env.API_CACHE_TTL_MS || 10000);
+const DEFAULT_CACHE_TTL_MS = Number(process.env.API_CACHE_TTL_MS || 60000);
 const MAX_CACHE_ENTRIES = Number(process.env.API_CACHE_MAX_ENTRIES || 400);
 const MAX_CACHEABLE_RESPONSE_SIZE = Number(process.env.API_CACHE_MAX_BYTES || 1024 * 1024);
 const ENABLE_API_CACHE = String(process.env.ENABLE_API_CACHE || 'true').toLowerCase() !== 'false';

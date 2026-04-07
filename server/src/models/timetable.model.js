@@ -104,6 +104,7 @@ timetableSchema.index(
 );
 
 timetableSchema.index({ classId: 1, section: 1, day: 1, startTime: 1 });
+timetableSchema.index({ classId: 1 });
 
 const Timetable = mongoose.model('Timetable', timetableSchema);
 

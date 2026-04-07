@@ -48,6 +48,7 @@ noticeSchema.pre('validate', function preValidateNotice(next) {
 });
 
 noticeSchema.index({ classIds: 1, status: 1, createdAt: -1 });
+noticeSchema.index({ classIds: 1 });
 noticeSchema.index({ status: 1, isImportant: -1, createdAt: -1 });
 noticeSchema.index({ noticeType: 1, status: 1, dueDate: 1 });
 

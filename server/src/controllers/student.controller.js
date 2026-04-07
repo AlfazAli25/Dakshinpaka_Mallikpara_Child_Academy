@@ -6,6 +6,53 @@ const Teacher = require('../models/teacher.model');
 
 const base = createCrudController(studentService, 'Student');
 
+const toPositiveInt = (value, fallback) => {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+
+	return Math.floor(parsed);
+};
+
+const parsePagination = (query = {}) => {
+	const rawPage = query.page ?? query._page;
+	const rawLimit = query.limit ?? query._limit;
+	if (rawPage === undefined && rawLimit === undefined) {
+		return { hasPagination: false, page: 1, limit: 0 };
+	}
+
+	return {
+		hasPagination: true,
+		page: toPositiveInt(rawPage, 1),
+		limit: Math.min(toPositiveInt(rawLimit, 20), 200)
+	};
+};
+
+const sendListResponse = async ({ res, filter, query, findMany }) => {
+	const pagination = parsePagination(query);
+	if (!pagination.hasPagination) {
+		const data = await findMany(filter);
+		return res.json({ success: true, data });
+	}
+
+	const [data, total] = await Promise.all([
+		findMany(filter),
+		studentService.countDocuments(filter)
+	]);
+
+	return res.json({
+		success: true,
+		data,
+		pagination: {
+			page: pagination.page,
+			limit: pagination.limit,
+			total,
+			totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+		}
+	});
+};
+
 const list = asyncHandler(async (req, res) => {
 	const query = req.query || {};
 	const requestedClassId = String(query.classId || '').trim();
@@ -14,8 +61,12 @@ const list = asyncHandler(async (req, res) => {
 
 	if (req.user?.role === 'admin') {
 		const filter = requestedClassId ? { ...queryWithoutClassId, classId: requestedClassId } : queryWithoutClassId;
-		const data = await studentService.findAll(filter);
-		return res.json({ success: true, data });
+		return sendListResponse({
+			res,
+			filter,
+			query,
+			findMany: studentService.findAll
+		});
 	}
 
 	if (req.user?.role === 'student') {
@@ -41,8 +92,12 @@ const list = asyncHandler(async (req, res) => {
 		const filter = requestedClassId
 			? { ...queryWithoutClassId, classId: requestedClassId }
 			: { ...queryWithoutClassId, classId: { $in: assignedClassIds } };
-		const data = await studentService.findAll(filter);
-		return res.json({ success: true, data });
+		return sendListResponse({
+			res,
+			filter,
+			query,
+			findMany: studentService.findAll
+		});
 	}
 
 	return res.status(403).json({ success: false, message: 'Forbidden' });
@@ -61,16 +116,29 @@ const getMyProfile = asyncHandler(async (req, res) => {
 });
 
 const listAllForAdmin = asyncHandler(async (req, res) => {
-	const data = await studentService.findAllForAdmin({ search: req.query?.search });
-	res.json({ success: true, data });
+	const result = await studentService.findAllForAdmin({
+		search: req.query?.search,
+		page: req.query?.page ?? req.query?._page,
+		limit: req.query?.limit ?? req.query?._limit
+	});
+
+	if (Array.isArray(result)) {
+		return res.json({ success: true, data: result });
+	}
+
+	return res.json({ success: true, data: result.data, pagination: result.pagination });
 });
 
 const listByClass = asyncHandler(async (req, res) => {
 	const classId = String(req.params.classId || '');
 
 	if (req.user?.role === 'admin') {
-		const data = await studentService.findAll({ classId });
-		return res.json({ success: true, data });
+		return sendListResponse({
+			res,
+			filter: { classId, ...(req.query || {}) },
+			query: req.query || {},
+			findMany: studentService.findAll
+		});
 	}
 
 	if (req.user?.role === 'teacher') {
@@ -80,8 +148,12 @@ const listByClass = asyncHandler(async (req, res) => {
 			return res.status(403).json({ success: false, message: 'Forbidden' });
 		}
 
-		const data = await studentService.findAll({ classId });
-		return res.json({ success: true, data });
+		return sendListResponse({
+			res,
+			filter: { classId, ...(req.query || {}) },
+			query: req.query || {},
+			findMany: studentService.findAll
+		});
 	}
 
 	return res.status(403).json({ success: false, message: 'Forbidden' });

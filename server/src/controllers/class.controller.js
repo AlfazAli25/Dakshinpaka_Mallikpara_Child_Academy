@@ -7,6 +7,30 @@ const ClassModel = require('../models/class.model');
 
 const base = createCrudController(classService, 'Class');
 
+const toPositiveInt = (value, fallback) => {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+
+	return Math.floor(parsed);
+};
+
+const parsePagination = (query = {}) => {
+	const rawPage = query.page ?? query._page;
+	const rawLimit = query.limit ?? query._limit;
+
+	if (rawPage === undefined && rawLimit === undefined) {
+		return { hasPagination: false, page: 1, limit: 0 };
+	}
+
+	return {
+		hasPagination: true,
+		page: toPositiveInt(rawPage, 1),
+		limit: Math.min(toPositiveInt(rawLimit, 20), 200)
+	};
+};
+
 const safeFindClasses = async (filter = {}) => {
 	try {
 		return await classService.findAll(filter);
@@ -14,6 +38,57 @@ const safeFindClasses = async (filter = {}) => {
 		console.error('Class list fallback triggered:', error?.message || error);
 		return ClassModel.find(filter).select('name section classTeacher subjectIds').lean();
 	}
+};
+
+const safeCountClasses = async (filter = {}) => {
+	try {
+		if (typeof classService.countDocuments === 'function') {
+			return await classService.countDocuments(filter);
+		}
+	} catch (error) {
+		console.error('Class count fallback triggered:', error?.message || error);
+	}
+
+	const query = { ...(filter || {}) };
+	delete query.page;
+	delete query.limit;
+	delete query._page;
+	delete query._limit;
+	delete query.sort;
+	delete query.order;
+	delete query._sort;
+	delete query._order;
+	delete query.select;
+	delete query._select;
+	delete query.lean;
+	delete query._lean;
+	return ClassModel.countDocuments(query);
+};
+
+const sendClassList = async ({ req, res, filter }) => {
+	const query = req.query || {};
+	const pagination = parsePagination(query);
+
+	if (!pagination.hasPagination) {
+		const data = await safeFindClasses(filter);
+		return res.json({ success: true, data });
+	}
+
+	const [data, total] = await Promise.all([
+		safeFindClasses(filter),
+		safeCountClasses(filter)
+	]);
+
+	return res.json({
+		success: true,
+		data,
+		pagination: {
+			page: pagination.page,
+			limit: pagination.limit,
+			total,
+			totalPages: total === 0 ? 0 : Math.ceil(total / pagination.limit)
+		}
+	});
 };
 
 const safeFindClassById = async (id) => {
@@ -27,8 +102,7 @@ const safeFindClassById = async (id) => {
 
 const list = asyncHandler(async (req, res) => {
 	if (req.user?.role === 'admin') {
-		const data = await safeFindClasses(req.query || {});
-		return res.json({ success: true, data });
+		return sendClassList({ req, res, filter: req.query || {} });
 	}
 
 	if (req.user?.role === 'teacher') {
@@ -38,8 +112,7 @@ const list = asyncHandler(async (req, res) => {
 			return res.json({ success: true, data: [] });
 		}
 
-		const data = await safeFindClasses({ _id: { $in: classIds } });
-		return res.json({ success: true, data });
+		return sendClassList({ req, res, filter: { ...(req.query || {}), _id: { $in: classIds } } });
 	}
 
 	if (req.user?.role === 'student') {
@@ -48,8 +121,7 @@ const list = asyncHandler(async (req, res) => {
 			return res.json({ success: true, data: [] });
 		}
 
-		const data = await safeFindClasses({ _id: student.classId });
-		return res.json({ success: true, data });
+		return sendClassList({ req, res, filter: { ...(req.query || {}), _id: student.classId } });
 	}
 
 	return res.status(403).json({ success: false, message: 'Forbidden' });
