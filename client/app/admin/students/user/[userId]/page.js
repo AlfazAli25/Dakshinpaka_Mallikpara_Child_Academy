@@ -156,11 +156,35 @@ export default function StudentUserProfilePage() {
     setReceiptError('');
     setDownloadingReceiptPaymentId(normalizedPaymentId);
     try {
-      const blob = await getBlob(`/receipt/download/${normalizedPaymentId}`, token, { timeoutMs: 120000 });
+      const endpointCandidates = [
+        `/receipt/download/${normalizedPaymentId}`,
+        `/receipts/student/${normalizedPaymentId}`
+      ];
+
+      let blob = null;
+      let lastError = null;
+
+      for (const endpoint of endpointCandidates) {
+        try {
+          blob = await getBlob(endpoint, token, { timeoutMs: 120000 });
+          break;
+        } catch (error) {
+          lastError = error;
+          const statusCode = Number(error?.statusCode || 0);
+          if (statusCode && statusCode !== 404 && statusCode !== 405) {
+            break;
+          }
+        }
+      }
+
+      if (!blob) {
+        throw lastError || new Error('Unable to download receipt right now.');
+      }
+
       const safeToken = String(receiptToken || normalizedPaymentId).replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Fee_Receipt_${safeToken}.pdf`);
-    } catch (_error) {
-      setReceiptError('Failed to download receipt');
+    } catch (error) {
+      setReceiptError(String(error?.message || 'Failed to download receipt'));
     } finally {
       setDownloadingReceiptPaymentId('');
     }

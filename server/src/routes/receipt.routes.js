@@ -5,5 +5,6 @@ const controller = require('../controllers/receipt.controller');
 const router = express.Router();
 
 router.get('/download/:paymentId', protect, requireRole(['admin', 'student']), controller.downloadPaymentReceipt);
+router.get('/student/:paymentId', protect, requireRole(['admin', 'student']), controller.downloadPaymentReceipt);
 
 module.exports = router;

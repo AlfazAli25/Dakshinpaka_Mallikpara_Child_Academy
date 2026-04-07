@@ -89,6 +89,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/payroll', payrollRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/receipt', receiptRoutes);
+app.use('/api/receipts', receiptRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/system', systemRoutes);
