@@ -34,6 +34,10 @@ const DEFAULT_AVATAR_PATH = path.resolve(REPO_ROOT, 'client', 'public', 'default
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
 const SALARY_SUCCESS_STATUSES = new Set(['PAID', 'SUCCESS', 'VERIFIED']);
 const RECEIPT_SCHOOL_NAME = 'DAKSHINPAKA MALLIKPARA CHILD ACADEMY';
+const RECEIPT_TIMEZONE_OFFSET_MINUTES = Number(
+  process.env.RECEIPT_TIMEZONE_OFFSET_MINUTES || process.env.MONTHLY_SYNC_TIMEZONE_OFFSET_MINUTES || 330
+);
+const RECEIPT_TIMEZONE_OFFSET_MS = RECEIPT_TIMEZONE_OFFSET_MINUTES * 60 * 1000;
 
 const LOCAL_CHROME_CANDIDATES = [
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -69,26 +73,35 @@ const toSafeFileToken = (value, fallback = 'Receipt') =>
 
 const padNumber = (value) => String(value).padStart(2, '0');
 
-const formatDate = (value) => {
+const toReceiptTimezoneDate = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return new Date(parsed.getTime() + RECEIPT_TIMEZONE_OFFSET_MS);
+};
+
+const formatDate = (value) => {
+  const parsed = toReceiptTimezoneDate(value);
+  if (!parsed) {
     return '-';
   }
 
-  return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()}`;
+  return `${padNumber(parsed.getUTCDate())}/${padNumber(parsed.getUTCMonth() + 1)}/${parsed.getUTCFullYear()}`;
 };
 
 const formatDateTime = (value) => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+  const parsed = toReceiptTimezoneDate(value);
+  if (!parsed) {
     return '-';
   }
 
-  let hours = parsed.getHours();
+  let hours = parsed.getUTCHours();
   const meridian = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12 || 12;
 
-  return `${formatDate(parsed)} ${padNumber(hours)}:${padNumber(parsed.getMinutes())} ${meridian}`;
+  return `${formatDate(value)} ${padNumber(hours)}:${padNumber(parsed.getUTCMinutes())} ${meridian}`;
 };
 
 const formatAmount = (value) => {
@@ -361,6 +374,9 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
   const className = toSafeText(student?.classId?.name || receipt?.className);
   const sectionName = toSafeText(student?.classId?.section || '-');
   const amountPaid = Number(payment?.amount || receipt?.amount || 0);
+  const paymentForLabel = sourceType === 'NOTICE'
+    ? buildPaymentForLabel({ payment, receipt })
+    : 'School Fee';
   const pendingFee = Number(
     sourceType === 'NOTICE'
       ? 0
@@ -385,7 +401,7 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     section: sectionName,
     amountPaid: formatAmount(amountPaid),
     pendingFee: formatAmount(pendingFee),
-    paymentFor: buildPaymentForLabel({ payment, receipt }),
+    paymentFor: paymentForLabel,
     paymentMethod: normalizePaymentMethod(payment?.paymentMethod || receipt?.paymentMethod),
     paymentDateTime: formatDateTime(paymentDateTimeValue),
     status: normalizePaymentStatus(payment?.paymentStatus || receipt?.status),
