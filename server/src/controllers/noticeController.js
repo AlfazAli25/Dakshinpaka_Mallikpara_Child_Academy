@@ -58,6 +58,18 @@ const normalizeNoticeStatus = (value) => {
   return normalized || 'Active';
 };
 
+const buildUnexpiredDueDateFilter = () => {
+  const now = new Date();
+
+  return {
+    $or: [
+      { dueDate: { $exists: false } },
+      { dueDate: null },
+      { dueDate: { $gte: now } }
+    ]
+  };
+};
+
 const normalizeRecipientRole = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized || 'student';
@@ -279,9 +291,11 @@ const getStudentNotices = asyncHandler(async (req, res) => {
   }
 
   const pagination = parsePagination(req.query || {});
+  const unexpiredDueDateFilter = buildUnexpiredDueDateFilter();
   const filter = {
     status: 'Active',
     $and: [
+      unexpiredDueDateFilter,
       {
         $or: [
           { recipientRole: 'student' },
@@ -393,6 +407,9 @@ const getTeacherNotices = asyncHandler(async (req, res) => {
   const filter = {
     status: 'Active',
     recipientRole: { $in: ['teacher', 'all'] },
+    $and: [
+      buildUnexpiredDueDateFilter()
+    ],
     $or: classScopeOr
   };
 
