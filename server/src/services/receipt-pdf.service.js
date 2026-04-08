@@ -152,20 +152,7 @@ const buildPaymentForLabel = ({ payment = {}, receipt = {} } = {}) => {
     return toSafeText(payment?.sourceLabel || receipt?.noticeTitle, 'Notice Payment');
   }
 
-  const allocations = Array.isArray(payment.allocations) ? payment.allocations : [];
-  const monthKeys = allocations
-    .map((item) => String(item?.monthKey || '').trim())
-    .filter(Boolean);
-
-  if (monthKeys.length === 0) {
-    return 'School Fee';
-  }
-
-  if (monthKeys.length === 1) {
-    return `School Fee (${monthKeys[0]})`;
-  }
-
-  return `School Fee (${monthKeys[0]} to ${monthKeys[monthKeys.length - 1]})`;
+  return 'School Fee';
 };
 
 const resolveStudentReceiptNumber = ({ payment, receipt }) => {
