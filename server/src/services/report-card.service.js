@@ -7,26 +7,6 @@ const Marks = require('../models/marks.model');
 
 const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
-const REPORT_CARD_SLOTS = [
-  {
-    key: 'unitTest1',
-    label: 'Unit Test 1',
-    maxMarks: 40
-  },
-  {
-    key: 'unitTest2',
-    label: 'Unit Test 2',
-    maxMarks: 40
-  },
-  {
-    key: 'finalExam',
-    label: 'Final Exam',
-    maxMarks: 100
-  }
-];
-
-const TOTAL_MAX_PER_SUBJECT = REPORT_CARD_SLOTS.reduce((sum, item) => sum + item.maxMarks, 0);
-
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -40,6 +20,11 @@ const toText = (value, fallback = '') => {
   return normalized || fallback;
 };
 
+const toNumberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const toValidDate = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -49,32 +34,20 @@ const toValidDate = (value) => {
   return parsed;
 };
 
-const toNumberOrNull = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return null;
-  }
-
-  return numeric;
-};
-
 const toSafeFileToken = (value, fallback = 'Value') => {
   const normalized = toText(value).replace(/[^A-Za-z0-9_-]/g, '_');
   return normalized || fallback;
 };
 
-const toExamTimestamp = (exam) => {
+const toExamTimestamp = (exam = {}) => {
   const dateValue = exam?.endDate || exam?.startDate || exam?.examDate || exam?.date || exam?.createdAt;
   const parsed = toValidDate(dateValue);
   return parsed ? parsed.getTime() : 0;
 };
 
-const getExamSearchText = (exam) =>
-  `${toText(exam?.examName)} ${toText(exam?.description)} ${toText(exam?.examType)}`.toLowerCase();
-
-const isExamCompleted = (exam) => {
-  const status = toText(exam?.status).toLowerCase();
-  if (status === 'completed') {
+const isExamCompleted = (exam = {}) => {
+  const normalizedStatus = toText(exam?.status).toLowerCase();
+  if (normalizedStatus === 'completed') {
     return true;
   }
 
@@ -86,93 +59,91 @@ const isExamCompleted = (exam) => {
   return endDate.getTime() <= Date.now();
 };
 
-const isFinalExam = (exam) => {
-  const examType = toText(exam?.examType).toLowerCase();
-  if (examType === 'final') {
-    return true;
-  }
+const getExamIncludedSubjectIds = (exam = {}) => {
+  const subjectIdSet = new Set();
 
-  return /\bfinal\b/.test(getExamSearchText(exam));
+  const scheduleSubjectIds = Array.isArray(exam?.schedule)
+    ? exam.schedule.map((item) => toId(item?.subjectId)).filter(Boolean)
+    : [];
+
+  const subjectIds = Array.isArray(exam?.subjects)
+    ? exam.subjects.map((item) => toId(item)).filter(Boolean)
+    : [];
+
+  [...scheduleSubjectIds, ...subjectIds, toId(exam?.subjectId)]
+    .filter(Boolean)
+    .forEach((subjectId) => subjectIdSet.add(subjectId));
+
+  return subjectIdSet;
 };
 
-const isUnitTestExam = (exam) => {
-  const examType = toText(exam?.examType).toLowerCase();
-  if (examType === 'unit test') {
-    return true;
-  }
+const buildMarksLookup = (marksRows = []) => {
+  const lookup = new Map();
 
-  return /unit\s*test|\but\b/.test(getExamSearchText(exam));
+  (Array.isArray(marksRows) ? marksRows : []).forEach((item) => {
+    const key = `${toId(item?.studentId)}:${toId(item?.subjectId)}:${toId(item?.examId)}`;
+    lookup.set(key, item);
+  });
+
+  return lookup;
 };
 
-const looksLikeUnitTestOne = (exam) => /unit\s*test\s*1|test\s*1|\but\s*1\b|\b1st\b|\bfirst\b/.test(getExamSearchText(exam));
-const looksLikeUnitTestTwo = (exam) => /unit\s*test\s*2|test\s*2|\but\s*2\b|\b2nd\b|\bsecond\b/.test(getExamSearchText(exam));
+const toModeNumber = (values = []) => {
+  const frequencyMap = new Map();
 
-const sortByDateAsc = (items = []) =>
-  [...items].sort((left, right) => toExamTimestamp(left) - toExamTimestamp(right));
+  (Array.isArray(values) ? values : [])
+    .map((item) => toNumberOrNull(item))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .forEach((value) => {
+      const normalizedValue = Number(value.toFixed(2));
+      const key = normalizedValue.toString();
+      const current = frequencyMap.get(key) || { value: normalizedValue, count: 0 };
+      current.count += 1;
+      frequencyMap.set(key, current);
+    });
 
-const sortByDateDesc = (items = []) =>
-  [...items].sort((left, right) => toExamTimestamp(right) - toExamTimestamp(left));
+  const ranked = Array.from(frequencyMap.values()).sort((left, right) => {
+    if (left.count !== right.count) {
+      return right.count - left.count;
+    }
 
-const pickSlotExams = (examRows = []) => {
-  const completedExams = (Array.isArray(examRows) ? examRows : []).filter((item) => isExamCompleted(item));
+    return right.value - left.value;
+  });
 
-  const unitTestCandidates = sortByDateAsc(completedExams.filter((item) => isUnitTestExam(item)));
-  const finalCandidates = sortByDateDesc(completedExams.filter((item) => isFinalExam(item)));
-
-  let unitTest1Exam = unitTestCandidates.find((item) => looksLikeUnitTestOne(item)) || null;
-  let unitTest2Exam = unitTestCandidates.find((item) => looksLikeUnitTestTwo(item)) || null;
-
-  if (!unitTest1Exam && unitTestCandidates.length > 0) {
-    unitTest1Exam = unitTestCandidates[0];
-  }
-
-  if (!unitTest2Exam) {
-    unitTest2Exam = unitTestCandidates.find((item) => toId(item) !== toId(unitTest1Exam)) || null;
-  }
-
-  if (unitTest1Exam && unitTest2Exam && toId(unitTest1Exam) === toId(unitTest2Exam)) {
-    unitTest2Exam = null;
-  }
-
-  const finalExam = finalCandidates[0] || null;
-
-  const slotExams = {
-    unitTest1: unitTest1Exam,
-    unitTest2: unitTest2Exam,
-    finalExam
-  };
-
-  const missingSlotLabels = REPORT_CARD_SLOTS
-    .filter((slot) => !slotExams[slot.key])
-    .map((slot) => slot.label);
-
-  return {
-    slotExams,
-    missingSlotLabels
-  };
+  return ranked[0]?.value ?? null;
 };
 
-const collectSubjectIds = ({ classRecord = {}, marksRows = [], slotExams = {} }) => {
+const buildExamColumns = ({ completedExams = [], marksRows = [] }) => {
+  const rows = Array.isArray(marksRows) ? marksRows : [];
+
+  return [...completedExams]
+    .sort((left, right) => toExamTimestamp(left) - toExamTimestamp(right))
+    .map((exam) => {
+      const examId = toId(exam);
+      const examName = toText(exam?.examName || exam?.description, 'Exam');
+      const subjectIdSet = getExamIncludedSubjectIds(exam);
+
+      const examRows = rows.filter((item) => toId(item?.examId) === examId);
+      const columnMaxMarks = toModeNumber(examRows.map((item) => item?.maxMarks));
+
+      return {
+        examId,
+        examName,
+        maxMarks: columnMaxMarks,
+        subjectIdSet
+      };
+    });
+};
+
+const collectSubjectIds = ({ classRecord = {}, examColumns = [], marksRows = [] }) => {
   const subjectIdSet = new Set(
     Array.isArray(classRecord?.subjectIds)
       ? classRecord.subjectIds.map((item) => toId(item)).filter(Boolean)
       : []
   );
 
-  Object.values(slotExams).forEach((exam) => {
-    if (!exam) {
-      return;
-    }
-
-    const examSubjectIds = Array.isArray(exam?.subjects)
-      ? exam.subjects.map((item) => toId(item)).filter(Boolean)
-      : [];
-
-    const scheduleSubjectIds = Array.isArray(exam?.schedule)
-      ? exam.schedule.map((item) => toId(item?.subjectId)).filter(Boolean)
-      : [];
-
-    [...examSubjectIds, ...scheduleSubjectIds, toId(exam?.subjectId)]
+  (Array.isArray(examColumns) ? examColumns : []).forEach((item) => {
+    (item?.subjectIdSet instanceof Set ? Array.from(item.subjectIdSet) : [])
       .filter(Boolean)
       .forEach((subjectId) => subjectIdSet.add(subjectId));
   });
@@ -185,87 +156,33 @@ const collectSubjectIds = ({ classRecord = {}, marksRows = [], slotExams = {} })
   return Array.from(subjectIdSet);
 };
 
-const buildSubjectOrdering = ({ classRecord = {}, subjectRows = [], marksRows = [], slotExams = {} }) => {
-  const subjectIdsFromClass = Array.isArray(classRecord?.subjectIds)
+const buildSubjectOrdering = ({ classRecord = {}, subjectRows = [] }) => {
+  const classSubjectIds = Array.isArray(classRecord?.subjectIds)
     ? classRecord.subjectIds.map((item) => toId(item)).filter(Boolean)
     : [];
 
-  const subjectIdSet = new Set(subjectIdsFromClass);
+  const subjectMap = new Map((Array.isArray(subjectRows) ? subjectRows : []).map((item) => [toId(item), item]));
 
-  Object.values(slotExams).forEach((exam) => {
-    if (!exam) {
-      return;
-    }
-
-    const examSubjectIds = Array.isArray(exam?.subjects)
-      ? exam.subjects.map((item) => toId(item)).filter(Boolean)
-      : [];
-
-    const scheduleSubjectIds = Array.isArray(exam?.schedule)
-      ? exam.schedule.map((item) => toId(item?.subjectId)).filter(Boolean)
-      : [];
-
-    [...examSubjectIds, ...scheduleSubjectIds, toId(exam?.subjectId)]
-      .filter(Boolean)
-      .forEach((subjectId) => subjectIdSet.add(subjectId));
-  });
-
-  (Array.isArray(marksRows) ? marksRows : [])
-    .map((item) => toId(item?.subjectId))
-    .filter(Boolean)
-    .forEach((subjectId) => subjectIdSet.add(subjectId));
-
-  const subjectMap = new Map(
-    (Array.isArray(subjectRows) ? subjectRows : []).map((item) => [toId(item), item])
-  );
-
-  const orderedFromClass = subjectIdsFromClass.filter((subjectId) => subjectMap.has(subjectId));
-  const remainingSubjectIds = Array.from(subjectIdSet)
-    .filter((subjectId) => !orderedFromClass.includes(subjectId))
+  const orderedFromClass = classSubjectIds
     .filter((subjectId) => subjectMap.has(subjectId))
-    .sort((left, right) => {
-      const leftName = toText(subjectMap.get(left)?.name || subjectMap.get(left)?.code || left).toLowerCase();
-      const rightName = toText(subjectMap.get(right)?.name || subjectMap.get(right)?.code || right).toLowerCase();
-      return leftName.localeCompare(rightName, 'en', { sensitivity: 'base' });
-    });
-
-  return [...orderedFromClass, ...remainingSubjectIds].map((subjectId) => {
-    const subject = subjectMap.get(subjectId);
-    return {
+    .map((subjectId) => ({
       subjectId,
-      subjectName: toText(subject?.name || subject?.code, 'Subject')
-    };
-  });
-};
+      subjectName: toText(subjectMap.get(subjectId)?.name || subjectMap.get(subjectId)?.code, 'Subject')
+    }));
 
-const buildMarksLookup = (marksRows = []) => {
-  const map = new Map();
+  const remaining = Array.from(subjectMap.keys())
+    .filter((subjectId) => !classSubjectIds.includes(subjectId))
+    .sort((left, right) => {
+      const leftName = toText(subjectMap.get(left)?.name || subjectMap.get(left)?.code, left).toLowerCase();
+      const rightName = toText(subjectMap.get(right)?.name || subjectMap.get(right)?.code, right).toLowerCase();
+      return leftName.localeCompare(rightName, 'en', { sensitivity: 'base' });
+    })
+    .map((subjectId) => ({
+      subjectId,
+      subjectName: toText(subjectMap.get(subjectId)?.name || subjectMap.get(subjectId)?.code, 'Subject')
+    }));
 
-  (Array.isArray(marksRows) ? marksRows : []).forEach((item) => {
-    const key = `${toId(item?.studentId)}:${toId(item?.subjectId)}:${toId(item?.examId)}`;
-    map.set(key, item);
-  });
-
-  return map;
-};
-
-const getMarkForSlot = ({ marksLookup, studentId, subjectId, examId }) => {
-  if (!examId) {
-    return null;
-  }
-
-  const key = `${studentId}:${subjectId}:${examId}`;
-  const row = marksLookup.get(key);
-  if (!row) {
-    return null;
-  }
-
-  const numericMarks = toNumberOrNull(row?.marksObtained);
-  if (numericMarks === null) {
-    return null;
-  }
-
-  return Number(numericMarks.toFixed(2));
+  return [...orderedFromClass, ...remaining];
 };
 
 const compareReportCardRows = (left, right) => {
@@ -292,9 +209,9 @@ const compareReportCardRows = (left, right) => {
 };
 
 const buildReportCardFileName = ({ assignedRollNo, studentName }) => {
-  const safeName = toSafeFileToken(studentName, 'Student');
-  const safeRollNo = Number.isFinite(Number(assignedRollNo)) ? String(Math.max(1, Number(assignedRollNo))) : 'NA';
-  return `RollNo_${safeRollNo}_${safeName}.pdf`;
+  const rollNumber = Number.isFinite(Number(assignedRollNo)) ? String(Math.max(1, Number(assignedRollNo))) : 'NA';
+  const safeStudentName = toSafeFileToken(studentName, 'Student');
+  return `RollNo_${rollNumber}_${safeStudentName}.pdf`;
 };
 
 const buildZipFileName = ({ className, section }) => {
@@ -327,61 +244,84 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
     throw createHttpError(400, 'Selected section does not match the class section');
   }
 
-  const examRows = await Exam.find({
+  const allYearExams = await Exam.find({
     classId: normalizedClassId,
     academicYear: normalizedAcademicYear
   })
-    .select('_id examName examType status classId subjects schedule subjectId startDate endDate examDate date createdAt')
+    .select('_id examName description examType status classId subjects schedule subjectId startDate endDate examDate date createdAt')
     .lean();
 
-  const { slotExams, missingSlotLabels } = pickSlotExams(examRows);
-  const slotExamIds = Object.values(slotExams)
-    .map((item) => toId(item))
-    .filter(Boolean);
+  const completedExams = allYearExams.filter((item) => isExamCompleted(item));
+  const examIds = completedExams.map((item) => toId(item)).filter(Boolean);
 
   const students = await Student.find({ classId: normalizedClassId })
-    .select('_id admissionNo rollNo profileImageUrl classId userId createdAt')
+    .select('_id admissionNo profileImageUrl classId userId createdAt')
     .populate({ path: 'userId', select: 'name email createdAt' })
     .lean();
 
   const studentIds = students.map((item) => toId(item)).filter(Boolean);
 
   const marksRows =
-    slotExamIds.length > 0 && studentIds.length > 0
+    examIds.length > 0 && studentIds.length > 0
       ? await Marks.find({
           classId: normalizedClassId,
-          examId: { $in: slotExamIds },
+          examId: { $in: examIds },
           studentId: { $in: studentIds }
         })
           .select('studentId subjectId examId marksObtained maxMarks')
           .lean()
       : [];
 
-  const collectedSubjectIds = collectSubjectIds({
+  const examColumns = buildExamColumns({
+    completedExams,
+    marksRows
+  });
+
+  const subjectIds = collectSubjectIds({
     classRecord,
-    marksRows,
-    slotExams
+    examColumns,
+    marksRows
   });
 
   const subjectRows =
-    collectedSubjectIds.length > 0
-      ? await Subject.find({ _id: { $in: collectedSubjectIds } })
+    subjectIds.length > 0
+      ? await Subject.find({ _id: { $in: subjectIds } })
           .select('_id name code')
           .lean()
       : [];
 
   const orderedSubjects = buildSubjectOrdering({
     classRecord,
-    subjectRows,
-    marksRows,
-    slotExams
-  });
+    subjectRows
+  }).filter((subject) =>
+    examColumns.some((column) =>
+      column.subjectIdSet.size === 0 || column.subjectIdSet.has(subject.subjectId)
+    )
+  );
 
   const marksLookup = buildMarksLookup(marksRows);
-  const missingRequirements = [];
 
-  if (missingSlotLabels.length > 0) {
-    missingRequirements.push(`Required exams are missing or not completed: ${missingSlotLabels.join(', ')}`);
+  const subjectExamMaxMap = new Map();
+  const groupedMaxRows = new Map();
+
+  marksRows.forEach((item) => {
+    const key = `${toId(item?.subjectId)}:${toId(item?.examId)}`;
+    if (!groupedMaxRows.has(key)) {
+      groupedMaxRows.set(key, []);
+    }
+    groupedMaxRows.get(key).push(item?.maxMarks);
+  });
+
+  Array.from(groupedMaxRows.entries()).forEach(([key, values]) => {
+    const modeMax = toModeNumber(values);
+    if (Number.isFinite(modeMax) && modeMax > 0) {
+      subjectExamMaxMap.set(key, modeMax);
+    }
+  });
+
+  const missingRequirements = [];
+  if (completedExams.length === 0) {
+    missingRequirements.push('No completed exams found for the selected class and exam year');
   }
 
   if (students.length === 0) {
@@ -392,6 +332,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
     missingRequirements.push('No subjects found for report card calculation');
   }
 
+  const missingMaxPairs = new Set();
   let studentsWithIncompleteMarks = 0;
 
   const reportCards = students.map((student) => {
@@ -399,72 +340,87 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
     const studentName = toText(student?.userId?.name, 'Student');
 
     const subjectRowsForStudent = orderedSubjects.map((subject) => {
-      const unitTest1Marks = getMarkForSlot({
-        marksLookup,
-        studentId,
-        subjectId: subject.subjectId,
-        examId: toId(slotExams.unitTest1)
+      let totalMaxMarks = 0;
+      let totalObtainedMarks = 0;
+      let subjectIsComplete = true;
+
+      const examMarks = {};
+
+      examColumns.forEach((examColumn) => {
+        const examId = examColumn.examId;
+        const applicable = examColumn.subjectIdSet.size === 0 || examColumn.subjectIdSet.has(subject.subjectId);
+
+        if (!applicable) {
+          examMarks[examId] = {
+            applicable: false,
+            obtainedMarks: null,
+            maxMarks: null
+          };
+          return;
+        }
+
+        const subjectExamKey = `${subject.subjectId}:${examId}`;
+        const expectedMaxMarks = subjectExamMaxMap.get(subjectExamKey) ?? examColumn.maxMarks ?? null;
+
+        if (!Number.isFinite(expectedMaxMarks) || Number(expectedMaxMarks) <= 0) {
+          subjectIsComplete = false;
+          missingMaxPairs.add(`${subject.subjectName} - ${examColumn.examName}`);
+          examMarks[examId] = {
+            applicable: true,
+            obtainedMarks: null,
+            maxMarks: null
+          };
+          return;
+        }
+
+        totalMaxMarks += Number(expectedMaxMarks);
+
+        const markRow = marksLookup.get(`${studentId}:${subject.subjectId}:${examId}`);
+        const obtainedMarks = toNumberOrNull(markRow?.marksObtained);
+
+        if (!Number.isFinite(obtainedMarks)) {
+          subjectIsComplete = false;
+          examMarks[examId] = {
+            applicable: true,
+            obtainedMarks: null,
+            maxMarks: Number(expectedMaxMarks)
+          };
+          return;
+        }
+
+        if (obtainedMarks < 0 || obtainedMarks > Number(expectedMaxMarks)) {
+          subjectIsComplete = false;
+        }
+
+        totalObtainedMarks += Number(obtainedMarks);
+        examMarks[examId] = {
+          applicable: true,
+          obtainedMarks: Number(obtainedMarks.toFixed(2)),
+          maxMarks: Number(Number(expectedMaxMarks).toFixed(2))
+        };
       });
-
-      const unitTest2Marks = getMarkForSlot({
-        marksLookup,
-        studentId,
-        subjectId: subject.subjectId,
-        examId: toId(slotExams.unitTest2)
-      });
-
-      const finalExamMarks = getMarkForSlot({
-        marksLookup,
-        studentId,
-        subjectId: subject.subjectId,
-        examId: toId(slotExams.finalExam)
-      });
-
-      const normalizedUnitTest1 =
-        unitTest1Marks !== null && unitTest1Marks >= 0 && unitTest1Marks <= REPORT_CARD_SLOTS[0].maxMarks
-          ? unitTest1Marks
-          : null;
-      const normalizedUnitTest2 =
-        unitTest2Marks !== null && unitTest2Marks >= 0 && unitTest2Marks <= REPORT_CARD_SLOTS[1].maxMarks
-          ? unitTest2Marks
-          : null;
-      const normalizedFinalExam =
-        finalExamMarks !== null && finalExamMarks >= 0 && finalExamMarks <= REPORT_CARD_SLOTS[2].maxMarks
-          ? finalExamMarks
-          : null;
-
-      const totalObtainedMarks = Number(
-        [normalizedUnitTest1, normalizedUnitTest2, normalizedFinalExam]
-          .filter((value) => Number.isFinite(value))
-          .reduce((sum, value) => sum + Number(value), 0)
-          .toFixed(2)
-      );
-
-      const isComplete =
-        normalizedUnitTest1 !== null &&
-        normalizedUnitTest2 !== null &&
-        normalizedFinalExam !== null;
 
       return {
         subjectId: subject.subjectId,
         subjectName: subject.subjectName,
-        unitTest1Marks: normalizedUnitTest1,
-        unitTest2Marks: normalizedUnitTest2,
-        finalExamMarks: normalizedFinalExam,
-        totalMaxMarks: TOTAL_MAX_PER_SUBJECT,
-        totalObtainedMarks,
-        isComplete
+        examMarks,
+        totalMaxMarks: Number(totalMaxMarks.toFixed(2)),
+        totalObtainedMarks: Number(totalObtainedMarks.toFixed(2)),
+        isComplete: subjectIsComplete
       };
     });
 
-    const isComplete = subjectRowsForStudent.every((row) => row.isComplete);
+    const isComplete = subjectRowsForStudent.every((item) => item.isComplete);
     if (!isComplete) {
       studentsWithIncompleteMarks += 1;
     }
 
-    const grandTotalMaxMarks = subjectRowsForStudent.reduce((sum, row) => sum + Number(row.totalMaxMarks || 0), 0);
+    const grandTotalMaxMarks = Number(
+      subjectRowsForStudent.reduce((sum, item) => sum + Number(item.totalMaxMarks || 0), 0).toFixed(2)
+    );
+
     const grandTotalObtainedMarks = Number(
-      subjectRowsForStudent.reduce((sum, row) => sum + Number(row.totalObtainedMarks || 0), 0).toFixed(2)
+      subjectRowsForStudent.reduce((sum, item) => sum + Number(item.totalObtainedMarks || 0), 0).toFixed(2)
     );
 
     return {
@@ -476,6 +432,12 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
       section: toText(classRecord?.section, '-'),
       examYear: normalizedAcademicYear,
       admissionDate: student?.userId?.createdAt || student?.createdAt || null,
+      examColumns: examColumns.map((column) => ({
+        examId: column.examId,
+        examName: column.examName,
+        maxMarks: Number.isFinite(Number(column.maxMarks)) ? Number(column.maxMarks) : null,
+        subjectIds: Array.from(column.subjectIdSet)
+      })),
       subjectRows: subjectRowsForStudent,
       grandTotalMaxMarks,
       grandTotalObtainedMarks,
@@ -484,27 +446,27 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
     };
   });
 
+  if (missingMaxPairs.size > 0) {
+    missingRequirements.push('One or more exam max marks are missing. Enter marks for all exam-subject combinations first.');
+  }
+
   if (studentsWithIncompleteMarks > 0) {
-    missingRequirements.push('All subjects must have Unit Test 1, Unit Test 2, and Final marks for every student');
+    missingRequirements.push('All subjects must have marks for all completed exams before report cards can be finalized');
   }
 
   const isMarksFinalized = missingRequirements.length === 0;
 
-  if (isMarksFinalized) {
-    const ranked = [...reportCards].sort(compareReportCardRows);
-    ranked.forEach((item, index) => {
-      item.assignedRollNo = index + 1;
-    });
+  const orderedReportCards = [...reportCards].sort(compareReportCardRows);
 
-    const rollNumberMap = new Map(ranked.map((item) => [item.studentId, item.assignedRollNo]));
-    reportCards.forEach((item) => {
-      item.assignedRollNo = rollNumberMap.get(item.studentId) || null;
+  if (isMarksFinalized) {
+    orderedReportCards.forEach((item, index) => {
+      item.assignedRollNo = index + 1;
     });
   }
 
   const sortedReportCards = isMarksFinalized
-    ? [...reportCards].sort((left, right) => Number(left.assignedRollNo || 0) - Number(right.assignedRollNo || 0))
-    : [...reportCards].sort(compareReportCardRows);
+    ? [...orderedReportCards].sort((left, right) => Number(left.assignedRollNo || 0) - Number(right.assignedRollNo || 0))
+    : orderedReportCards;
 
   return {
     classInfo: {
@@ -513,26 +475,11 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
       section: toText(classRecord?.section, '-')
     },
     academicYear: normalizedAcademicYear,
-    slotExams: {
-      unitTest1: slotExams.unitTest1
-        ? {
-            examId: toId(slotExams.unitTest1),
-            examName: toText(slotExams.unitTest1?.examName, 'Unit Test 1')
-          }
-        : null,
-      unitTest2: slotExams.unitTest2
-        ? {
-            examId: toId(slotExams.unitTest2),
-            examName: toText(slotExams.unitTest2?.examName, 'Unit Test 2')
-          }
-        : null,
-      finalExam: slotExams.finalExam
-        ? {
-            examId: toId(slotExams.finalExam),
-            examName: toText(slotExams.finalExam?.examName, 'Final Exam')
-          }
-        : null
-    },
+    completedExams: examColumns.map((column) => ({
+      examId: column.examId,
+      examName: column.examName,
+      maxMarks: Number.isFinite(Number(column.maxMarks)) ? Number(column.maxMarks) : null
+    })),
     isMarksFinalized,
     missingRequirements,
     reportCards: sortedReportCards
@@ -618,8 +565,6 @@ const getClassReportCardsZipPayload = async ({ classId, academicYear, section })
 };
 
 module.exports = {
-  REPORT_CARD_SLOTS,
-  TOTAL_MAX_PER_SUBJECT,
   calculateClassReportCards,
   getStudentReportCardByExam,
   getClassReportCardsZipPayload,

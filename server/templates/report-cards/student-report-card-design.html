@@ -272,20 +272,16 @@
       width: 18%;
     }
 
-    .col-ut {
-      width: 16%;
-    }
-
-    .col-final {
-      width: 16%;
+    .col-exam {
+      width: auto;
     }
 
     .col-total {
-      width: 16%;
+      width: 14%;
     }
 
     .col-obtained {
-      width: 18%;
+      width: 16%;
     }
 
     .summary {
@@ -391,9 +387,7 @@
               <thead>
                 <tr>
                   <th class="col-subject">Subject</th>
-                  <th class="col-ut">Unit Test 1<br />(Max Marks - 40)</th>
-                  <th class="col-ut">Unit Test 2<br />(Max Marks - 40)</th>
-                  <th class="col-final">Final Exam<br />(Max Marks - 100)</th>
+                  {{tableHeadCellsHtml}}
                   <th class="col-total">Total Max<br />Marks</th>
                   <th class="col-obtained">Total Obtained<br />Marks</th>
                 </tr>

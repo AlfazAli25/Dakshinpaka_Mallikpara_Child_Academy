@@ -235,7 +235,12 @@ const loadTemplateHtml = async () => {
 
 const renderTemplate = (templateHtml, model) =>
   String(templateHtml || '').replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_fullMatch, key) => {
-    if (key === 'schoolLogo' || key === 'studentProfileImage' || key === 'tableRowsHtml') {
+    if (
+      key === 'schoolLogo' ||
+      key === 'studentProfileImage' ||
+      key === 'tableHeadCellsHtml' ||
+      key === 'tableRowsHtml'
+    ) {
       return String(model[key] || '');
     }
 
@@ -255,41 +260,80 @@ const formatScore = (value) => {
   return numeric.toFixed(2);
 };
 
-const buildTableRowsHtml = (subjectRows = []) => {
-  const rows = (Array.isArray(subjectRows) ? subjectRows : [])
-    .slice(0, 9)
+const normalizeExamColumns = (reportCardData = {}) =>
+  (Array.isArray(reportCardData?.examColumns) ? reportCardData.examColumns : [])
     .map((item) => ({
-      subjectName: toSafeText(item?.subjectName, '-'),
-      unitTest1Marks: formatScore(item?.unitTest1Marks),
-      unitTest2Marks: formatScore(item?.unitTest2Marks),
-      finalExamMarks: formatScore(item?.finalExamMarks),
-      totalMaxMarks: formatScore(item?.totalMaxMarks),
-      totalObtainedMarks: formatScore(item?.totalObtainedMarks)
-    }));
+      examId: String(item?.examId || '').trim(),
+      examName: toSafeText(item?.examName, 'Exam'),
+      maxMarks: Number.isFinite(Number(item?.maxMarks)) ? Number(item.maxMarks) : null
+    }))
+    .filter((item) => item.examId);
 
-  while (rows.length < 9) {
+const buildTableHeadCellsHtml = (examColumns = []) =>
+  (Array.isArray(examColumns) ? examColumns : [])
+    .map((examColumn) => {
+      const examName = escapeHtml(toSafeText(examColumn?.examName, 'Exam'));
+      const maxMarks = escapeHtml(formatScore(examColumn?.maxMarks));
+      return `<th class="col-exam">${examName}<br />(Max Marks - ${maxMarks})</th>`;
+    })
+    .join('');
+
+const resolveExamScore = ({ subjectRow = {}, examId = '' }) => {
+  const marksMap =
+    subjectRow?.examMarks && typeof subjectRow.examMarks === 'object'
+      ? subjectRow.examMarks
+      : null;
+
+  if (!marksMap || !Object.prototype.hasOwnProperty.call(marksMap, examId)) {
+    return '-';
+  }
+
+  const examCell = marksMap[examId] || {};
+  if (examCell?.applicable === false) {
+    return '-';
+  }
+
+  return formatScore(examCell?.obtainedMarks);
+};
+
+const buildTableRowsHtml = ({ subjectRows = [], examColumns = [] }) => {
+  const normalizedColumns = Array.isArray(examColumns) ? examColumns : [];
+
+  const rows = (Array.isArray(subjectRows) ? subjectRows : []).map((item) => ({
+    subjectName: toSafeText(item?.subjectName, '-'),
+    examScores: normalizedColumns.map((column) => resolveExamScore({
+      subjectRow: item,
+      examId: column.examId
+    })),
+    totalMaxMarks: formatScore(item?.totalMaxMarks),
+    totalObtainedMarks: formatScore(item?.totalObtainedMarks)
+  }));
+
+  const minimumRows = Math.max(9, rows.length);
+  while (rows.length < minimumRows) {
     rows.push({
       subjectName: '',
-      unitTest1Marks: '',
-      unitTest2Marks: '',
-      finalExamMarks: '',
+      examScores: normalizedColumns.map(() => ''),
       totalMaxMarks: '',
       totalObtainedMarks: ''
     });
   }
 
   return rows
-    .map(
-      (item) =>
+    .map((item) => {
+      const examCellsHtml = item.examScores
+        .map((score) => `<td>${escapeHtml(score)}</td>`)
+        .join('');
+
+      return (
         `<tr>` +
         `<td>${escapeHtml(item.subjectName)}</td>` +
-        `<td>${escapeHtml(item.unitTest1Marks)}</td>` +
-        `<td>${escapeHtml(item.unitTest2Marks)}</td>` +
-        `<td>${escapeHtml(item.finalExamMarks)}</td>` +
+        `${examCellsHtml}` +
         `<td>${escapeHtml(item.totalMaxMarks)}</td>` +
         `<td>${escapeHtml(item.totalObtainedMarks)}</td>` +
         `</tr>`
-    )
+      );
+    })
     .join('');
 };
 
@@ -298,6 +342,8 @@ const buildTemplateModel = async ({ reportCardData = {} }) => {
     resolveSchoolLogoDataUri(),
     resolveStudentImageDataUri(reportCardData)
   ]);
+
+  const examColumns = normalizeExamColumns(reportCardData);
 
   return {
     schoolLogo,
@@ -313,7 +359,11 @@ const buildTemplateModel = async ({ reportCardData = {} }) => {
     reportRollNo: formatScore(reportCardData?.assignedRollNo),
     grandTotalMaxMarks: formatScore(reportCardData?.grandTotalMaxMarks),
     grandTotalObtainedMarks: formatScore(reportCardData?.grandTotalObtainedMarks),
-    tableRowsHtml: buildTableRowsHtml(reportCardData?.subjectRows)
+    tableHeadCellsHtml: buildTableHeadCellsHtml(examColumns),
+    tableRowsHtml: buildTableRowsHtml({
+      subjectRows: reportCardData?.subjectRows,
+      examColumns
+    })
   };
 };
 
