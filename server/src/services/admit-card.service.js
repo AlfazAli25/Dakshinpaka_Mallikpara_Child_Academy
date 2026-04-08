@@ -540,7 +540,7 @@ const getAdmitCardById = async (admitCardId) =>
   AdmitCard.findById(admitCardId)
     .populate({
       path: 'studentId',
-      select: 'admissionNo rollNo classId userId',
+      select: 'admissionNo rollNo classId userId profileImageUrl',
       populate: [
         { path: 'userId', select: 'name email' },
         { path: 'classId', select: 'name section' }

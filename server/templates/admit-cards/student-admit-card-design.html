@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 297mm;
+      height: 210mm;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #eef4fb;
+      color: #0f172a;
+    }
+
+    .page {
+      width: 297mm;
+      height: 210mm;
+      padding: 6mm;
+      background: #eef4fb;
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 7mm;
+      border: 0.8mm solid #59acd8;
+      background:
+        radial-gradient(circle at 10% 12%, rgba(98, 187, 237, 0.14) 0%, rgba(98, 187, 237, 0.02) 40%, rgba(255, 255, 255, 0) 72%),
+        radial-gradient(circle at 90% 14%, rgba(255, 206, 70, 0.16) 0%, rgba(255, 206, 70, 0.04) 48%, rgba(255, 255, 255, 0) 76%),
+        #f8fbff;
+      box-shadow: inset 0 0 0 0.35mm #b8def3;
+      padding: 5mm 6mm 5mm;
+      overflow: hidden;
+    }
+
+    .top-border {
+      height: 1.4mm;
+      width: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #2e9cd7 0%, #f7c92f 34%, #2e9cd7 100%);
+      margin-bottom: 1.9mm;
+    }
+
+    .header {
+      display: grid;
+      grid-template-columns: 73mm 1fr;
+      gap: 5mm;
+      align-items: start;
+    }
+
+    .left-brand {
+      padding-top: 0.2mm;
+    }
+
+    .logo-ring {
+      width: 61mm;
+      height: 61mm;
+      margin: 0 auto;
+      border-radius: 50%;
+      border: 0.95mm solid #5caedb;
+      background: #ffffff;
+      box-shadow: inset 0 0 0 0.4mm #d8edf9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .logo-ring img {
+      width: 88%;
+      height: 88%;
+      object-fit: contain;
+    }
+
+    .brand-title {
+      margin-top: 1.6mm;
+      text-align: center;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0.25mm;
+      text-transform: uppercase;
+      font-size: 8.2mm;
+    }
+
+    .brand-title .child {
+      color: #f5a11a;
+    }
+
+    .brand-title .academy {
+      color: #3ca36f;
+    }
+
+    .brand-subtitle {
+      margin-top: 0.9mm;
+      text-align: center;
+      font-size: 4.5mm;
+      color: #103b72;
+      font-weight: 900;
+      letter-spacing: 0.16mm;
+      text-transform: uppercase;
+    }
+
+    .school-header {
+      padding-right: 1mm;
+    }
+
+    .school-name {
+      margin: 0;
+      text-align: center;
+      color: #1b7c45;
+      font-weight: 900;
+      font-size: 11.1mm;
+      line-height: 0.95;
+      letter-spacing: 0.16mm;
+      text-transform: uppercase;
+    }
+
+    .school-address {
+      margin-top: 1.6mm;
+      text-align: center;
+      font-size: 4.9mm;
+      font-weight: 700;
+      color: #1f2937;
+    }
+
+    .school-meta {
+      margin-top: 1mm;
+      text-align: center;
+      font-size: 5.2mm;
+      font-weight: 900;
+      color: #123d75;
+      letter-spacing: 0.07mm;
+    }
+
+    .school-phone {
+      margin-top: 0.9mm;
+      text-align: center;
+      font-size: 4.7mm;
+      font-weight: 800;
+      color: #1f2937;
+      letter-spacing: 0.05mm;
+    }
+
+    .student-admit-heading {
+      margin-top: 1.9mm;
+      height: 10.6mm;
+      border-radius: 1.6mm;
+      background: linear-gradient(180deg, #1763b4 0%, #0f4f9f 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 6.4mm;
+      font-weight: 900;
+      letter-spacing: 0.18mm;
+      text-transform: uppercase;
+      position: relative;
+    }
+
+    .student-admit-heading::before,
+    .student-admit-heading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 14%;
+      height: 0.5mm;
+      background: #f7d45f;
+      transform: translateY(-50%);
+      border-radius: 999px;
+    }
+
+    .student-admit-heading::before {
+      left: 2.6%;
+    }
+
+    .student-admit-heading::after {
+      right: 2.6%;
+    }
+
+    .details-grid {
+      margin-top: 2.2mm;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 4.5mm;
+      row-gap: 1.9mm;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 2mm;
+      align-items: end;
+      min-height: 8.1mm;
+    }
+
+    .field .label {
+      font-size: 5.1mm;
+      font-weight: 700;
+      color: #1f2937;
+      white-space: nowrap;
+    }
+
+    .field .value {
+      min-height: 7mm;
+      border-bottom: 0.4mm solid #9db3c3;
+      display: flex;
+      align-items: flex-end;
+      padding: 0 1mm 0.5mm;
+      font-size: 4.8mm;
+      font-weight: 700;
+      color: #111827;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .field.boxed .value {
+      border: 0.4mm solid #bccddd;
+      border-radius: 1.1mm;
+      align-items: center;
+      min-height: 9mm;
+      padding-bottom: 0;
+      background: #ffffff;
+    }
+
+    .main-grid {
+      margin-top: 2.5mm;
+      display: grid;
+      grid-template-columns: 58mm 1fr;
+      gap: 4mm;
+      align-items: start;
+    }
+
+    .photo-box {
+      border: 0.45mm solid #b6cbda;
+      border-radius: 1.4mm;
+      background: #ffffff;
+      height: 70mm;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .photo-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .timetable-wrap {
+      border: 0.4mm solid #8aa9bf;
+      border-radius: 1.4mm;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .timetable-heading {
+      height: 10.2mm;
+      background: linear-gradient(180deg, #1763b4 0%, #0f4f9f 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 6.1mm;
+      font-weight: 900;
+      letter-spacing: 0.16mm;
+      text-transform: uppercase;
+      position: relative;
+    }
+
+    .timetable-heading::before,
+    .timetable-heading::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 15%;
+      height: 0.45mm;
+      background: #f7d45f;
+      transform: translateY(-50%);
+      border-radius: 999px;
+    }
+
+    .timetable-heading::before {
+      left: 3.2%;
+    }
+
+    .timetable-heading::after {
+      right: 3.2%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    thead th {
+      background: #1158ab;
+      color: #ffffff;
+      font-size: 4.9mm;
+      font-weight: 900;
+      letter-spacing: 0.07mm;
+      text-transform: capitalize;
+      border: 0.35mm solid #84a9c6;
+      padding: 1.3mm 2mm;
+      text-align: center;
+      height: 9.2mm;
+    }
+
+    tbody td {
+      border: 0.35mm solid #aec4d7;
+      padding: 1.6mm 2mm;
+      font-size: 4.35mm;
+      font-weight: 700;
+      color: #1f2937;
+      text-align: center;
+      height: 9.8mm;
+      vertical-align: middle;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="top-border"></div>
+
+      <div class="header">
+        <div class="left-brand">
+          <div class="logo-ring">
+            <img src="{{schoolLogo}}" alt="School logo" />
+          </div>
+          <div class="brand-title"><span class="child">Child</span> <span class="academy">Academy</span></div>
+          <div class="brand-subtitle">Kindergarten</div>
+        </div>
+
+        <div class="school-header">
+          <h1 class="school-name">{{schoolName}}</h1>
+          <div class="school-address">{{schoolAddress}}</div>
+          <div class="school-meta">Estd: 2018 | Regd. No: IV-090/00520/2018</div>
+          <div class="school-phone">Phone: {{schoolPhone}}</div>
+
+          <div class="student-admit-heading">Student Admit Card</div>
+
+          <div class="details-grid">
+            <div class="field">
+              <div class="label">Name:</div>
+              <div class="value">{{studentName}}</div>
+            </div>
+
+            <div class="field">
+              <div class="label">Student ID:</div>
+              <div class="value">{{studentId}}</div>
+            </div>
+
+            <div class="field">
+              <div class="label">Class:</div>
+              <div class="value">{{className}}</div>
+            </div>
+
+            <div class="field">
+              <div class="label">Section:</div>
+              <div class="value">{{section}}</div>
+            </div>
+
+            <div class="field boxed">
+              <div class="label">Roll No:</div>
+              <div class="value">{{rollNo}}</div>
+            </div>
+
+            <div class="field boxed">
+              <div class="label">Exam Name:</div>
+              <div class="value">{{examName}}</div>
+            </div>
+
+            <div class="field">
+              <div class="label">Exam Year:</div>
+              <div class="value">{{examYear}}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-grid">
+        <div class="photo-box">
+          <img src="{{studentProfileImage}}" alt="Student profile" />
+        </div>
+
+        <div class="timetable-wrap">
+          <div class="timetable-heading">Exam Timetable</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Subject</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{examRowsHtml}}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
