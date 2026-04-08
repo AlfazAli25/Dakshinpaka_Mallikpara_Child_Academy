@@ -55,7 +55,7 @@ const listMyAvailableAdmitCardsHandler = asyncHandler(async (req, res) => {
   const data = await AdmitCard.find({
     studentId: student._id,
     isActive: true,
-    isDownloadEnabled: true
+    isFeePaid: true
   })
     .sort({ availableAt: -1, updatedAt: -1 })
     .populate({ path: 'classId', select: 'name section' })
@@ -181,13 +181,16 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
   }
 
   if (req.user?.role === 'student') {
-    if (!admitCard.isDownloadEnabled) {
-      throw createHttpError(403, 'Admit card download is not available yet');
-    }
-
-    const requesterStudent = await Student.findOne({ userId: req.user._id }).select('_id').lean();
+    const requesterStudent = await Student.findOne({ userId: req.user._id }).select('_id classId').lean();
     if (!requesterStudent || toId(requesterStudent._id) !== toId(admitCard.studentId?._id || admitCard.studentId)) {
       throw createHttpError(403, 'Forbidden');
+    }
+
+    const studentClassId = toId(requesterStudent.classId);
+    const admitCardClassId = toId(admitCard.classId?._id || admitCard.classId);
+
+    if (!admitCard.isFeePaid || !studentClassId || !admitCardClassId || studentClassId !== admitCardClassId) {
+      throw createHttpError(403, 'Admit card download is not available yet');
     }
   }
 
