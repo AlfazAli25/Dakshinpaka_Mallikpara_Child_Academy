@@ -222,6 +222,7 @@
     }
 
     .photo-box {
+      position: relative;
       border: 0.45mm solid #97b1c8;
       border-radius: 2.2mm;
       background: #ffffff;
@@ -232,13 +233,45 @@
       overflow: hidden;
     }
 
-    .photo-box img {
+    .photo-box .student-photo {
       width: 100%;
       height: 100%;
       object-fit: cover;
       border-radius: 1.6mm;
       border: 0.35mm solid #c9d8e7;
       background: #edf2f7;
+    }
+
+    .qr-overlay {
+      position: absolute;
+      right: 3mm;
+      bottom: 3mm;
+      width: 22.5mm;
+      border: 0.32mm solid #7a9ec0;
+      border-radius: 1.5mm;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 0.9mm;
+      box-shadow: 0 0 0 0.2mm rgba(255, 255, 255, 0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4mm;
+    }
+
+    .qr-overlay img {
+      width: 100%;
+      height: auto;
+      border-radius: 0.6mm;
+    }
+
+    .qr-overlay span {
+      font-size: 2.2mm;
+      line-height: 1.1;
+      text-align: center;
+      color: #0f172a;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04mm;
     }
 
     .performance-block {
@@ -398,7 +431,11 @@
 
         <div class="performance-layout">
           <div class="photo-box">
-            <img src="{{studentProfileImage}}" alt="Student Photo" />
+            <img class="student-photo" src="{{studentProfileImage}}" alt="Student Photo" />
+            <div class="qr-overlay">
+              <img src="{{reportQrCode}}" alt="Report details QR code" />
+              <span>Scan For Report Data</span>
+            </div>
           </div>
 
           <div class="performance-block">

@@ -16,6 +16,8 @@ const {
   SCHOOL_MOBILE
 } = require('../config/school');
 
+const { generateQrCodeDataUri } = require('../utils/qr-code');
+
 const TEMPLATE_PATH = path.resolve(
   __dirname,
   '..',
@@ -265,7 +267,7 @@ const loadTemplateHtml = async () => {
 
 const renderTemplate = (templateHtml, model) =>
   String(templateHtml || '').replace(/\{\{([a-zA-Z0-9_]+)\}\}/g, (_fullMatch, key) => {
-    if (key === 'schoolLogo' || key === 'studentProfileImage' || key === 'examRowsHtml') {
+    if (key === 'schoolLogo' || key === 'studentProfileImage' || key === 'admitQrCode' || key === 'examRowsHtml') {
       return String(model[key] || '');
     }
 
@@ -317,12 +319,76 @@ const buildExamRowsHtml = (scheduleRows = []) => {
     .join('');
 };
 
-const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) => {
-  const [schoolLogo, studentProfileImage] = await Promise.all([
-    resolveSchoolLogoDataUri(),
-    resolveStudentImageDataUri(student)
-  ]);
+const toIsoString = (value) => {
+  const parsed = toDate(value);
+  return parsed ? parsed.toISOString() : '';
+};
 
+const buildAdmitQrPayloads = ({
+  admitCard = {},
+  exam = {},
+  student = {},
+  studentName = '-',
+  studentId = '-',
+  className = '-',
+  section = '-',
+  rollNo = '-',
+  examName = '-',
+  examYear = '-',
+  scheduleRows = []
+}) => {
+  const normalizedScheduleRows = (Array.isArray(scheduleRows) ? scheduleRows : []).map((item) => ({
+    subjectName: toSafeText(item?.subjectName || item?.subjectCode, 'Subject'),
+    startDate: toIsoString(item?.startDate),
+    endDate: toIsoString(item?.endDate),
+    dateLabel: formatDate(item?.startDate),
+    timeLabel:
+      formatTime(item?.startDate) && formatTime(item?.endDate)
+        ? `${formatTime(item?.startDate)} - ${formatTime(item?.endDate)}`
+        : formatTime(item?.startDate) || formatTime(item?.endDate) || ''
+  }));
+
+  const verbosePayload = {
+    documentType: 'ADMIT_CARD',
+    version: 1,
+    school: {
+      name: toSafeText(SCHOOL_NAME),
+      address: toSafeText(SCHOOL_ADDRESS),
+      phone: toSafeText(SCHOOL_MOBILE)
+    },
+    student: {
+      name: studentName,
+      studentId,
+      className,
+      section,
+      rollNo,
+      admissionNo: toSafeText(student?.admissionNo, '-'),
+      studentRecordId: toSafeText(student?._id, '-')
+    },
+    exam: {
+      examName,
+      examYear,
+      examId: toSafeText(admitCard?.examId?._id || admitCard?.examId || exam?._id, '-'),
+      examType: toSafeText(admitCard?.examType || exam?.examType, '-'),
+      startDate: toIsoString(exam?.startDate),
+      endDate: toIsoString(exam?.endDate)
+    },
+    schedule: normalizedScheduleRows
+  };
+
+  const compactPayload = {
+    t: 'ADM',
+    v: 1,
+    sc: [toSafeText(SCHOOL_NAME), toSafeText(SCHOOL_ADDRESS), toSafeText(SCHOOL_MOBILE)],
+    st: [studentName, studentId, className, section, rollNo],
+    ex: [examName, examYear, toSafeText(admitCard?.examId?._id || admitCard?.examId || exam?._id, '-')],
+    sch: normalizedScheduleRows.map((item) => [item.subjectName, item.startDate, item.endDate])
+  };
+
+  return [verbosePayload, compactPayload];
+};
+
+const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) => {
   const studentName = toSafeText(student?.userId?.name, '-');
   const studentId = toSafeText(student?.admissionNo || student?._id, '-');
   const className = toSafeText(student?.classId?.name || admitCard?.classId?.name, '-');
@@ -332,10 +398,30 @@ const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) =
   const examYear = toSafeText(admitCard?.academicYear || exam?.academicYear, '-');
 
   const scheduleRows = getScheduleRows(admitCard, exam);
+  const admitQrPayloads = buildAdmitQrPayloads({
+    admitCard,
+    exam,
+    student,
+    studentName,
+    studentId,
+    className,
+    section,
+    rollNo,
+    examName,
+    examYear,
+    scheduleRows
+  });
+
+  const [schoolLogo, studentProfileImage, admitQrCode] = await Promise.all([
+    resolveSchoolLogoDataUri(),
+    resolveStudentImageDataUri(student),
+    generateQrCodeDataUri({ payloads: admitQrPayloads, width: 212 })
+  ]);
 
   return {
     schoolLogo,
     studentProfileImage,
+    admitQrCode,
     schoolName: toSafeText(SCHOOL_NAME),
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
     schoolPhone: toSafeText(SCHOOL_MOBILE),

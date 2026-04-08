@@ -16,6 +16,8 @@ const {
   SCHOOL_MOBILE
 } = require('../config/school');
 
+const { generateQrCodeDataUri } = require('../utils/qr-code');
+
 const { buildReportCardFileName } = require('./report-card.service');
 
 const TEMPLATE_PATH = path.resolve(
@@ -238,6 +240,7 @@ const renderTemplate = (templateHtml, model) =>
     if (
       key === 'schoolLogo' ||
       key === 'studentProfileImage' ||
+      key === 'reportQrCode' ||
       key === 'tableHeadCellsHtml' ||
       key === 'tableRowsHtml'
     ) {
@@ -289,6 +292,112 @@ const normalizeExamColumns = (reportCardData = {}) =>
       maxMarks: Number.isFinite(Number(item?.maxMarks)) ? Number(item.maxMarks) : null
     }))
     .filter((item) => item.examId);
+
+const toSafeNumber = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return Number(Number.isInteger(numeric) ? numeric : numeric.toFixed(2));
+};
+
+const buildSubjectRowsForQr = ({ reportCardData = {}, examColumns = [] }) => {
+  const subjectRows = Array.isArray(reportCardData?.subjectRows) ? reportCardData.subjectRows : [];
+
+  return subjectRows.map((subjectRow) => {
+    const examMarksMap =
+      subjectRow?.examMarks && typeof subjectRow.examMarks === 'object'
+        ? subjectRow.examMarks
+        : {};
+
+    const exams = examColumns.map((examColumn, examIndex) => {
+      const examCell = examMarksMap[examColumn.examId] || {};
+      return {
+        examIndex,
+        examId: examColumn.examId,
+        examName: examColumn.examName,
+        applicable: examCell?.applicable === false ? 0 : 1,
+        obtainedMarks: toSafeNumber(examCell?.obtainedMarks),
+        maxMarks: toSafeNumber(examCell?.maxMarks)
+      };
+    });
+
+    return {
+      subjectName: toSafeText(subjectRow?.subjectName, '-'),
+      exams,
+      totalMaxMarks: toSafeNumber(subjectRow?.totalMaxMarks),
+      totalObtainedMarks: toSafeNumber(subjectRow?.totalObtainedMarks)
+    };
+  });
+};
+
+const buildReportQrPayloads = ({ reportCardData = {}, examColumns = [] }) => {
+  const subjectRows = buildSubjectRowsForQr({ reportCardData, examColumns });
+
+  const verbosePayload = {
+    documentType: 'REPORT_CARD',
+    version: 1,
+    school: {
+      name: toSafeText(SCHOOL_NAME),
+      address: toSafeText(SCHOOL_ADDRESS),
+      phone: toSafeText(SCHOOL_MOBILE)
+    },
+    student: {
+      name: toSafeText(reportCardData?.studentName, '-'),
+      studentId: toSafeText(reportCardData?.admissionNo, '-'),
+      className: toSafeText(reportCardData?.className, '-'),
+      section: toSafeText(reportCardData?.section, '-'),
+      reportRollNo: toSafeNumber(reportCardData?.assignedRollNo),
+      examYear: toSafeText(reportCardData?.examYear, '-')
+    },
+    summary: {
+      grandTotalMaxMarks: toSafeNumber(reportCardData?.grandTotalMaxMarks),
+      grandTotalObtainedMarks: toSafeNumber(reportCardData?.grandTotalObtainedMarks),
+      netGrade: toSafeText(deriveNetGradeLabel(reportCardData), '-'),
+      netPercentage: toSafeNumber(reportCardData?.netPercentage)
+    },
+    examColumns: examColumns.map((examColumn) => ({
+      examId: examColumn.examId,
+      examName: examColumn.examName,
+      maxMarks: toSafeNumber(examColumn.maxMarks)
+    })),
+    subjectRows
+  };
+
+  const compactPayload = {
+    t: 'RPT',
+    v: 1,
+    sc: [toSafeText(SCHOOL_NAME), toSafeText(SCHOOL_ADDRESS), toSafeText(SCHOOL_MOBILE)],
+    st: [
+      toSafeText(reportCardData?.studentName, '-'),
+      toSafeText(reportCardData?.admissionNo, '-'),
+      toSafeText(reportCardData?.className, '-'),
+      toSafeText(reportCardData?.section, '-'),
+      toSafeNumber(reportCardData?.assignedRollNo),
+      toSafeText(reportCardData?.examYear, '-')
+    ],
+    sum: [
+      toSafeNumber(reportCardData?.grandTotalObtainedMarks),
+      toSafeNumber(reportCardData?.grandTotalMaxMarks),
+      toSafeText(deriveNetGradeLabel(reportCardData), '-')
+    ],
+    ex: examColumns.map((examColumn) => [examColumn.examId, examColumn.examName, toSafeNumber(examColumn.maxMarks)]),
+    sb: subjectRows.map((subjectRow) => [
+      subjectRow.subjectName,
+      subjectRow.exams.map((examCell) => [
+        examCell.examIndex,
+        examCell.applicable,
+        examCell.obtainedMarks,
+        examCell.maxMarks
+      ]),
+      subjectRow.totalMaxMarks,
+      subjectRow.totalObtainedMarks
+    ])
+  };
+
+  return [verbosePayload, compactPayload];
+};
 
 const buildTableHeadCellsHtml = (examColumns = []) =>
   (Array.isArray(examColumns) ? examColumns : [])
@@ -349,16 +458,19 @@ const buildTableRowsHtml = ({ subjectRows = [], examColumns = [] }) => {
 };
 
 const buildTemplateModel = async ({ reportCardData = {} }) => {
-  const [schoolLogo, studentProfileImage] = await Promise.all([
-    resolveSchoolLogoDataUri(),
-    resolveStudentImageDataUri(reportCardData)
-  ]);
-
   const examColumns = normalizeExamColumns(reportCardData);
+  const reportQrPayloads = buildReportQrPayloads({ reportCardData, examColumns });
+
+  const [schoolLogo, studentProfileImage, reportQrCode] = await Promise.all([
+    resolveSchoolLogoDataUri(),
+    resolveStudentImageDataUri(reportCardData),
+    generateQrCodeDataUri({ payloads: reportQrPayloads, width: 212 })
+  ]);
 
   return {
     schoolLogo,
     studentProfileImage,
+    reportQrCode,
     schoolName: toSafeText(SCHOOL_NAME).toUpperCase(),
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
     schoolPhone: toSafeText(SCHOOL_MOBILE),
