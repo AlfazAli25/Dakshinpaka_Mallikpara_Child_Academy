@@ -32,18 +32,6 @@ router.post(
 );
 
 router.patch(
-  '/:admitCardId/eligibility',
-  protect,
-  requireRole(['admin']),
-  [
-    param('admitCardId').isMongoId().withMessage('Invalid admit card selected'),
-    body('isEligible').isBoolean().withMessage('isEligible must be true or false')
-  ],
-  validate,
-  controller.setAdmitCardEligibility
-);
-
-router.patch(
   '/:admitCardId/fee-status',
   protect,
   requireRole(['admin']),
@@ -53,6 +41,18 @@ router.patch(
   ],
   validate,
   controller.setAdmitCardFeeStatus
+);
+
+router.get(
+  '/exam/:examId/class/:classId/download-zip',
+  protect,
+  requireRole(['admin']),
+  [
+    param('examId').isMongoId().withMessage('Invalid exam selected'),
+    param('classId').isMongoId().withMessage('Invalid class selected')
+  ],
+  validate,
+  controller.downloadClassAdmitCardsZip
 );
 
 router.get(

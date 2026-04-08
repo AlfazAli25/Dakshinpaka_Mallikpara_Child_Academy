@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@sparticuz/chromium": "^143.0.4",
+    "adm-zip": "^0.5.17",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.9.0",
     "compression": "^1.8.1",

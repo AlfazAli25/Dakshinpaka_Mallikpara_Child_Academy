@@ -64,10 +64,13 @@ const deriveDownloadEnabled = ({ isActive, isFeePaid, isStudentEligible }) =>
   Boolean(isActive && isFeePaid && isStudentEligible);
 
 const applyEligibilityState = (admitCardDoc, checkedAt = new Date()) => {
+  const isClassMatchedEligibility = Boolean(admitCardDoc.isActive);
+  admitCardDoc.isStudentEligible = isClassMatchedEligibility;
+
   const shouldEnableDownload = deriveDownloadEnabled({
     isActive: admitCardDoc.isActive,
     isFeePaid: admitCardDoc.isFeePaid,
-    isStudentEligible: admitCardDoc.isStudentEligible
+    isStudentEligible: isClassMatchedEligibility
   });
 
   admitCardDoc.isDownloadEnabled = shouldEnableDownload;
@@ -414,37 +417,6 @@ const syncAdmitCardsForExam = async ({ examId, actorUserId }) => {
   };
 };
 
-const updateAdmitCardEligibility = async ({ admitCardId, isEligible, actorUserId }) => {
-  const admitCard = await AdmitCard.findById(admitCardId);
-  if (!admitCard || !admitCard.isActive) {
-    const error = new Error('Admit card not found');
-    error.statusCode = 404;
-    throw error;
-  }
-
-  admitCard.isStudentEligible = Boolean(isEligible);
-  applyEligibilityState(admitCard);
-  await admitCard.save();
-
-  const [exam, student] = await Promise.all([
-    Exam.findById(admitCard.examId).lean(),
-    Student.findById(admitCard.studentId).select('_id userId admissionNo rollNo').populate({ path: 'userId', select: 'name email' }).lean()
-  ]);
-
-  await ensureAdmitCardAvailabilityNotice({
-    admitCard,
-    exam,
-    student,
-    actorUserId
-  });
-
-  return AdmitCard.findById(admitCard._id)
-    .populate({ path: 'studentId', select: 'admissionNo rollNo classId userId', populate: [{ path: 'userId', select: 'name email' }, { path: 'classId', select: 'name section' }] })
-    .populate({ path: 'classId', select: 'name section' })
-    .populate({ path: 'examId', select: 'examName academicYear startDate endDate' })
-    .lean();
-};
-
 const updateAdmitCardFeeStatus = async ({ admitCardId, isFeePaid, actorUserId }) => {
   const admitCard = await AdmitCard.findById(admitCardId);
   if (!admitCard || !admitCard.isActive) {
@@ -485,7 +457,7 @@ const listAdmitCardsByExam = async ({ examId }) => {
   }
 
   return AdmitCard.find({ examId: normalizedExamId, isActive: true })
-    .sort({ isDownloadEnabled: -1, isStudentEligible: -1, updatedAt: -1 })
+    .sort({ isDownloadEnabled: -1, isFeePaid: -1, updatedAt: -1 })
     .populate({ path: 'studentId', select: 'admissionNo rollNo classId userId', populate: [{ path: 'userId', select: 'name email' }, { path: 'classId', select: 'name section' }] })
     .populate({ path: 'classId', select: 'name section' })
     .populate({ path: 'examId', select: 'examName academicYear startDate endDate admitCardFeeAmount' })
@@ -557,7 +529,6 @@ const getAdmitCardById = async (admitCardId) =>
 module.exports = {
   syncAdmitCardsForExam,
   listAdmitCardsByExam,
-  updateAdmitCardEligibility,
   updateAdmitCardFeeStatus,
   syncAdmitCardFeeStatusFromNoticePayment,
   getAdmitCardById,

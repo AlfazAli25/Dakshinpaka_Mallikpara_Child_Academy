@@ -26,7 +26,7 @@ const admitCardSchema = new mongoose.Schema(
     scheduleSnapshot: { type: [admitCardScheduleSchema], default: [] },
     admitCardFeeAmount: { type: Number, min: 0, default: 0 },
     isFeePaid: { type: Boolean, default: false },
-    isStudentEligible: { type: Boolean, default: false },
+    isStudentEligible: { type: Boolean, default: true },
     isDownloadEnabled: { type: Boolean, default: false },
     status: {
       type: String,

@@ -17,7 +17,7 @@ const columns = [
   { key: 'rollNo', label: 'Roll No' },
   { key: 'classLabel', label: 'Class' },
   { key: 'isFeePaid', label: 'Admit Fee Paid' },
-  { key: 'isStudentEligible', label: 'Exam Eligible' },
+  { key: 'isStudentEligible', label: 'Class Eligible' },
   { key: 'status', label: 'Download Status' },
   { key: 'actions', label: 'Actions' }
 ];
@@ -53,6 +53,7 @@ export default function AdminExamAdmitCardsPage() {
   const [examTitle, setExamTitle] = useState('Admit Card Management');
   const [processingCardId, setProcessingCardId] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [downloadingClassZip, setDownloadingClassZip] = useState(false);
 
   const loadCards = async () => {
     if (!examId) {
@@ -119,6 +120,33 @@ export default function AdminExamAdmitCardsPage() {
     }
   };
 
+  const classIdForZip = useMemo(() => {
+    const firstRow = rows[0];
+    return toId(firstRow?.classId || firstRow?.studentId?.classId);
+  }, [rows]);
+
+  const downloadClassZip = async () => {
+    if (!examId || !classIdForZip) {
+      return;
+    }
+
+    setDownloadingClassZip(true);
+    try {
+      const token = getToken();
+      const blob = await getBlob(`/admit-cards/exam/${examId}/class/${classIdForZip}/download-zip`, token, {
+        timeoutMs: 300000
+      });
+
+      const classLabel = formatClassLabel(rows[0]?.classId || rows[0]?.studentId?.classId).replace(/[^A-Za-z0-9_-]/g, '_');
+      const examLabel = String(examTitle || 'Exam').replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Admit_Cards_${classLabel || 'Class'}_${examLabel || 'Exam'}.zip`);
+    } catch (error) {
+      toast.error(error?.message || 'Failed to download class admit cards');
+    } finally {
+      setDownloadingClassZip(false);
+    }
+  };
+
   const downloadAdmitCard = async (admitCard) => {
     const admitCardId = toId(admitCard);
     if (!admitCardId) {
@@ -176,24 +204,8 @@ export default function AdminExamAdmitCardsPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  updateCardState(
-                    admitCardId,
-                    `/admit-cards/${admitCardId}/eligibility`,
-                    { isEligible: !item?.isStudentEligible },
-                    'Student exam eligibility updated'
-                  )
-                }
-                disabled={isBusy}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {item?.isStudentEligible ? 'Mark Not Eligible' : 'Mark Eligible'}
-              </button>
-
-              <button
-                type="button"
                 onClick={() => downloadAdmitCard(item)}
-                disabled={!item?.isDownloadEnabled || isBusy}
+                disabled={isBusy}
                 className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy ? 'Processing...' : 'Download'}
@@ -210,16 +222,27 @@ export default function AdminExamAdmitCardsPage() {
       <PageHeader
         eyebrow="Administration"
         title={examTitle}
-        description="Prepared admit cards are listed below. Download remains blocked until both fee-paid and eligibility conditions are true."
+        description="Student download unlocks automatically when admit fee is paid for the exam class."
         rightSlot={
-          <button
-            type="button"
-            onClick={syncExamCards}
-            disabled={syncing}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {syncing ? 'Syncing...' : 'Sync Admit Cards'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={downloadClassZip}
+              disabled={downloadingClassZip || !classIdForZip}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {downloadingClassZip ? 'Preparing ZIP...' : 'Download Class ZIP'}
+            </button>
+
+            <button
+              type="button"
+              onClick={syncExamCards}
+              disabled={syncing}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {syncing ? 'Syncing...' : 'Sync Admit Cards'}
+            </button>
+          </div>
         }
       />
 

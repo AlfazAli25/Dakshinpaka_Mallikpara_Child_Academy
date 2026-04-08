@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
+const AdmZip = require('adm-zip');
 const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
 const AdmitCard = require('../models/admit-card.model');
 const {
   syncAdmitCardsForExam,
   listAdmitCardsByExam,
-  updateAdmitCardEligibility,
   updateAdmitCardFeeStatus,
   getAdmitCardById
 } = require('../services/admit-card.service');
@@ -18,6 +18,14 @@ const createHttpError = (statusCode, message) => {
 };
 
 const toId = (value) => String(value?._id || value || '').trim();
+
+const toSafeFileToken = (value, fallback = 'File') => {
+  const normalized = String(value || '')
+    .trim()
+    .replace(/[^A-Za-z0-9_-]/g, '_');
+
+  return normalized || fallback;
+};
 
 const toBooleanInput = (value) => {
   if (typeof value === 'boolean') {
@@ -88,30 +96,6 @@ const syncExamAdmitCardsHandler = asyncHandler(async (req, res) => {
   });
 });
 
-const setAdmitCardEligibilityHandler = asyncHandler(async (req, res) => {
-  const admitCardId = String(req.params?.admitCardId || '').trim();
-  if (!mongoose.Types.ObjectId.isValid(admitCardId)) {
-    throw createHttpError(400, 'Invalid admit card selected');
-  }
-
-  const isEligible = toBooleanInput(req.body?.isEligible);
-  if (isEligible === null) {
-    throw createHttpError(400, 'isEligible must be true or false');
-  }
-
-  const data = await updateAdmitCardEligibility({
-    admitCardId,
-    isEligible,
-    actorUserId: req.user?._id
-  });
-
-  res.json({
-    success: true,
-    message: 'Admit card eligibility updated successfully',
-    data
-  });
-});
-
 const setAdmitCardFeeStatusHandler = asyncHandler(async (req, res) => {
   const admitCardId = String(req.params?.admitCardId || '').trim();
   if (!mongoose.Types.ObjectId.isValid(admitCardId)) {
@@ -136,6 +120,55 @@ const setAdmitCardFeeStatusHandler = asyncHandler(async (req, res) => {
   });
 });
 
+const downloadClassAdmitCardsZipHandler = asyncHandler(async (req, res) => {
+  const examId = String(req.params?.examId || '').trim();
+  const classId = String(req.params?.classId || '').trim();
+
+  if (!mongoose.Types.ObjectId.isValid(examId)) {
+    throw createHttpError(400, 'Invalid exam selected');
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(classId)) {
+    throw createHttpError(400, 'Invalid class selected');
+  }
+
+  const allExamCards = await listAdmitCardsByExam({ examId });
+  const classCards = allExamCards.filter((card) => toId(card?.classId) === classId);
+
+  if (classCards.length === 0) {
+    throw createHttpError(404, 'No admit cards found for this class');
+  }
+
+  const zip = new AdmZip();
+
+  for (const admitCard of classCards) {
+    const generated = await createAdmitCardPdf({
+      admitCard,
+      exam: admitCard.examId,
+      student: admitCard.studentId
+    });
+
+    zip.addFile(generated.fileName, generated.pdfBuffer);
+  }
+
+  const firstCard = classCards[0] || {};
+  const className = String(firstCard?.classId?.name || 'Class').trim();
+  const classSection = String(firstCard?.classId?.section || '').trim();
+  const classLabel = classSection ? `${className}_${classSection}` : className;
+  const examName = String(firstCard?.examId?.examName || firstCard?.examName || 'Exam').trim();
+
+  const zipFileName =
+    `Admit_Cards_${toSafeFileToken(classLabel, 'Class')}_${toSafeFileToken(examName, 'Exam')}.zip`;
+
+  const zipBuffer = zip.toBuffer();
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
+  res.setHeader('Content-Length', zipBuffer.length);
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(zipBuffer);
+});
+
 const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
   const admitCardId = String(req.params?.admitCardId || '').trim();
   if (!mongoose.Types.ObjectId.isValid(admitCardId)) {
@@ -147,11 +180,11 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
     throw createHttpError(404, 'Admit card not found');
   }
 
-  if (!admitCard.isDownloadEnabled) {
-    throw createHttpError(403, 'Admit card download is not available yet');
-  }
-
   if (req.user?.role === 'student') {
+    if (!admitCard.isDownloadEnabled) {
+      throw createHttpError(403, 'Admit card download is not available yet');
+    }
+
     const requesterStudent = await Student.findOne({ userId: req.user._id }).select('_id').lean();
     if (!requesterStudent || toId(requesterStudent._id) !== toId(admitCard.studentId?._id || admitCard.studentId)) {
       throw createHttpError(403, 'Forbidden');
@@ -175,7 +208,7 @@ module.exports = {
   listMyAvailableAdmitCards: listMyAvailableAdmitCardsHandler,
   listExamAdmitCards: listExamAdmitCardsHandler,
   syncExamAdmitCards: syncExamAdmitCardsHandler,
-  setAdmitCardEligibility: setAdmitCardEligibilityHandler,
   setAdmitCardFeeStatus: setAdmitCardFeeStatusHandler,
+  downloadClassAdmitCardsZip: downloadClassAdmitCardsZipHandler,
   downloadAdmitCard: downloadAdmitCardHandler
 };
