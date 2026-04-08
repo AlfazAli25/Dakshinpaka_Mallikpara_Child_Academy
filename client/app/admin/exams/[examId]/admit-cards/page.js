@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import { get, getBlob, patch, post } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
@@ -41,9 +42,11 @@ const downloadBlob = (blob, filename) => {
   URL.revokeObjectURL(href);
 };
 
-export default function AdminExamAdmitCardsPage({ params }) {
+export default function AdminExamAdmitCardsPage() {
   const toast = useToast();
-  const examId = String(params?.examId || '').trim();
+  const routeParams = useParams();
+  const examIdRaw = Array.isArray(routeParams?.examId) ? routeParams.examId[0] : routeParams?.examId;
+  const examId = String(examIdRaw || '').trim();
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
