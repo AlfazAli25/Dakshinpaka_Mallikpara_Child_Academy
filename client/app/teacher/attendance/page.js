@@ -420,9 +420,11 @@ export default function TeacherAttendancePage() {
       return;
     }
 
-    const confirmed = typeof window === 'undefined'
-      ? true
-      : window.confirm('Delete attendance for this student on the selected date?');
+    const confirmed = await toast.confirm('Delete attendance for this student on the selected date?', {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      destructive: true
+    });
     if (!confirmed) {
       return;
     }

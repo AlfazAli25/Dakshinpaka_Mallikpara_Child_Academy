@@ -439,7 +439,11 @@ export default function AdminNoticesPage() {
       return;
     }
 
-    const confirmed = window.confirm('Delete this notice?');
+    const confirmed = await toast.confirm('Delete this notice?', {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      destructive: true
+    });
     if (!confirmed) {
       return;
     }

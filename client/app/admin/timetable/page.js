@@ -515,7 +515,11 @@ export default function AdminTimetablePage() {
       return;
     }
 
-    const confirmed = window.confirm('Delete this timetable entry?');
+    const confirmed = await toast.confirm('Delete this timetable entry?', {
+      confirmLabel: 'Delete',
+      cancelLabel: 'Cancel',
+      destructive: true
+    });
     if (!confirmed) {
       return;
     }
