@@ -39,10 +39,7 @@ function Sidebar({ title, links, mobileOpen = false, onClose = () => {}, extraCo
         </div>
 
         <div className="mb-6 rounded-2xl border-2 border-white/80 bg-white p-4 shadow-lg shadow-red-950/20">
-          <div className="mb-3 flex items-center gap-2">
-            <div className="h-11 w-11 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-              <img src="/School_Logo.png" alt="School Logo" className="h-full w-full object-contain p-1" />
-            </div>
+          <div className="mb-3">
             <p className="text-[11px] font-semibold uppercase leading-tight tracking-[0.12em] text-red-700">{SCHOOL_NAME}</p>
           </div>
           <h2 className="mt-1 text-lg font-bold leading-tight text-red-900">{title}</h2>
