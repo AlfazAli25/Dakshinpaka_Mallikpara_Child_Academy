@@ -176,11 +176,11 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
             <Link
               href="/"
-              className="inline-flex h-14 w-14 items-center justify-center rounded-full hover:bg-white/10"
+              className="inline-flex h-16 w-16 items-center justify-center rounded-xl hover:bg-white/10"
               aria-label="Go to public homepage"
               title="Public homepage"
             >
-              <img src="/School_Logo.png" alt="School Logo" className="h-12 w-12 rounded-full object-contain" />
+              <img src="/School_Logo.png" alt="School Logo" className="h-14 w-14 rounded-xl object-contain" />
             </Link>
           </div>
 
