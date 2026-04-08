@@ -38,6 +38,24 @@ const toDisplayDate = (value) => {
   return parsed.toLocaleDateString('en-GB');
 };
 
+const isExamCompletedForAdmitCard = ({ exam = {}, admitCard = {} } = {}) => {
+  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
+  if (normalizedStatus === 'completed') {
+    return true;
+  }
+
+  const endDate = toDate(
+    admitCard?.examEndDate ||
+      exam?.endDate ||
+      admitCard?.examStartDate ||
+      exam?.startDate ||
+      exam?.examDate ||
+      exam?.date
+  );
+
+  return Boolean(endDate && endDate.getTime() <= Date.now());
+};
+
 const buildScheduleSnapshot = (exam = {}) => {
   const scheduleRows = Array.isArray(exam?.schedule) ? exam.schedule : [];
 
@@ -224,7 +242,9 @@ const ensureAdmitCardAvailabilityNotice = async ({ admitCard, exam, student, act
     existingNotice = await Notice.findOne({ admitCardId: admitCard._id });
   }
 
-  if (!admitCard.isDownloadEnabled || !admitCard.isActive) {
+  const isExamCompleted = isExamCompletedForAdmitCard({ exam, admitCard });
+
+  if (!admitCard.isDownloadEnabled || !admitCard.isActive || isExamCompleted) {
     if (existingNotice && existingNotice.status === 'Active') {
       existingNotice.status = 'Expired';
       await existingNotice.save();
@@ -260,6 +280,14 @@ const ensureAdmitCardAvailabilityNotice = async ({ admitCard, exam, student, act
     actionType: 'ADMIT_CARD_DOWNLOAD',
     actionLabel: ADMIT_CARD_NOTICE_ACTION_LABEL,
     actionPath: `/admit-cards/${admitCard._id}/download`,
+    dueDate:
+      admitCard.examEndDate ||
+      exam?.endDate ||
+      admitCard.examStartDate ||
+      exam?.startDate ||
+      exam?.examDate ||
+      exam?.date ||
+      undefined,
     admitCardId: admitCard._id,
     admitCardExamId: admitCard.examId
   };
@@ -274,7 +302,7 @@ const ensureAdmitCardAvailabilityNotice = async ({ admitCard, exam, student, act
     existingNotice.studentIds = payload.studentIds;
     existingNotice.noticeType = payload.noticeType;
     existingNotice.amount = undefined;
-    existingNotice.dueDate = undefined;
+    existingNotice.dueDate = payload.dueDate;
     existingNotice.isImportant = payload.isImportant;
     existingNotice.status = payload.status;
     existingNotice.sourceType = payload.sourceType;
@@ -521,7 +549,7 @@ const getAdmitCardById = async (admitCardId) =>
     .populate({ path: 'classId', select: 'name section' })
     .populate({
       path: 'examId',
-      select: 'examName academicYear startDate endDate schedule',
+      select: 'examName academicYear startDate endDate examDate date status schedule',
       populate: [{ path: 'schedule.subjectId', select: 'name code' }]
     })
     .lean();

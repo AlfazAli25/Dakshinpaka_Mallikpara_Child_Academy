@@ -5,6 +5,7 @@ const NoticePayment = require('../models/notice-payment.model');
 const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
 const ClassModel = require('../models/class.model');
+const Exam = require('../models/exam.model');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -68,6 +69,77 @@ const buildUnexpiredDueDateFilter = () => {
       { dueDate: { $gte: now } }
     ]
   };
+};
+
+const toValidDate = (value) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const isExamCompletedForAdmitCard = (exam = {}) => {
+  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
+  if (normalizedStatus === 'completed') {
+    return true;
+  }
+
+  const endDate = toValidDate(exam?.endDate || exam?.startDate || exam?.examDate || exam?.date);
+  if (!endDate) {
+    return false;
+  }
+
+  return endDate.getTime() <= Date.now();
+};
+
+const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
+  const notices = Array.isArray(items) ? items : [];
+  if (notices.length === 0) {
+    return notices;
+  }
+
+  const admitCardExamIds = Array.from(
+    new Set(
+      notices
+        .filter((item) => String(item?.actionType || '').trim() === 'ADMIT_CARD_DOWNLOAD')
+        .map((item) => toId(item?.admitCardExamId))
+        .filter((examId) => mongoose.Types.ObjectId.isValid(examId))
+    )
+  );
+
+  if (admitCardExamIds.length === 0) {
+    return notices;
+  }
+
+  const examRows = await Exam.find({ _id: { $in: admitCardExamIds } })
+    .select('_id status endDate startDate examDate date')
+    .lean();
+
+  const completedExamIdSet = new Set(
+    examRows
+      .filter((exam) => isExamCompletedForAdmitCard(exam))
+      .map((exam) => toId(exam?._id))
+      .filter(Boolean)
+  );
+
+  if (completedExamIdSet.size === 0) {
+    return notices;
+  }
+
+  return notices.filter((notice) => {
+    if (String(notice?.actionType || '').trim() !== 'ADMIT_CARD_DOWNLOAD') {
+      return true;
+    }
+
+    const examId = toId(notice?.admitCardExamId);
+    if (!examId) {
+      return true;
+    }
+
+    return !completedExamIdSet.has(examId);
+  });
 };
 
 const normalizeRecipientRole = (value) => {
@@ -337,7 +409,8 @@ const getStudentNotices = asyncHandler(async (req, res) => {
       .lean()
   ]);
 
-  const noticeIds = notices.map((item) => item._id);
+  const visibleNotices = await filterOutCompletedExamAdmitCardNotices(notices);
+  const noticeIds = visibleNotices.map((item) => item._id);
 
   const payments = noticeIds.length > 0
     ? await NoticePayment.find({
@@ -350,7 +423,7 @@ const getStudentNotices = asyncHandler(async (req, res) => {
 
   const paymentMap = new Map(payments.map((item) => [toId(item.noticeId), item]));
 
-  const data = notices.map((notice) => {
+  const data = visibleNotices.map((notice) => {
     const rawPayment = paymentMap.get(toId(notice._id)) || null;
     const paymentStatus = normalizeNoticePaymentStatus(rawPayment?.paymentStatus);
     const payment = rawPayment
@@ -372,14 +445,16 @@ const getStudentNotices = asyncHandler(async (req, res) => {
     };
   });
 
+  const adjustedTotal = Math.max(0, total - Math.max(0, notices.length - visibleNotices.length));
+
   res.json({
     success: true,
     data,
     pagination: {
       page: pagination.page,
       limit: pagination.limit,
-      total,
-      totalPages: Math.ceil(total / pagination.limit) || 0
+      total: adjustedTotal,
+      totalPages: Math.ceil(adjustedTotal / pagination.limit) || 0
     }
   });
 });

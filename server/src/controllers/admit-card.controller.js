@@ -19,6 +19,29 @@ const createHttpError = (statusCode, message) => {
 
 const toId = (value) => String(value?._id || value || '').trim();
 
+const toValidDate = (value) => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const isExamCompletedForAdmitCard = (exam = {}) => {
+  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
+  if (normalizedStatus === 'completed') {
+    return true;
+  }
+
+  const endDate = toValidDate(exam?.endDate || exam?.startDate || exam?.examDate || exam?.date);
+  if (!endDate) {
+    return false;
+  }
+
+  return endDate.getTime() <= Date.now();
+};
+
 const toSafeFileToken = (value, fallback = 'File') => {
   const normalized = String(value || '')
     .trim()
@@ -59,10 +82,12 @@ const listMyAvailableAdmitCardsHandler = asyncHandler(async (req, res) => {
   })
     .sort({ availableAt: -1, updatedAt: -1 })
     .populate({ path: 'classId', select: 'name section' })
-    .populate({ path: 'examId', select: 'examName academicYear startDate endDate' })
+    .populate({ path: 'examId', select: 'examName academicYear startDate endDate examDate date status' })
     .lean();
 
-  return res.json({ success: true, data });
+  const availableCards = data.filter((item) => !isExamCompletedForAdmitCard(item?.examId));
+
+  return res.json({ success: true, data: availableCards });
 });
 
 const listExamAdmitCardsHandler = asyncHandler(async (req, res) => {
@@ -195,6 +220,10 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
 
     if (!admitCard.isFeePaid || !studentClassId || !admitCardClassId || studentClassId !== admitCardClassId) {
       throw createHttpError(403, 'Admit card download is not available yet');
+    }
+
+    if (isExamCompletedForAdmitCard(admitCard.examId)) {
+      throw createHttpError(403, 'Admit card download is not available for completed exams');
     }
   }
 
