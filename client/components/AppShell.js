@@ -176,14 +176,11 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
             <Link
               href="/"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20"
+              className="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-white/45 bg-white/10 hover:bg-white/20"
               aria-label="Go to public homepage"
               title="Public homepage"
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 10.5L12 3l9 7.5" />
-                <path d="M5.5 9.5V21h13V9.5" />
-              </svg>
+              <img src="/School_Logo.png" alt="School Logo" className="h-9 w-9 object-contain" />
             </Link>
           </div>
 

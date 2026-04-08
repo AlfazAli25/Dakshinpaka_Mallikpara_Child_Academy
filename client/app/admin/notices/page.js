@@ -926,7 +926,7 @@ export default function AdminNoticesPage() {
                 <option value="">Select payment notice</option>
                 {paymentNoticeOptions.map((notice) => (
                   <option key={toId(notice)} value={toId(notice)}>
-                    {`${notice?.title || 'Payment Notice'} | INR ${Number(notice?.amount || 0)} | Due ${formatDateLabel(notice?.dueDate)}`}
+                    {`${notice?.title || 'Payment Notice'} | ${getClassLabelForNotice(notice)} | INR ${Number(notice?.amount || 0)} | Due ${formatDateLabel(notice?.dueDate)}`}
                   </option>
                 ))}
               </select>
