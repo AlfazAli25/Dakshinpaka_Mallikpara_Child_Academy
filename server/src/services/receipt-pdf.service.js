@@ -3,6 +3,13 @@ const path = require('path');
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 
+let sharp = null;
+try {
+  sharp = require('sharp');
+} catch (_error) {
+  sharp = null;
+}
+
 const {
   SCHOOL_ADDRESS,
   SCHOOL_MOBILE
@@ -46,6 +53,18 @@ const LOCAL_CHROME_CANDIDATES = [
   '/usr/bin/chromium-browser',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 ];
+
+const LOGO_IMAGE_OPTIONS = {
+  maxWidth: 900,
+  maxHeight: 900,
+  quality: 68
+};
+
+const PROFILE_IMAGE_OPTIONS = {
+  maxWidth: 520,
+  maxHeight: 520,
+  quality: 70
+};
 
 const templateCache = new Map();
 
@@ -229,21 +248,73 @@ const fileExists = async (filePath) => {
 
 const toDataUriFromBuffer = (buffer, mimeType) => `data:${mimeType};base64,${buffer.toString('base64')}`;
 
-const loadLocalImageDataUri = async (filePath) => {
-  const fileBuffer = await fs.readFile(filePath);
-  return toDataUriFromBuffer(fileBuffer, resolveMimeType(filePath));
+const canOptimizeMimeType = (mimeType) =>
+  Boolean(sharp) && /^image\/(png|jpe?g|webp|gif|avif)$/i.test(String(mimeType || '').trim());
+
+const optimizeImageBuffer = async ({ buffer, mimeType, maxWidth, maxHeight, quality }) => {
+  if (!canOptimizeMimeType(mimeType) || !Buffer.isBuffer(buffer)) {
+    return {
+      buffer,
+      mimeType
+    };
+  }
+
+  try {
+    const optimizedBuffer = await sharp(buffer, { failOn: 'none' })
+      .rotate()
+      .resize({
+        width: maxWidth,
+        height: maxHeight,
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .webp({ quality, effort: 4 })
+      .toBuffer();
+
+    return {
+      buffer: optimizedBuffer,
+      mimeType: 'image/webp'
+    };
+  } catch (_error) {
+    return {
+      buffer,
+      mimeType
+    };
+  }
 };
 
-const loadRemoteImageDataUri = async (imageUrl) => {
+const loadLocalImageDataUri = async (filePath, options = {}) => {
+  const fileBuffer = await fs.readFile(filePath);
+  const mimeType = resolveMimeType(filePath);
+
+  const optimized = await optimizeImageBuffer({
+    buffer: fileBuffer,
+    mimeType,
+    maxWidth: Number(options.maxWidth || 900),
+    maxHeight: Number(options.maxHeight || 900),
+    quality: Number(options.quality || 72)
+  });
+
+  return toDataUriFromBuffer(optimized.buffer, optimized.mimeType);
+};
+
+const loadRemoteImageDataUri = async (imageUrl, options = {}) => {
   const response = await fetch(imageUrl);
   if (!response.ok) {
     throw new Error('Unable to fetch remote image');
   }
 
   const mimeType = response.headers.get('content-type') || 'image/png';
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const rawBuffer = Buffer.from(await response.arrayBuffer());
+  const optimized = await optimizeImageBuffer({
+    buffer: rawBuffer,
+    mimeType,
+    maxWidth: Number(options.maxWidth || 900),
+    maxHeight: Number(options.maxHeight || 900),
+    quality: Number(options.quality || 72)
+  });
 
-  return toDataUriFromBuffer(buffer, mimeType);
+  return toDataUriFromBuffer(optimized.buffer, optimized.mimeType);
 };
 
 const resolveStudentImageDataUri = async (student = {}) => {
@@ -255,7 +326,7 @@ const resolveStudentImageDataUri = async (student = {}) => {
 
   if (/^https?:\/\//i.test(profileImageUrl)) {
     try {
-      return await loadRemoteImageDataUri(profileImageUrl);
+      return await loadRemoteImageDataUri(profileImageUrl, PROFILE_IMAGE_OPTIONS);
     } catch (_error) {
       // Continue to local fallbacks.
     }
@@ -265,21 +336,21 @@ const resolveStudentImageDataUri = async (student = {}) => {
     const normalized = profileImageUrl.replace(/^\/+/, '');
     const publicPath = path.resolve(REPO_ROOT, 'client', 'public', normalized);
     if (await fileExists(publicPath)) {
-      return loadLocalImageDataUri(publicPath);
+      return loadLocalImageDataUri(publicPath, PROFILE_IMAGE_OPTIONS);
     }
 
     const serverRelativePath = path.resolve(SERVER_ROOT, normalized);
     if (await fileExists(serverRelativePath)) {
-      return loadLocalImageDataUri(serverRelativePath);
+      return loadLocalImageDataUri(serverRelativePath, PROFILE_IMAGE_OPTIONS);
     }
   }
 
-  return loadLocalImageDataUri(DEFAULT_AVATAR_PATH);
+  return loadLocalImageDataUri(DEFAULT_AVATAR_PATH, PROFILE_IMAGE_OPTIONS);
 };
 
 const resolveSchoolLogoDataUri = async () => {
   if (await fileExists(SCHOOL_LOGO_PATH)) {
-    return loadLocalImageDataUri(SCHOOL_LOGO_PATH);
+    return loadLocalImageDataUri(SCHOOL_LOGO_PATH, LOGO_IMAGE_OPTIONS);
   }
 
   throw createHttpError('School logo is missing', 500);
@@ -459,13 +530,13 @@ const generatePdfFromHtml = async ({ html, receiptNumber, filePrefix }) => {
   try {
     browser = await launchBrowser();
     const page = await browser.newPage();
-    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
+    await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 1 });
     await page.setContent(html, {
       waitUntil: 'networkidle0',
       timeout: 45000
     });
 
-    const pdfBuffer = await page.pdf({
+    const pdfBytes = await page.pdf({
       format: 'A4',
       printBackground: true,
       preferCSSPageSize: true,
@@ -476,6 +547,8 @@ const generatePdfFromHtml = async ({ html, receiptNumber, filePrefix }) => {
         left: '0'
       }
     });
+
+    const pdfBuffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);
 
     return {
       pdfBuffer,
