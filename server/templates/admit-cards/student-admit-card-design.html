@@ -85,34 +85,6 @@
       object-fit: contain;
     }
 
-    .brand-title {
-      margin-top: 1.6mm;
-      text-align: center;
-      font-weight: 900;
-      line-height: 1;
-      letter-spacing: 0.25mm;
-      text-transform: uppercase;
-      font-size: 8.2mm;
-    }
-
-    .brand-title .child {
-      color: #f5a11a;
-    }
-
-    .brand-title .academy {
-      color: #3ca36f;
-    }
-
-    .brand-subtitle {
-      margin-top: 0.9mm;
-      text-align: center;
-      font-size: 4.5mm;
-      color: #103b72;
-      font-weight: 900;
-      letter-spacing: 0.16mm;
-      text-transform: uppercase;
-    }
-
     .school-header {
       padding-right: 1mm;
     }
@@ -245,54 +217,54 @@
       align-items: start;
     }
 
+    .identity-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 2.1mm;
+    }
+
     .photo-box {
-      position: relative;
       border: 0.45mm solid #b6cbda;
       border-radius: 1.4mm;
       background: #ffffff;
-      height: 70mm;
+      height: 44mm;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
     .photo-box .student-photo {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      object-position: center top;
+      display: block;
     }
 
-    .qr-overlay {
-      position: absolute;
-      right: 2.5mm;
-      bottom: 2.5mm;
-      width: 22.5mm;
-      border: 0.32mm solid #7a9ec0;
-      border-radius: 1.5mm;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 0.9mm;
-      box-shadow: 0 0 0 0.2mm rgba(255, 255, 255, 0.75);
+    .qr-panel {
+      border: 0.45mm solid #b6cbda;
+      border-radius: 1.4mm;
+      background: #ffffff;
+      padding: 1.7mm 1.4mm 1.3mm;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.4mm;
+      gap: 1mm;
     }
 
-    .qr-overlay img {
-      width: 100%;
-      height: auto;
-      border-radius: 0.6mm;
+    .qr-panel img {
+      width: 34mm;
+      height: 34mm;
+      border-radius: 0.75mm;
+      image-rendering: pixelated;
     }
 
-    .qr-overlay span {
-      font-size: 2.2mm;
-      line-height: 1.1;
+    .qr-panel span {
+      font-size: 2.5mm;
+      line-height: 1.15;
       text-align: center;
       color: #0f172a;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
-      letter-spacing: 0.04mm;
+      letter-spacing: 0.05mm;
     }
 
     .timetable-wrap {
@@ -380,8 +352,6 @@
           <div class="logo-ring">
             <img src="{{schoolLogo}}" alt="School logo" />
           </div>
-          <div class="brand-title"><span class="child">Child</span> <span class="academy">Academy</span></div>
-          <div class="brand-subtitle">Kindergarten</div>
         </div>
 
         <div class="school-header">
@@ -432,9 +402,11 @@
       </div>
 
       <div class="main-grid">
-        <div class="photo-box">
-          <img class="student-photo" src="{{studentProfileImage}}" alt="Student profile" />
-          <div class="qr-overlay">
+        <div class="identity-stack">
+          <div class="photo-box">
+            <img class="student-photo" src="{{studentProfileImage}}" alt="Student profile" />
+          </div>
+          <div class="qr-panel">
             <img src="{{admitQrCode}}" alt="Admit card details QR code" />
             <span>Scan For Admit Data</span>
           </div>

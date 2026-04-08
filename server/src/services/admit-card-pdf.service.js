@@ -13,7 +13,8 @@ try {
 const {
   SCHOOL_NAME,
   SCHOOL_ADDRESS,
-  SCHOOL_MOBILE
+  SCHOOL_MOBILE,
+  SCHOOL_TIME_ZONE
 } = require('../config/school');
 
 const { generateQrCodeDataUri } = require('../utils/qr-code');
@@ -76,7 +77,43 @@ const toSafeText = (value, fallback = '-') => {
 const toSafeFileToken = (value, fallback = 'AdmitCard') =>
   toSafeText(value, fallback).replace(/[^A-Za-z0-9_-]/g, '_');
 
-const padNumber = (value) => String(value).padStart(2, '0');
+const toCompactQrText = (value, fallback = '-') =>
+  toSafeText(value, fallback)
+    .replace(/[|;@]/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const resolveTimeZone = (value) => {
+  const fallbackTimeZone = 'Asia/Kolkata';
+  const normalized = String(value || '').trim();
+
+  if (!normalized) {
+    return fallbackTimeZone;
+  }
+
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: normalized }).format(new Date());
+    return normalized;
+  } catch (_error) {
+    return fallbackTimeZone;
+  }
+};
+
+const ADMIT_CARD_TIME_ZONE = resolveTimeZone(SCHOOL_TIME_ZONE);
+
+const ADMIT_DATE_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: ADMIT_CARD_TIME_ZONE,
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric'
+});
+
+const ADMIT_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: ADMIT_CARD_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false
+});
 
 const toDate = (value) => {
   const parsed = new Date(value);
@@ -93,7 +130,7 @@ const formatDate = (value) => {
     return '';
   }
 
-  return `${padNumber(parsed.getDate())}/${padNumber(parsed.getMonth() + 1)}/${parsed.getFullYear()}`;
+  return ADMIT_DATE_FORMATTER.format(parsed);
 };
 
 const formatTime = (value) => {
@@ -102,11 +139,7 @@ const formatTime = (value) => {
     return '';
   }
 
-  let hours = parsed.getHours();
-  const meridian = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12 || 12;
-
-  return `${padNumber(hours)}:${padNumber(parsed.getMinutes())} ${meridian}`;
+  return ADMIT_TIME_FORMATTER.format(parsed).replace(/\s/g, '');
 };
 
 const resolveMimeType = (filePath) => {
@@ -385,7 +418,24 @@ const buildAdmitQrPayloads = ({
     sch: normalizedScheduleRows.map((item) => [item.subjectName, item.startDate, item.endDate])
   };
 
-  return [verbosePayload, compactPayload];
+  const scannableTextPayload = [
+    'DMCA_ADMIT',
+    `SN:${toCompactQrText(SCHOOL_NAME)}`,
+    `SA:${toCompactQrText(SCHOOL_ADDRESS)}`,
+    `SP:${toCompactQrText(SCHOOL_MOBILE)}`,
+    `N:${toCompactQrText(studentName)}`,
+    `SID:${toCompactQrText(studentId)}`,
+    `CLS:${toCompactQrText(className)}`,
+    `SEC:${toCompactQrText(section)}`,
+    `ROLL:${toCompactQrText(rollNo)}`,
+    `EX:${toCompactQrText(examName)}`,
+    `YEAR:${toCompactQrText(examYear)}`,
+    `SCH:${normalizedScheduleRows
+      .map((item, index) => `${index + 1}.${toCompactQrText(item.subjectName)}@${toCompactQrText(item.dateLabel)}@${toCompactQrText(item.timeLabel)}`)
+      .join(';')}`
+  ].join('|');
+
+  return [scannableTextPayload, compactPayload, verbosePayload];
 };
 
 const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) => {
@@ -415,7 +465,12 @@ const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) =
   const [schoolLogo, studentProfileImage, admitQrCode] = await Promise.all([
     resolveSchoolLogoDataUri(),
     resolveStudentImageDataUri(student),
-    generateQrCodeDataUri({ payloads: admitQrPayloads, width: 212 })
+    generateQrCodeDataUri({
+      payloads: admitQrPayloads,
+      width: 420,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    })
   ]);
 
   return {

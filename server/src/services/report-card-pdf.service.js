@@ -396,7 +396,7 @@ const buildReportQrPayloads = ({ reportCardData = {}, examColumns = [] }) => {
     ])
   };
 
-  return [verbosePayload, compactPayload];
+  return [compactPayload, verbosePayload];
 };
 
 const buildTableHeadCellsHtml = (examColumns = []) =>
@@ -464,7 +464,12 @@ const buildTemplateModel = async ({ reportCardData = {} }) => {
   const [schoolLogo, studentProfileImage, reportQrCode] = await Promise.all([
     resolveSchoolLogoDataUri(),
     resolveStudentImageDataUri(reportCardData),
-    generateQrCodeDataUri({ payloads: reportQrPayloads, width: 212 })
+    generateQrCodeDataUri({
+      payloads: reportQrPayloads,
+      width: 420,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    })
   ]);
 
   return {
