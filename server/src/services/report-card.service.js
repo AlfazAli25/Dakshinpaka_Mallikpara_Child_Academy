@@ -45,6 +45,18 @@ const toExamTimestamp = (exam = {}) => {
   return parsed ? parsed.getTime() : 0;
 };
 
+const getExamSearchText = (exam = {}) =>
+  `${toText(exam?.examName)} ${toText(exam?.description)} ${toText(exam?.examType)}`.toLowerCase();
+
+const isFinalExam = (exam = {}) => {
+  const examType = toText(exam?.examType).toLowerCase();
+  if (examType === 'final') {
+    return true;
+  }
+
+  return /\bfinal\b|\bannual\b|\byearly\b/.test(getExamSearchText(exam));
+};
+
 const isExamCompleted = (exam = {}) => {
   const normalizedStatus = toText(exam?.status).toLowerCase();
   if (normalizedStatus === 'completed') {
@@ -124,6 +136,13 @@ const buildExamColumns = ({ completedExams = [], marksRows = [] }) => {
       const subjectIdSet = getExamIncludedSubjectIds(exam);
 
       const examRows = rows.filter((item) => toId(item?.examId) === examId);
+      if (subjectIdSet.size === 0) {
+        examRows
+          .map((item) => toId(item?.subjectId))
+          .filter(Boolean)
+          .forEach((subjectId) => subjectIdSet.add(subjectId));
+      }
+
       const columnMaxMarks = toModeNumber(examRows.map((item) => item?.maxMarks));
 
       return {
@@ -133,6 +152,44 @@ const buildExamColumns = ({ completedExams = [], marksRows = [] }) => {
         subjectIdSet
       };
     });
+};
+
+const selectExamsForReportCard = ({ allYearExams = [], selectedExam = null }) => {
+  const exams = Array.isArray(allYearExams) ? allYearExams : [];
+
+  if (!selectedExam) {
+    return exams.filter((item) => isExamCompleted(item));
+  }
+
+  const selectedExamId = toId(selectedExam);
+  if (!selectedExamId) {
+    return [];
+  }
+
+  if (!isFinalExam(selectedExam)) {
+    return [selectedExam];
+  }
+
+  const finalExamTimestamp = toExamTimestamp(selectedExam);
+  const scopedExams = exams.filter((item) => {
+    const examId = toId(item);
+    if (!examId) {
+      return false;
+    }
+
+    if (examId === selectedExamId) {
+      return true;
+    }
+
+    const examTimestamp = toExamTimestamp(item);
+    if (finalExamTimestamp > 0 && examTimestamp > 0 && examTimestamp <= finalExamTimestamp) {
+      return true;
+    }
+
+    return isExamCompleted(item);
+  });
+
+  return scopedExams.sort((left, right) => toExamTimestamp(left) - toExamTimestamp(right));
 };
 
 const collectSubjectIds = ({ classRecord = {}, examColumns = [], marksRows = [] }) => {
@@ -220,7 +277,7 @@ const buildZipFileName = ({ className, section }) => {
   return `Class_${safeClassName}_Section_${safeSection}_ReportCards.zip`;
 };
 
-const calculateClassReportCards = async ({ classId, academicYear, section }) => {
+const calculateClassReportCards = async ({ classId, academicYear, section, selectedExamId = '' }) => {
   const normalizedClassId = toId(classId);
   if (!mongoose.Types.ObjectId.isValid(normalizedClassId)) {
     throw createHttpError(400, 'Invalid class selected');
@@ -229,6 +286,11 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
   const normalizedAcademicYear = toText(academicYear);
   if (!normalizedAcademicYear || !ACADEMIC_YEAR_REGEX.test(normalizedAcademicYear)) {
     throw createHttpError(400, 'Academic year must be in YYYY or YYYY-YYYY format');
+  }
+
+  const normalizedSelectedExamId = toId(selectedExamId);
+  if (normalizedSelectedExamId && !mongoose.Types.ObjectId.isValid(normalizedSelectedExamId)) {
+    throw createHttpError(400, 'Invalid exam selected');
   }
 
   const classRecord = await ClassModel.findById(normalizedClassId)
@@ -251,8 +313,21 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
     .select('_id examName description examType status classId subjects schedule subjectId startDate endDate examDate date createdAt')
     .lean();
 
-  const completedExams = allYearExams.filter((item) => isExamCompleted(item));
-  const examIds = completedExams.map((item) => toId(item)).filter(Boolean);
+  const selectedExam = normalizedSelectedExamId
+    ? allYearExams.find((item) => toId(item) === normalizedSelectedExamId) || null
+    : null;
+
+  if (normalizedSelectedExamId && !selectedExam) {
+    throw createHttpError(404, 'Exam not found for the selected class and exam year');
+  }
+
+  const scopedExams = selectExamsForReportCard({
+    allYearExams,
+    selectedExam
+  });
+
+  const isSingleExamReport = Boolean(selectedExam && !isFinalExam(selectedExam));
+  const examIds = scopedExams.map((item) => toId(item)).filter(Boolean);
 
   const students = await Student.find({ classId: normalizedClassId })
     .select('_id admissionNo profileImageUrl classId userId createdAt')
@@ -273,7 +348,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
       : [];
 
   const examColumns = buildExamColumns({
-    completedExams,
+    completedExams: scopedExams,
     marksRows
   });
 
@@ -320,8 +395,12 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
   });
 
   const missingRequirements = [];
-  if (completedExams.length === 0) {
-    missingRequirements.push('No completed exams found for the selected class and exam year');
+  if (scopedExams.length === 0) {
+    missingRequirements.push(
+      normalizedSelectedExamId
+        ? 'No exam data found for the selected report card scope'
+        : 'No completed exams found for the selected class and exam year'
+    );
   }
 
   if (students.length === 0) {
@@ -447,11 +526,19 @@ const calculateClassReportCards = async ({ classId, academicYear, section }) => 
   });
 
   if (missingMaxPairs.size > 0) {
-    missingRequirements.push('One or more exam max marks are missing. Enter marks for all exam-subject combinations first.');
+    missingRequirements.push(
+      isSingleExamReport
+        ? 'Exam max marks are missing for one or more subjects. Enter the selected exam marks first.'
+        : 'One or more exam max marks are missing. Enter marks for all exam-subject combinations first.'
+    );
   }
 
   if (studentsWithIncompleteMarks > 0) {
-    missingRequirements.push('All subjects must have marks for all completed exams before report cards can be finalized');
+    missingRequirements.push(
+      isSingleExamReport
+        ? 'All subject marks for the selected exam must be entered before report cards can be generated'
+        : 'All subjects must have marks for all selected exams before report cards can be finalized'
+    );
   }
 
   const isMarksFinalized = missingRequirements.length === 0;
@@ -520,7 +607,8 @@ const getStudentReportCardByExam = async ({ examId, studentId }) => {
 
   const dataset = await calculateClassReportCards({
     classId: exam.classId,
-    academicYear: exam.academicYear
+    academicYear: exam.academicYear,
+    selectedExamId: normalizedExamId
   });
 
   const reportCard = dataset.reportCards.find((item) => item.studentId === normalizedStudentId) || null;
