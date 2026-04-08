@@ -7,6 +7,13 @@ const controller = require('../controllers/admit-card.controller');
 const router = express.Router();
 
 router.get(
+  '/my/available',
+  protect,
+  requireRole(['student']),
+  controller.listMyAvailableAdmitCards
+);
+
+router.get(
   '/exam/:examId',
   protect,
   requireRole(['admin']),

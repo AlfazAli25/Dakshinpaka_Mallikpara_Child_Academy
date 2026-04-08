@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
+const AdmitCard = require('../models/admit-card.model');
 const {
   syncAdmitCardsForExam,
   listAdmitCardsByExam,
@@ -36,6 +37,25 @@ const toBooleanInput = (value) => {
 
   return null;
 };
+
+const listMyAvailableAdmitCardsHandler = asyncHandler(async (req, res) => {
+  const student = await Student.findOne({ userId: req.user?._id }).select('_id').lean();
+  if (!student?._id) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const data = await AdmitCard.find({
+    studentId: student._id,
+    isActive: true,
+    isDownloadEnabled: true
+  })
+    .sort({ availableAt: -1, updatedAt: -1 })
+    .populate({ path: 'classId', select: 'name section' })
+    .populate({ path: 'examId', select: 'examName academicYear startDate endDate' })
+    .lean();
+
+  return res.json({ success: true, data });
+});
 
 const listExamAdmitCardsHandler = asyncHandler(async (req, res) => {
   const examId = String(req.params?.examId || '').trim();
@@ -152,6 +172,7 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  listMyAvailableAdmitCards: listMyAvailableAdmitCardsHandler,
   listExamAdmitCards: listExamAdmitCardsHandler,
   syncExamAdmitCards: syncExamAdmitCardsHandler,
   setAdmitCardEligibility: setAdmitCardEligibilityHandler,

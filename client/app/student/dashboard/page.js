@@ -99,6 +99,78 @@ const DEFAULT_STATS = [
   { title: 'Pending Fees', value: 'INR 0' }
 ];
 
+const parseAdmitCardIdFromPath = (pathValue) => {
+  const normalizedPath = String(pathValue || '').trim();
+  if (!normalizedPath) {
+    return '';
+  }
+
+  const match = normalizedPath.match(/\/admit-cards\/([a-f0-9]{24})\/download/i);
+  return match ? String(match[1]).trim() : '';
+};
+
+const buildAdmitCardSyntheticNotice = (card = {}) => {
+  const admitCardId = String(card?._id || '').trim();
+  if (!admitCardId) {
+    return null;
+  }
+
+  const examName = String(card?.examName || card?.examId?.examName || 'upcoming examination').trim() || 'upcoming examination';
+  const academicYear = String(card?.academicYear || card?.examId?.academicYear || '').trim();
+  const yearSuffix = academicYear ? ` (${academicYear})` : '';
+
+  return {
+    _id: `admit-card-${admitCardId}`,
+    title: 'Admit Card Available',
+    description: `Your Admit Card for ${examName}${yearSuffix} is now available for download.`,
+    noticeType: 'General',
+    status: 'Active',
+    isImportant: true,
+    sourceType: 'ADMIT_CARD_SYSTEM',
+    actionType: 'ADMIT_CARD_DOWNLOAD',
+    actionLabel: 'Download Admit Card',
+    actionPath: `/admit-cards/${admitCardId}/download`,
+    admitCardId,
+    createdAt: card?.availableAt || card?.updatedAt || new Date().toISOString()
+  };
+};
+
+const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [] } = {}) => {
+  const normalizedNotices = Array.isArray(notices) ? notices : [];
+  const availableCards = Array.isArray(availableAdmitCards) ? availableAdmitCards : [];
+
+  const existingAdmitCardIds = new Set();
+  normalizedNotices.forEach((notice) => {
+    const directId = String(notice?.admitCardId || '').trim();
+    if (directId) {
+      existingAdmitCardIds.add(directId);
+      return;
+    }
+
+    const fromPathId = parseAdmitCardIdFromPath(notice?.actionPath);
+    if (fromPathId) {
+      existingAdmitCardIds.add(fromPathId);
+    }
+  });
+
+  const syntheticNotices = availableCards
+    .map((card) => buildAdmitCardSyntheticNotice(card))
+    .filter(Boolean)
+    .filter((item) => !existingAdmitCardIds.has(String(item.admitCardId || '').trim()));
+
+  return [...syntheticNotices, ...normalizedNotices].sort((left, right) => {
+    const leftImportant = left?.isImportant ? 1 : 0;
+    const rightImportant = right?.isImportant ? 1 : 0;
+    if (leftImportant !== rightImportant) {
+      return rightImportant - leftImportant;
+    }
+
+    const leftCreated = new Date(left?.createdAt || 0).getTime();
+    const rightCreated = new Date(right?.createdAt || 0).getTime();
+    return rightCreated - leftCreated;
+  });
+};
+
 const toValidDate = (value) => {
   if (!value) {
     return null;
@@ -204,11 +276,15 @@ const fetchStudentDashboardData = async () => {
     };
   }
 
-  const [attendanceRes, examsRes, feesRes, noticesRes] = await Promise.all([
+  const [attendanceRes, examsRes, feesRes, noticesRes, admitCardsRes] = await Promise.all([
     get('/student/attendance', token),
     get(`/exams?classId=${student.classId?._id || ''}`, token),
     get('/student/fees', token),
     get('/notices/student?page=1&limit=12', token, {
+      forceRefresh: true,
+      cacheTtlMs: 0
+    }),
+    get('/admit-cards/my/available', token, {
       forceRefresh: true,
       cacheTtlMs: 0
     })
@@ -231,6 +307,11 @@ const fetchStudentDashboardData = async () => {
     0
   );
 
+  const notices = mergeNoticesWithAdmitCards({
+    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
+    availableAdmitCards: Array.isArray(admitCardsRes?.data) ? admitCardsRes.data : []
+  });
+
   return {
     studentProfile: student,
     stats: [
@@ -238,7 +319,7 @@ const fetchStudentDashboardData = async () => {
       { title: 'Upcoming Exam', value: upcomingExamValue },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ],
-    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : []
+    notices
   };
 };
 
