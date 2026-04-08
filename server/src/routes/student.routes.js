@@ -29,7 +29,7 @@ router.post(
 	profilePhotoUpload.single('studentPhoto'),
 	[
 		body('name').notEmpty().withMessage('Name is required'),
-		body('email').isEmail().withMessage('Please enter a valid email address.'),
+		body('email').optional({ checkFalsy: true }).isEmail().withMessage('Please enter a valid email address.'),
 		body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
 		body('classId').notEmpty().withMessage('Class is required').bail().isMongoId().withMessage('Invalid class selected'),
 		body('rollNo').isInt({ min: 1 }).withMessage('Roll number must be a positive whole number'),

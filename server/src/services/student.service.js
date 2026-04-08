@@ -23,6 +23,21 @@ const STUDENT_POPULATE = [
 
 const withSession = (query, session) => (session ? query.session(session) : query);
 const DEFAULT_STUDENT_PROFILE_IMAGE_URL = '/default-student-avatar.svg';
+const STUDENT_FALLBACK_EMAIL_DOMAIN = 'student.local';
+
+const generateFallbackStudentEmail = async () => {
+	for (let attempt = 0; attempt < 10; attempt += 1) {
+		const candidate = `student.${new mongoose.Types.ObjectId().toString()}@${STUDENT_FALLBACK_EMAIL_DOMAIN}`;
+		const existing = await User.findOne({ email: candidate }).select('_id').lean();
+		if (!existing) {
+			return candidate;
+		}
+	}
+
+	const error = new Error('Unable to generate a unique student email. Please try again.');
+	error.statusCode = 500;
+	throw error;
+};
 
 const runWithOptionalTransaction = async (handler) => {
 	const session = await mongoose.startSession();
@@ -196,6 +211,7 @@ const create = async (payload) => {
 		studentPhotoFile
 	} = payload;
 	const normalizedEmail = String(email || '').toLowerCase().trim();
+	const hasProvidedEmail = Boolean(normalizedEmail);
 	const normalizedGender = String(gender || '').toUpperCase().trim();
 	const normalizedRollNo = Number(rollNo);
 	const normalizedGuardianContact = String(guardianContact || '').trim();
@@ -209,7 +225,6 @@ const create = async (payload) => {
 
 	if (
 		!name ||
-		!email ||
 		!password ||
 		!classId ||
 		rollNo === undefined ||
@@ -222,7 +237,7 @@ const create = async (payload) => {
 		attendance === undefined
 	) {
 		const error = new Error(
-			'All student details are required: name, email, password, class, roll number, gender, date of birth, guardian contact, address, and attendance'
+			'All required student details are: name, password, class, roll number, gender, date of birth, guardian contact, address, and attendance'
 		);
 		error.statusCode = 400;
 		throw error;
@@ -258,17 +273,19 @@ const create = async (payload) => {
 		throw error;
 	}
 
-	if (!isValidEmail(normalizedEmail)) {
-		const error = new Error('Please enter a valid email address.');
-		error.statusCode = 400;
-		throw error;
-	}
+	if (hasProvidedEmail) {
+		if (!isValidEmail(normalizedEmail)) {
+			const error = new Error('Please enter a valid email address.');
+			error.statusCode = 400;
+			throw error;
+		}
 
-	const existingEmail = await User.findOne({ email: normalizedEmail });
-	if (existingEmail) {
-		const error = new Error('Email already in use');
-		error.statusCode = 409;
-		throw error;
+		const existingEmail = await User.findOne({ email: normalizedEmail });
+		if (existingEmail) {
+			const error = new Error('Email already in use');
+			error.statusCode = 409;
+			throw error;
+		}
 	}
 
 	const existingRollNo = await Student.findOne({ classId, rollNo: normalizedRollNo }).select('_id');
@@ -278,10 +295,12 @@ const create = async (payload) => {
 		throw error;
 	}
 
+	const emailForLogin = hasProvidedEmail ? normalizedEmail : await generateFallbackStudentEmail();
+
 	const passwordHash = await bcrypt.hash(password, 10);
 	const user = await User.create({
 		name: String(name).trim(),
-		email: normalizedEmail,
+		email: emailForLogin,
 		passwordHash,
 		role: 'student'
 	});

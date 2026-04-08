@@ -231,7 +231,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                             type="button"
                             onClick={() => onNotificationClick(item)}
                             disabled={markingReadId === item._id}
-                            className={`block rounded-lg px-2 py-2 text-sm hover:bg-red-50 ${
+                            className={`block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-red-50 ${
                               item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
                             }`}
                           >

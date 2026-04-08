@@ -1,8 +1,21 @@
 const mongoose = require('mongoose');
 
-const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
+const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
 const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+
+const normalizeExamType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'unit test') {
+    return 'Unit Test';
+  }
+
+  if (normalized === 'final exam' || normalized === 'final') {
+    return 'Final Exam';
+  }
+
+  return '';
+};
 
 const buildAcademicYear = (value) => {
   const date = value instanceof Date ? value : new Date(value);
@@ -186,9 +199,8 @@ examSchema.pre('validate', function preValidateExam(next) {
     }
   }
 
-  if (!EXAM_TYPES.includes(String(this.examType || '').trim())) {
-    this.examType = 'Unit Test';
-  }
+  const normalizedExamType = normalizeExamType(this.examType);
+  this.examType = normalizedExamType || 'Unit Test';
 
   const admitCardFeeAmount = Number(this.admitCardFeeAmount ?? 0);
   if (!Number.isFinite(admitCardFeeAmount) || admitCardFeeAmount < 0) {

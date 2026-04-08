@@ -83,11 +83,11 @@ const isFinalExam = (exam = {}) => {
   }
 
   const examType = toText(exam?.examType).toLowerCase();
-  if (examType === 'final') {
+  if (examType === 'final exam' || examType === 'final') {
     return true;
   }
 
-  return /\bfinal\b|\bannual\b|\byearly\b/.test(searchText);
+  return /\bfinal exam\b|\bfinal\b|\bannual\b|\byearly\b/.test(searchText);
 };
 
 const isExamCompleted = (exam = {}) => {
@@ -187,42 +187,43 @@ const buildExamColumns = ({ completedExams = [], marksRows = [] }) => {
     });
 };
 
-const selectExamsForReportCard = ({ allYearExams = [], selectedExam = null }) => {
-  const exams = Array.isArray(allYearExams) ? allYearExams : [];
+const selectLatestCompletedFinalExam = (exams = []) =>
+  [...(Array.isArray(exams) ? exams : [])]
+    .filter((item) => isFinalExam(item) && isExamCompleted(item))
+    .sort((left, right) => toExamTimestamp(right) - toExamTimestamp(left))[0] || null;
 
-  if (!selectedExam) {
-    return exams.filter((item) => isExamCompleted(item));
-  }
-
-  const selectedExamId = toId(selectedExam);
-  if (!selectedExamId) {
+const selectExamsUpToFinal = ({ allClassExams = [], finalExam = null }) => {
+  const finalExamId = toId(finalExam);
+  if (!finalExamId) {
     return [];
   }
 
-  if (!isFinalExam(selectedExam)) {
-    return [selectedExam];
-  }
+  const finalExamTimestamp = toExamTimestamp(finalExam);
+  const finalExamAcademicYear = toText(finalExam?.academicYear);
 
-  const finalExamTimestamp = toExamTimestamp(selectedExam);
-  const scopedExams = exams.filter((item) => {
-    const examId = toId(item);
-    if (!examId) {
-      return false;
-    }
+  return [...(Array.isArray(allClassExams) ? allClassExams : [])]
+    .filter((item) => {
+      const examId = toId(item);
+      if (!examId) {
+        return false;
+      }
 
-    if (examId === selectedExamId) {
-      return true;
-    }
+      if (finalExamAcademicYear && toText(item?.academicYear) !== finalExamAcademicYear) {
+        return false;
+      }
 
-    const examTimestamp = toExamTimestamp(item);
-    if (finalExamTimestamp > 0 && examTimestamp > 0 && examTimestamp <= finalExamTimestamp) {
-      return true;
-    }
+      if (examId === finalExamId) {
+        return true;
+      }
 
-    return isExamCompleted(item);
-  });
+      const examTimestamp = toExamTimestamp(item);
+      if (finalExamTimestamp > 0 && examTimestamp > 0) {
+        return examTimestamp <= finalExamTimestamp;
+      }
 
-  return scopedExams.sort((left, right) => toExamTimestamp(left) - toExamTimestamp(right));
+      return isExamCompleted(item);
+    })
+    .sort((left, right) => toExamTimestamp(left) - toExamTimestamp(right));
 };
 
 const collectSubjectIds = ({ classRecord = {}, examColumns = [], marksRows = [] }) => {
@@ -317,7 +318,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
   }
 
   const normalizedAcademicYear = toText(academicYear);
-  if (!normalizedAcademicYear || !ACADEMIC_YEAR_REGEX.test(normalizedAcademicYear)) {
+  if (normalizedAcademicYear && !ACADEMIC_YEAR_REGEX.test(normalizedAcademicYear)) {
     throw createHttpError(400, 'Academic year must be in YYYY or YYYY-YYYY format');
   }
 
@@ -339,27 +340,37 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
     throw createHttpError(400, 'Selected section does not match the class section');
   }
 
-  const allYearExams = await Exam.find({
-    classId: normalizedClassId,
-    academicYear: normalizedAcademicYear
-  })
+  const examFilter = { classId: normalizedClassId };
+  if (normalizedAcademicYear) {
+    examFilter.academicYear = normalizedAcademicYear;
+  }
+
+  const allClassExams = await Exam.find(examFilter)
     .select('_id examName description examType status classId subjects schedule subjectId startDate endDate examDate date createdAt')
     .lean();
 
   const selectedExam = normalizedSelectedExamId
-    ? allYearExams.find((item) => toId(item) === normalizedSelectedExamId) || null
+    ? allClassExams.find((item) => toId(item) === normalizedSelectedExamId) || null
     : null;
 
   if (normalizedSelectedExamId && !selectedExam) {
-    throw createHttpError(404, 'Exam not found for the selected class and exam year');
+    throw createHttpError(
+      404,
+      normalizedAcademicYear ? 'Exam not found for the selected class and exam year' : 'Exam not found for the selected class'
+    );
   }
 
-  const scopedExams = selectExamsForReportCard({
-    allYearExams,
-    selectedExam
+  if (selectedExam && !isFinalExam(selectedExam)) {
+    throw createHttpError(409, 'Report card can be generated only for Final Exam');
+  }
+
+  const finalExam = selectedExam || selectLatestCompletedFinalExam(allClassExams);
+  const resolvedAcademicYear = toText(finalExam?.academicYear, normalizedAcademicYear);
+  const scopedExams = selectExamsUpToFinal({
+    allClassExams,
+    finalExam
   });
 
-  const isSingleExamReport = Boolean(selectedExam && !isFinalExam(selectedExam));
   const examIds = scopedExams.map((item) => toId(item)).filter(Boolean);
 
   const students = await Student.find({ classId: normalizedClassId })
@@ -428,12 +439,18 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
   });
 
   const missingRequirements = [];
-  if (scopedExams.length === 0) {
+  if (!finalExam) {
     missingRequirements.push(
-      normalizedSelectedExamId
-        ? 'No exam data found for the selected report card scope'
-        : 'No completed exams found for the selected class and exam year'
+      normalizedAcademicYear
+        ? 'Report cards can be generated only after Final Exam is completed for the selected class and exam year'
+        : 'Report cards can be generated only after Final Exam is completed for the selected class'
     );
+  } else if (!isExamCompleted(finalExam)) {
+    missingRequirements.push('Report cards can be generated only after Final Exam is completed');
+  }
+
+  if (finalExam && scopedExams.length === 0) {
+    missingRequirements.push('No exam data found before Final Exam for report card generation');
   }
 
   if (students.length === 0) {
@@ -547,7 +564,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
       studentProfileImageUrl: toText(student?.profileImageUrl),
       className: toText(classRecord?.name, 'Class'),
       section: toText(classRecord?.section, '-'),
-      examYear: normalizedAcademicYear,
+      examYear: resolvedAcademicYear,
       admissionDate: student?.userId?.createdAt || student?.createdAt || null,
       examColumns: examColumns.map((column) => ({
         examId: column.examId,
@@ -566,19 +583,11 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
   });
 
   if (missingMaxPairs.size > 0) {
-    missingRequirements.push(
-      isSingleExamReport
-        ? 'Exam max marks are missing for one or more subjects. Enter the selected exam marks first.'
-        : 'One or more exam max marks are missing. Enter marks for all exam-subject combinations first.'
-    );
+    missingRequirements.push('One or more exam max marks are missing. Enter marks for all exam-subject combinations first.');
   }
 
   if (studentsWithIncompleteMarks > 0) {
-    missingRequirements.push(
-      isSingleExamReport
-        ? 'All subject marks for the selected exam must be entered before report cards can be generated'
-        : 'All subjects must have marks for all selected exams before report cards can be finalized'
-    );
+    missingRequirements.push('All subjects must have marks for all exams up to Final Exam before report cards can be finalized');
   }
 
   const isMarksFinalized = missingRequirements.length === 0;
@@ -601,7 +610,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
       className: toText(classRecord?.name, 'Class'),
       section: toText(classRecord?.section, '-')
     },
-    academicYear: normalizedAcademicYear,
+    academicYear: resolvedAcademicYear,
     completedExams: examColumns.map((column) => ({
       examId: column.examId,
       examName: column.examName,
@@ -626,7 +635,7 @@ const getStudentReportCardByExam = async ({ examId, studentId }) => {
   }
 
   const exam = await Exam.findById(normalizedExamId)
-    .select('_id classId academicYear')
+    .select('_id classId academicYear examType examName description status startDate endDate examDate date')
     .lean();
 
   if (!exam) {
@@ -643,6 +652,16 @@ const getStudentReportCardByExam = async ({ examId, studentId }) => {
 
   if (toId(student.classId) !== toId(exam.classId)) {
     throw createHttpError(403, 'Forbidden');
+  }
+
+  if (!isFinalExam(exam)) {
+    return {
+      dataset: null,
+      reportCard: null,
+      isDownloadReady: false,
+      reason: 'Report card can be generated only after Final Exam.',
+      fileName: 'Report_Card.pdf'
+    };
   }
 
   const dataset = await calculateClassReportCards({

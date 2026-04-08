@@ -33,6 +33,7 @@ router.get(
   [
     param('classId').isMongoId().withMessage('Invalid class selected'),
     query('academicYear')
+      .optional({ checkFalsy: true })
       .matches(ACADEMIC_YEAR_REGEX)
       .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
     query('section').optional().isString().withMessage('Invalid section selected')

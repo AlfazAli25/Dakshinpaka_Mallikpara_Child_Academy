@@ -9,7 +9,7 @@ const Grade = require('../models/grade.model');
 const Marks = require('../models/marks.model');
 const { syncAdmitCardsForExam } = require('../services/admit-card.service');
 
-const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
+const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
 const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
@@ -45,6 +45,19 @@ const normalizeObjectIdArray = (items = []) => {
         .filter(Boolean)
     )
   );
+};
+
+const normalizeExamType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'unit test') {
+    return 'Unit Test';
+  }
+
+  if (normalized === 'final exam' || normalized === 'final') {
+    return 'Final Exam';
+  }
+
+  return '';
 };
 
 const isDuplicateError = (error) => Number(error?.code || 0) === 11000;
@@ -170,9 +183,10 @@ const buildFilterFromQuery = (query = {}) => {
   }
 
   if (query.examType !== undefined) {
-    const examType = String(query.examType || '').trim();
-    if (examType) {
-      if (!EXAM_TYPES.includes(examType)) {
+    const examTypeRaw = String(query.examType || '').trim();
+    if (examTypeRaw) {
+      const examType = normalizeExamType(examTypeRaw);
+      if (!examType) {
         throw createHttpError(400, 'Invalid exam type selected');
       }
       filter.examType = examType;
@@ -225,12 +239,15 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     throw createHttpError(400, 'Exam name is required');
   }
 
-  const examType =
+  const rawExamType =
     payload.examType !== undefined
       ? String(payload.examType || '').trim()
       : String(existingExam?.examType || 'Unit Test').trim();
 
-  if (!EXAM_TYPES.includes(examType)) {
+  const normalizedExamType = normalizeExamType(rawExamType);
+  const examType = normalizedExamType || 'Unit Test';
+
+  if (payload.examType !== undefined && !normalizedExamType) {
     throw createHttpError(400, 'Invalid exam type selected');
   }
 

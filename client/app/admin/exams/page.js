@@ -24,6 +24,7 @@ const DEFAULT_PAGINATION = {
 
 const DEFAULT_FORM = {
   examName: '',
+  examType: 'Unit Test',
   classIds: [],
   schedule: [],
   academicYear: '',
@@ -31,8 +32,22 @@ const DEFAULT_FORM = {
   description: ''
 };
 
+const EXAM_TYPE_OPTIONS = [
+  { value: 'Unit Test', label: 'Unit Test' },
+  { value: 'Final Exam', label: 'Final Exam' }
+];
+
 const toId = (value) => String(value?._id || value || '');
 const getScheduleKey = (classId, subjectId) => `${classId}:${subjectId}`;
+
+const normalizeExamType = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'final exam' || normalized === 'final') {
+    return 'Final Exam';
+  }
+
+  return 'Unit Test';
+};
 
 const parseDateValue = (value) => {
   if (!value) {
@@ -319,6 +334,7 @@ export default function AdminExamsPage() {
     setEditingExamId(toId(exam));
     setForm({
       examName: String(exam?.examName || '').trim(),
+      examType: normalizeExamType(exam?.examType),
       classIds: classId ? [classId] : [],
       schedule: normalizedSchedule,
       academicYear: String(exam?.academicYear || '').trim(),
@@ -665,6 +681,10 @@ export default function AdminExamsPage() {
       return 'Academic year is required';
     }
 
+    if (!EXAM_TYPE_OPTIONS.some((option) => option.value === form.examType)) {
+      return 'Select a valid exam type';
+    }
+
     if (!ACADEMIC_YEAR_REGEX.test(form.academicYear.trim())) {
       return 'Academic year must be in YYYY or YYYY-YYYY format';
     }
@@ -791,6 +811,7 @@ export default function AdminExamsPage() {
 
     return {
       examName: form.examName.trim(),
+      examType: normalizeExamType(form.examType),
       classId,
       subjects: Array.from(subjectIdSet),
       academicYear: form.academicYear.trim(),
@@ -925,7 +946,16 @@ export default function AdminExamsPage() {
             onChange={onChangeForm('examName')}
             required
             className="h-11"
-            placeholder="Example: Half Yearly Exam"
+            placeholder="Example: Unit Test 1"
+          />
+
+          <Select
+            label="Exam Type"
+            value={form.examType}
+            onChange={onChangeForm('examType')}
+            required
+            className="h-11"
+            options={EXAM_TYPE_OPTIONS}
           />
 
           <Input

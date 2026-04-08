@@ -7,7 +7,7 @@ const controller = require('../controllers/examController');
 
 const router = express.Router();
 
-const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
+const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
 const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
