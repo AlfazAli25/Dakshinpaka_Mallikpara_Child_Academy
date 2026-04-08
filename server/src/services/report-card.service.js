@@ -49,12 +49,19 @@ const getExamSearchText = (exam = {}) =>
   `${toText(exam?.examName)} ${toText(exam?.description)} ${toText(exam?.examType)}`.toLowerCase();
 
 const isFinalExam = (exam = {}) => {
+  const searchText = getExamSearchText(exam);
+
+  // Prevent common non-final terms from being classified as final scope.
+  if (/\bhalf\s*[- ]?\s*yearly\b|\bhalfyearly\b|\bmid\s*[- ]?\s*yearly\b|\bmidyearly\b/.test(searchText)) {
+    return false;
+  }
+
   const examType = toText(exam?.examType).toLowerCase();
   if (examType === 'final') {
     return true;
   }
 
-  return /\bfinal\b|\bannual\b|\byearly\b/.test(getExamSearchText(exam));
+  return /\bfinal\b|\bannual\b|\byearly\b/.test(searchText);
 };
 
 const isExamCompleted = (exam = {}) => {
