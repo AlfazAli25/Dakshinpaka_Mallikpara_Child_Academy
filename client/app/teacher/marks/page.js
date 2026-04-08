@@ -117,23 +117,51 @@ const formatPercentage = ({ marksObtained, maxMarks, fallbackPercentage }) => {
   return '-';
 };
 
+const toRollNumberValue = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return Math.floor(parsed);
+};
+
 const buildRows = (students = [], marksByStudentId = new Map()) => {
   return students
     .map((student) => {
       const studentId = toId(student);
       const existing = marksByStudentId.get(studentId);
+      const rollNoValue = toRollNumberValue(student?.rollNo);
 
       return {
         studentId,
         studentName: student?.userId?.name || '-',
-        rollNumber: student?.admissionNo || '-',
+        rollNumber: rollNoValue === null ? '-' : String(rollNoValue),
+        rollNoValue,
         markId: existing ? toId(existing) : '',
         marksObtained: existing?.marksObtained !== undefined ? String(existing.marksObtained) : '',
         maxMarksFromRecord: existing?.maxMarks !== undefined ? Number(existing.maxMarks) : null,
         percentageFromRecord: existing?.percentage !== undefined ? Number(existing.percentage) : null
       };
     })
-    .sort((left, right) => String(left.rollNumber || '').localeCompare(String(right.rollNumber || '')));
+    .sort((left, right) => {
+      const leftRoll = left.rollNoValue;
+      const rightRoll = right.rollNoValue;
+
+      if (leftRoll !== null && rightRoll !== null) {
+        return leftRoll - rightRoll;
+      }
+
+      if (leftRoll !== null) {
+        return -1;
+      }
+
+      if (rightRoll !== null) {
+        return 1;
+      }
+
+      return String(left.studentName || '').localeCompare(String(right.studentName || ''));
+    });
 };
 
 const validateRow = (row, maxMarksInput) => {
