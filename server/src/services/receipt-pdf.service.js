@@ -370,9 +370,17 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     resolveStudentImageDataUri(student)
   ]);
 
+  const sourceType = String(payment?.sourceType || receipt?.receiptType || '').trim().toUpperCase();
   const className = toSafeText(student?.classId?.name || receipt?.className);
   const sectionName = toSafeText(student?.classId?.section || '-');
   const amountPaid = Number(payment?.amount || receipt?.amount || 0);
+  const pendingFee = Number(
+    sourceType === 'NOTICE'
+      ? 0
+      : payment?.remainingBalance ??
+          student?.pendingFees ??
+          0
+  );
   const paymentDateTimeValue =
     payment?.paidAt || payment?.paymentDate || payment?.verifiedAt || payment?.updatedAt || payment?.createdAt || receipt?.paymentDate;
 
@@ -389,6 +397,7 @@ const buildStudentTemplateModel = async ({ payment, student, receipt }) => {
     class: className,
     section: sectionName,
     amountPaid: formatAmount(amountPaid),
+    pendingFee: formatAmount(pendingFee),
     paymentFor: buildPaymentForLabel({ payment, receipt }),
     paymentMethod: normalizePaymentMethod(payment?.paymentMethod || receipt?.paymentMethod),
     paymentDateTime: formatDateTime(paymentDateTimeValue),
@@ -419,7 +428,7 @@ const buildTeacherTemplateModel = async ({ payroll, teacher, receipt }) => {
   const pendingSalary = Number(
     receipt?.pendingSalary ??
       teacher?.pendingSalary ??
-      0
+      Math.max(monthlySalary - amountPaid, 0)
   );
 
   const paymentDateValue = receipt?.paymentDate || payroll?.paidOn || payroll?.updatedAt || payroll?.createdAt;
