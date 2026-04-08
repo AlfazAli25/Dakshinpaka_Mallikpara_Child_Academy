@@ -304,7 +304,7 @@
     .summary {
       margin-top: auto;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 2mm;
     }
 
@@ -425,6 +425,10 @@
               <div class="summary-card">
                 <p class="label">Assigned Roll Number</p>
                 <p class="value">{{reportRollNo}}</p>
+              </div>
+              <div class="summary-card">
+                <p class="label">Net Grade</p>
+                <p class="value">{{netGrade}}</p>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ const ClassModel = require('../models/class.model');
 const Student = require('../models/student.model');
 const Subject = require('../models/subject.model');
 const Marks = require('../models/marks.model');
+const { calculateGrade } = require('../utils/gradeCalculator');
 
 const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
 
@@ -37,6 +38,31 @@ const toValidDate = (value) => {
 const toSafeFileToken = (value, fallback = 'Value') => {
   const normalized = toText(value).replace(/[^A-Za-z0-9_-]/g, '_');
   return normalized || fallback;
+};
+
+const deriveNetPerformance = ({ grandTotalObtainedMarks, grandTotalMaxMarks }) => {
+  const obtained = Number(grandTotalObtainedMarks);
+  const total = Number(grandTotalMaxMarks);
+
+  if (!Number.isFinite(obtained) || !Number.isFinite(total) || total <= 0) {
+    return {
+      netGrade: '-',
+      netPercentage: null
+    };
+  }
+
+  try {
+    const result = calculateGrade(obtained, total);
+    return {
+      netGrade: toText(result?.grade, '-'),
+      netPercentage: Number.isFinite(Number(result?.percentage)) ? Number(result.percentage) : null
+    };
+  } catch (_error) {
+    return {
+      netGrade: '-',
+      netPercentage: null
+    };
+  }
 };
 
 const toExamTimestamp = (exam = {}) => {
@@ -509,6 +535,11 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
       subjectRowsForStudent.reduce((sum, item) => sum + Number(item.totalObtainedMarks || 0), 0).toFixed(2)
     );
 
+    const netPerformance = deriveNetPerformance({
+      grandTotalObtainedMarks,
+      grandTotalMaxMarks
+    });
+
     return {
       studentId,
       studentName,
@@ -527,6 +558,8 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
       subjectRows: subjectRowsForStudent,
       grandTotalMaxMarks,
       grandTotalObtainedMarks,
+      netGrade: netPerformance.netGrade,
+      netPercentage: netPerformance.netPercentage,
       isComplete,
       assignedRollNo: null
     };

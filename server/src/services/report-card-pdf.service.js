@@ -260,6 +260,27 @@ const formatScore = (value) => {
   return numeric.toFixed(2);
 };
 
+const deriveNetGradeLabel = (reportCardData = {}) => {
+  const provided = toSafeText(reportCardData?.netGrade, '');
+  if (provided) {
+    return provided;
+  }
+
+  const obtained = Number(reportCardData?.grandTotalObtainedMarks);
+  const total = Number(reportCardData?.grandTotalMaxMarks);
+  if (!Number.isFinite(obtained) || !Number.isFinite(total) || total <= 0) {
+    return '-';
+  }
+
+  const percentage = (obtained / total) * 100;
+  if (percentage >= 90) return 'A+';
+  if (percentage >= 80) return 'A';
+  if (percentage >= 70) return 'B';
+  if (percentage >= 60) return 'C';
+  if (percentage >= 50) return 'D';
+  return 'F';
+};
+
 const normalizeExamColumns = (reportCardData = {}) =>
   (Array.isArray(reportCardData?.examColumns) ? reportCardData.examColumns : [])
     .map((item) => ({
@@ -349,6 +370,7 @@ const buildTemplateModel = async ({ reportCardData = {} }) => {
     reportRollNo: formatScore(reportCardData?.assignedRollNo),
     grandTotalMaxMarks: formatScore(reportCardData?.grandTotalMaxMarks),
     grandTotalObtainedMarks: formatScore(reportCardData?.grandTotalObtainedMarks),
+    netGrade: toSafeText(deriveNetGradeLabel(reportCardData), '-'),
     tableHeadCellsHtml: buildTableHeadCellsHtml(examColumns),
     tableRowsHtml: buildTableRowsHtml({
       subjectRows: reportCardData?.subjectRows,
