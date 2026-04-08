@@ -20,6 +20,7 @@ const text = {
     downloadReportCard: 'Download Report Card',
     downloadingReportCard: 'Downloading...',
     checkingReportCard: 'Checking report card availability...',
+    archivedReportCardUnavailable: 'Report card download is available for current class exams only.',
     reportCardNotReady: 'Report card is not ready yet.',
     reportCardDownloadFailed: 'Failed to download report card right now.',
     columns: [
@@ -38,6 +39,7 @@ const text = {
     downloadReportCard: 'রিপোর্ট কার্ড ডাউনলোড',
     downloadingReportCard: 'ডাউনলোড হচ্ছে...',
     checkingReportCard: 'রিপোর্ট কার্ড প্রস্তুতি যাচাই করা হচ্ছে...',
+    archivedReportCardUnavailable: 'রিপোর্ট কার্ড ডাউনলোড কেবল বর্তমান শ্রেণির পরীক্ষার জন্য উপলভ্য।',
     reportCardNotReady: 'রিপোর্ট কার্ড এখনও প্রস্তুত হয়নি।',
     reportCardDownloadFailed: 'এই মুহূর্তে রিপোর্ট কার্ড ডাউনলোড করা যাচ্ছে না।',
     columns: [
@@ -63,6 +65,62 @@ const toGradeLabel = (percent) => {
 };
 
 const toId = (value) => String(value?._id || value || '');
+
+const mergeExamsById = ({ primaryExams = [], secondaryExams = [] }) => {
+  const examMap = new Map();
+
+  [...(Array.isArray(primaryExams) ? primaryExams : []), ...(Array.isArray(secondaryExams) ? secondaryExams : [])].forEach(
+    (exam) => {
+      const examId = toId(exam);
+      if (!examId || examMap.has(examId)) {
+        return;
+      }
+
+      examMap.set(examId, exam);
+    }
+  );
+
+  return Array.from(examMap.values());
+};
+
+const collectStudentExamHistory = async ({ studentId, token }) => {
+  const firstResponse = await get(`/marks/student/${studentId}?page=1&limit=500`, token);
+  const firstRows = Array.isArray(firstResponse?.data) ? firstResponse.data : [];
+
+  const historyExamMap = new Map();
+
+  firstRows.forEach((row) => {
+    const exam = row?.examId;
+    const examId = toId(exam);
+    if (examId && !historyExamMap.has(examId)) {
+      historyExamMap.set(examId, exam);
+    }
+  });
+
+  const totalPages = Number(firstResponse?.pagination?.totalPages || 1);
+  const safeTotalPages = Number.isFinite(totalPages) && totalPages > 0 ? Math.min(totalPages, 30) : 1;
+
+  if (safeTotalPages > 1) {
+    const pending = [];
+    for (let page = 2; page <= safeTotalPages; page += 1) {
+      pending.push(get(`/marks/student/${studentId}?page=${page}&limit=500`, token));
+    }
+
+    const responses = await Promise.all(pending);
+    responses.forEach((response) => {
+      const rows = Array.isArray(response?.data) ? response.data : [];
+      rows.forEach((row) => {
+        const exam = row?.examId;
+        const examId = toId(exam);
+        if (examId && !historyExamMap.has(examId)) {
+          historyExamMap.set(examId, exam);
+        }
+      });
+    });
+  }
+
+  return Array.from(historyExamMap.values());
+};
 
 const toExamLabel = (exam) => {
   const examName = String(exam?.examName || exam?.description || 'Exam').trim() || 'Exam';
@@ -98,6 +156,7 @@ export default function StudentResultsPage() {
   const [loadingSetup, setLoadingSetup] = useState(true);
   const [loadingRows, setLoadingRows] = useState(false);
   const [studentId, setStudentId] = useState('');
+  const [studentClassId, setStudentClassId] = useState('');
   const [exams, setExams] = useState([]);
   const [selectedExamId, setSelectedExamId] = useState('');
   const [rows, setRows] = useState([]);
@@ -120,6 +179,7 @@ export default function StudentResultsPage() {
         if (!student || !token) {
           if (active) {
             setStudentId('');
+            setStudentClassId('');
             setExams([]);
             setSelectedExamId('');
             setRows([]);
@@ -127,9 +187,21 @@ export default function StudentResultsPage() {
           return;
         }
 
+        const currentStudentId = toId(student);
         const classId = toId(student?.classId);
-        const examsResponse = classId ? await get(`/exams?classId=${classId}&page=1&limit=300`, token) : { data: [] };
-        const sortedExams = (Array.isArray(examsResponse.data) ? examsResponse.data : [])
+
+        const [classExamsResponse, historyExams] = await Promise.all([
+          classId ? get(`/exams?classId=${classId}&page=1&limit=300`, token) : Promise.resolve({ data: [] }),
+          currentStudentId ? collectStudentExamHistory({ studentId: currentStudentId, token }) : Promise.resolve([])
+        ]);
+
+        const classExams = Array.isArray(classExamsResponse?.data) ? classExamsResponse.data : [];
+        const mergedExams = mergeExamsById({
+          primaryExams: classExams,
+          secondaryExams: historyExams
+        });
+
+        const sortedExams = mergedExams
           .slice()
           .sort((left, right) => {
             const leftDate = new Date(left?.startDate || left?.examDate || left?.date || 0).getTime();
@@ -141,7 +213,8 @@ export default function StudentResultsPage() {
           return;
         }
 
-        setStudentId(toId(student));
+        setStudentId(currentStudentId);
+        setStudentClassId(classId);
         setExams(sortedExams);
         setSelectedExamId((prev) => {
           if (prev && sortedExams.some((exam) => toId(exam) === prev)) {
@@ -153,6 +226,7 @@ export default function StudentResultsPage() {
       } catch (_error) {
         if (active) {
           setStudentId('');
+          setStudentClassId('');
           setExams([]);
           setSelectedExamId('');
           setRows([]);
@@ -235,6 +309,18 @@ export default function StudentResultsPage() {
         return;
       }
 
+      const selectedExam = exams.find((exam) => toId(exam) === selectedExamId) || null;
+      const selectedExamClassId = toId(selectedExam?.classId);
+
+      if (studentClassId && selectedExamClassId && selectedExamClassId !== studentClassId) {
+        setReportCardStatus({
+          isDownloadReady: false,
+          message: t.archivedReportCardUnavailable,
+          fileName: 'Report_Card.pdf'
+        });
+        return;
+      }
+
       setCheckingReportCard(true);
 
       try {
@@ -285,7 +371,7 @@ export default function StudentResultsPage() {
     return () => {
       active = false;
     };
-  }, [selectedExamId, studentId, t.reportCardNotReady]);
+  }, [selectedExamId, studentId, studentClassId, exams, t.reportCardNotReady, t.archivedReportCardUnavailable]);
 
   const onDownloadReportCard = async () => {
     if (!selectedExamId) {
