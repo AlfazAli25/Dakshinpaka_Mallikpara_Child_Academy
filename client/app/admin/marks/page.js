@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
-import { del, get } from '@/lib/api';
+import { del, get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
@@ -26,6 +26,17 @@ const columns = [
 ];
 
 const toId = (value) => String(value?._id || value || '');
+
+const downloadBlob = (blob, filename) => {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(href);
+};
 
 const formatExamLabel = (exam) => {
   const examName = String(exam?.examName || exam?.description || 'Exam').trim() || 'Exam';
@@ -99,6 +110,11 @@ export default function AdminMarksPage() {
   const [selectedExamId, setSelectedExamId] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [searchText, setSearchText] = useState('');
+
+  const [reportCardClassId, setReportCardClassId] = useState('');
+  const [reportCardSection, setReportCardSection] = useState('');
+  const [reportCardAcademicYear, setReportCardAcademicYear] = useState('');
+  const [downloadingReportCardsZip, setDownloadingReportCardsZip] = useState(false);
 
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({
@@ -323,6 +339,58 @@ export default function AdminMarksPage() {
     [selectedClassId, studentOptionsRaw]
   );
 
+  const reportCardClassOptions = useMemo(
+    () => [
+      { value: '', label: 'Select class' },
+      ...classOptionsRaw.map((item) => ({
+        value: toId(item),
+        label: formatClassLabel(item)
+      }))
+    ],
+    [classOptionsRaw]
+  );
+
+  const reportCardSectionOptions = useMemo(() => {
+    const options = [{ value: '', label: 'Select section' }];
+
+    if (reportCardClassId) {
+      const selectedClass = classOptionsRaw.find((item) => toId(item) === reportCardClassId) || null;
+      const selectedSection = String(selectedClass?.section || '').trim();
+      if (selectedSection) {
+        options.push({ value: selectedSection, label: selectedSection });
+      }
+      return options;
+    }
+
+    const sections = Array.from(
+      new Set(
+        classOptionsRaw
+          .map((item) => String(item?.section || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((left, right) => left.localeCompare(right));
+
+    return [
+      ...options,
+      ...sections.map((section) => ({ value: section, label: section }))
+    ];
+  }, [classOptionsRaw, reportCardClassId]);
+
+  const reportCardAcademicYearOptions = useMemo(() => {
+    const years = Array.from(
+      new Set(
+        examOptionsRaw
+          .map((item) => String(item?.academicYear || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((left, right) => right.localeCompare(left));
+
+    return [
+      { value: '', label: 'Select exam year' },
+      ...years.map((year) => ({ value: year, label: year }))
+    ];
+  }, [examOptionsRaw]);
+
   const filteredRows = useMemo(() => {
     const query = String(searchText || '').trim().toLowerCase();
     if (!query) {
@@ -367,6 +435,43 @@ export default function AdminMarksPage() {
   const onStudentChange = (event) => {
     setSelectedStudentId(event.target.value);
     setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const onReportCardClassChange = (event) => {
+    const nextClassId = event.target.value;
+    setReportCardClassId(nextClassId);
+
+    const selectedClass = classOptionsRaw.find((item) => toId(item) === nextClassId) || null;
+    setReportCardSection(String(selectedClass?.section || '').trim());
+  };
+
+  const onDownloadReportCardsZip = async () => {
+    if (!reportCardClassId || !reportCardSection || !reportCardAcademicYear) {
+      toast.error('Select class, section, and exam year before downloading report cards');
+      return;
+    }
+
+    setDownloadingReportCardsZip(true);
+
+    try {
+      const token = getToken();
+      const query = new URLSearchParams();
+      query.set('academicYear', reportCardAcademicYear);
+      query.set('section', reportCardSection);
+
+      const blob = await getBlob(`/report-cards/class/${reportCardClassId}/zip?${query.toString()}`, token, {
+        timeoutMs: 300000
+      });
+
+      const selectedClass = classOptionsRaw.find((item) => toId(item) === reportCardClassId) || null;
+      const safeClassName = String(selectedClass?.name || 'Class').replace(/[^A-Za-z0-9_-]/g, '_');
+      const safeSection = String(reportCardSection || 'NA').replace(/[^A-Za-z0-9_-]/g, '_');
+      downloadBlob(blob, `Class_${safeClassName}_Section_${safeSection}_ReportCards.zip`);
+    } catch (apiError) {
+      toast.error(apiError?.message || 'Failed to download class report cards');
+    } finally {
+      setDownloadingReportCardsZip(false);
+    }
   };
 
   const onDeleteMark = async () => {
@@ -476,6 +581,55 @@ export default function AdminMarksPage() {
             placeholder="Search by student, roll number, class, subject, exam, grade"
             className="h-11"
           />
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h3 className="text-base font-semibold text-slate-900">Download Class Report Cards (ZIP)</h3>
+        <p className="mt-1 text-sm text-slate-600">
+          Select class, section, and exam year to download all student report cards in one ZIP file.
+        </p>
+
+        <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <Select
+            label="Class"
+            options={reportCardClassOptions}
+            value={reportCardClassId}
+            onChange={onReportCardClassChange}
+            disabled={loadingSetup || downloadingReportCardsZip}
+          />
+
+          <Select
+            label="Section"
+            options={reportCardSectionOptions}
+            value={reportCardSection}
+            onChange={(event) => setReportCardSection(event.target.value)}
+            disabled={loadingSetup || downloadingReportCardsZip}
+          />
+
+          <Select
+            label="Exam Year"
+            options={reportCardAcademicYearOptions}
+            value={reportCardAcademicYear}
+            onChange={(event) => setReportCardAcademicYear(event.target.value)}
+            disabled={loadingSetup || downloadingReportCardsZip}
+          />
+
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={onDownloadReportCardsZip}
+              disabled={
+                downloadingReportCardsZip ||
+                !reportCardClassId ||
+                !reportCardSection ||
+                !reportCardAcademicYear
+              }
+              className="h-11 w-full rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {downloadingReportCardsZip ? 'Preparing ZIP...' : 'Download Class Report Cards (ZIP)'}
+            </button>
+          </div>
         </div>
       </div>
 
