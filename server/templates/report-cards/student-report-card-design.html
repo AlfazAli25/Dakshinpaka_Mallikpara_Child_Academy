@@ -159,30 +159,34 @@
     .student-lines {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 1.3mm;
+      gap: 0.9mm;
       margin-top: 0.2mm;
     }
 
     .line-row {
       display: grid;
-      grid-template-columns: 84mm 1fr 58mm 1fr;
+      grid-template-columns: max-content minmax(44mm, 1fr) max-content minmax(36mm, 1fr);
       align-items: center;
-      column-gap: 2.2mm;
+      column-gap: 1.2mm;
       font-size: 4.8mm;
       font-weight: 700;
       color: #0f172a;
     }
 
     .line-row.alt {
-      grid-template-columns: 56mm 1fr 52mm 1fr 36mm 1fr;
+      grid-template-columns: max-content minmax(26mm, 1fr) max-content minmax(22mm, 1fr) max-content minmax(22mm, 1fr);
+    }
+
+    .line-row.single {
+      grid-template-columns: max-content minmax(44mm, 1fr);
     }
 
     .line-row .value-line {
       border-bottom: 0.3mm solid #86a6c5;
-      height: 6.1mm;
+      height: 5.5mm;
       display: flex;
       align-items: flex-end;
-      padding: 0 1mm 0.7mm;
+      padding: 0 0.8mm 0.45mm;
       font-size: 4.7mm;
       font-weight: 700;
       color: #111827;
@@ -367,11 +371,9 @@
             <div class="value-line">{{reportRollNo}}</div>
           </div>
 
-          <div class="line-row">
+          <div class="line-row single">
             <div>Exam Year:</div>
             <div class="value-line">{{examYear}}</div>
-            <div></div>
-            <div class="value-line"></div>
           </div>
         </div>
 

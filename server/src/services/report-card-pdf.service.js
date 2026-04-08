@@ -309,16 +309,6 @@ const buildTableRowsHtml = ({ subjectRows = [], examColumns = [] }) => {
     totalObtainedMarks: formatScore(item?.totalObtainedMarks)
   }));
 
-  const minimumRows = Math.max(9, rows.length);
-  while (rows.length < minimumRows) {
-    rows.push({
-      subjectName: '',
-      examScores: normalizedColumns.map(() => ''),
-      totalMaxMarks: '',
-      totalObtainedMarks: ''
-    });
-  }
-
   return rows
     .map((item) => {
       const examCellsHtml = item.examScores
