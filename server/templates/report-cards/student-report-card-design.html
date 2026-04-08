@@ -43,6 +43,19 @@
       overflow: hidden;
     }
 
+    .watermark-logo {
+      position: absolute;
+      top: 57%;
+      left: 50%;
+      width: 122mm;
+      height: 122mm;
+      transform: translate(-50%, -50%);
+      object-fit: contain;
+      opacity: 0.065;
+      pointer-events: none;
+      z-index: 1;
+    }
+
     .texture {
       position: absolute;
       inset: 0;
@@ -334,6 +347,7 @@
 <body>
   <div class="page">
     <div class="card">
+      <img class="watermark-logo" src="{{schoolLogo}}" alt="" aria-hidden="true" />
       <div class="texture"></div>
 
       <div class="content">

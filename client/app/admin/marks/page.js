@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -9,21 +8,6 @@ import { del, get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
-
-const Table = dynamic(() => import('@/components/Table'), { ssr: false });
-
-const columns = [
-  { key: 'studentName', label: 'Student Name' },
-  { key: 'rollNumber', label: 'Roll Number' },
-  { key: 'className', label: 'Class' },
-  { key: 'subjectName', label: 'Subject' },
-  { key: 'examName', label: 'Exam' },
-  { key: 'marks', label: 'Marks' },
-  { key: 'percentage', label: 'Percentage' },
-  { key: 'grade', label: 'Grade' },
-  { key: 'remarks', label: 'Remarks' },
-  { key: 'actions', label: 'Actions' }
-];
 
 const toId = (value) => String(value?._id || value || '');
 
@@ -53,40 +37,32 @@ const formatExamLabel = (exam) => {
   return `${examName} (${date.toLocaleDateString('en-GB')})`;
 };
 
-const mapMarksToRows = (items, onOpenDelete) =>
+const toRollNumberLabel = (student = {}) => {
+  const numericRoll = Number(student?.rollNo);
+  if (Number.isFinite(numericRoll) && numericRoll > 0) {
+    return String(Math.floor(numericRoll));
+  }
+
+  return String(student?.admissionNo || '-').trim() || '-';
+};
+
+const mapMarksToRows = (items) =>
   (Array.isArray(items) ? items : []).map((item) => {
     const id = String(item?._id || '');
     const numericPercentage = Number(item?.percentage);
 
     return {
       id,
+      studentId: toId(item?.studentId),
       studentName: item?.studentId?.userId?.name || '-',
-      rollNumber: item?.studentId?.admissionNo || '-',
+      rollNumber: toRollNumberLabel(item?.studentId),
       className: formatClassLabel(item?.classId),
       subjectName: item?.subjectId?.name || item?.subjectId?.code || '-',
       examName: String(item?.examId?.examName || item?.examId?.description || '-').trim() || '-',
       marks: `${item?.marksObtained ?? 0}/${item?.maxMarks ?? 0}`,
       percentage: Number.isFinite(numericPercentage) ? `${numericPercentage.toFixed(2)}%` : '-',
       grade: item?.grade || '-',
-      remarks: item?.remarks || '-',
-      actions: (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenDelete({
-              id,
-              studentName: item?.studentId?.userId?.name || '-',
-              rollNumber: item?.studentId?.admissionNo || '-',
-              examName: String(item?.examId?.examName || item?.examId?.description || '-').trim() || '-',
-              subjectName: item?.subjectId?.name || item?.subjectId?.code || '-'
-            });
-          }}
-          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
-        >
-          Delete
-        </button>
-      )
+      remarks: item?.remarks || '-'
     };
   });
 
@@ -237,7 +213,7 @@ export default function AdminMarksPage() {
           return;
         }
 
-        setRows(mapMarksToRows(response.data, setDeleteTarget));
+        setRows(mapMarksToRows(response.data));
 
         const nextPagination = response.pagination || {};
         setPagination((prev) => ({
@@ -412,6 +388,54 @@ export default function AdminMarksPage() {
     });
   }, [rows, searchText]);
 
+  const groupedRows = useMemo(() => {
+    const grouped = new Map();
+
+    filteredRows.forEach((row) => {
+      const key = `${row.studentId || row.studentName}::${row.rollNumber}::${row.className}`;
+      const current = grouped.get(key) || {
+        key,
+        studentId: row.studentId,
+        studentName: row.studentName,
+        rollNumber: row.rollNumber,
+        className: row.className,
+        items: []
+      };
+
+      current.items.push(row);
+      grouped.set(key, current);
+    });
+
+    return Array.from(grouped.values())
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((left, right) => {
+          const examCompare = String(left.examName || '').localeCompare(String(right.examName || ''));
+          if (examCompare !== 0) {
+            return examCompare;
+          }
+
+          return String(left.subjectName || '').localeCompare(String(right.subjectName || ''));
+        })
+      }))
+      .sort((left, right) => {
+        const leftRoll = Number(left.rollNumber);
+        const rightRoll = Number(right.rollNumber);
+        const hasLeftRoll = Number.isFinite(leftRoll);
+        const hasRightRoll = Number.isFinite(rightRoll);
+
+        if (hasLeftRoll && hasRightRoll && leftRoll !== rightRoll) {
+          return leftRoll - rightRoll;
+        }
+
+        if (hasLeftRoll !== hasRightRoll) {
+          return hasLeftRoll ? -1 : 1;
+        }
+
+        return String(left.studentName || '').localeCompare(String(right.studentName || ''));
+      });
+  }, [filteredRows]);
+
   const onClassChange = (event) => {
     const nextClassId = event.target.value;
     setSelectedClassId(nextClassId);
@@ -512,7 +536,7 @@ export default function AdminMarksPage() {
         }
 
         const response = await get(`/marks?${query.toString()}`, getToken());
-        setRows(mapMarksToRows(response.data, setDeleteTarget));
+        setRows(mapMarksToRows(response.data));
         const nextPagination = response.pagination || {};
         setPagination((prev) => ({
           ...prev,
@@ -529,6 +553,16 @@ export default function AdminMarksPage() {
 
   const hasPrevious = pagination.page > 1;
   const hasNext = pagination.totalPages > 0 && pagination.page < pagination.totalPages;
+
+  const openDeleteDialog = (row) => {
+    setDeleteTarget({
+      id: row.id,
+      studentName: row.studentName,
+      rollNumber: row.rollNumber,
+      examName: row.examName,
+      subjectName: row.subjectName
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -633,7 +667,88 @@ export default function AdminMarksPage() {
         </div>
       </div>
 
-      <Table columns={columns} rows={filteredRows} loading={loadingMarks} />
+      <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
+        <div className="max-h-[420px] overflow-x-auto overflow-y-auto">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-red-700 text-left">
+              <tr>
+                <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Class</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Subject</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Exam</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Marks</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Percentage</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Grade</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Remarks</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingMarks ? (
+                Array.from({ length: 6 }).map((_, rowIndex) => (
+                  <tr
+                    key={`marks-skeleton-${rowIndex}`}
+                    className={`border-t border-slate-100 ${rowIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
+                  >
+                    <td className="px-4 py-4" colSpan={10}>
+                      <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+                    </td>
+                  </tr>
+                ))
+              ) : groupedRows.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={10}>
+                    No records found.
+                  </td>
+                </tr>
+              ) : (
+                groupedRows.map((group, groupIndex) =>
+                  group.items.map((row, rowIndex) => (
+                    <tr
+                      key={row.id || `${group.key}-${rowIndex}`}
+                      className={`border-t border-slate-100 ${groupIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
+                    >
+                      {rowIndex === 0 ? (
+                        <>
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                            {group.studentName}
+                          </td>
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                            {group.rollNumber}
+                          </td>
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                            {group.className}
+                          </td>
+                        </>
+                      ) : null}
+
+                      <td className="px-4 py-3 text-slate-700">{row.subjectName}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.examName}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.marks}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.percentage}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.grade}</td>
+                      <td className="px-4 py-3 text-slate-700">{row.remarks}</td>
+                      <td className="px-4 py-3 text-slate-700">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openDeleteDialog(row);
+                          }}
+                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <p className="text-sm text-slate-600">

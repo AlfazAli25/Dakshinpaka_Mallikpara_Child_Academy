@@ -14,7 +14,7 @@ const MAX_LIMIT = 500;
 const MARKS_POPULATE = [
   {
     path: 'studentId',
-    select: 'admissionNo classId userId',
+    select: 'admissionNo rollNo classId userId',
     populate: { path: 'userId', select: 'name email' }
   },
   { path: 'classId', select: 'name section' },
