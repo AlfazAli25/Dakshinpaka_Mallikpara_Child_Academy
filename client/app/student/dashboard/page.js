@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
@@ -47,7 +47,10 @@ const text = {
       amount: 'Amount',
       important: 'Important',
       payNow: 'Pay Now',
-      viewInFees: 'View Payment History in Fees'
+      viewInFees: 'View Payment History in Fees',
+      downloadAdmitCard: 'Download Admit Card',
+      downloadingAdmitCard: 'Downloading...',
+      admitCardDownloadFailed: 'Failed to download admit card right now.'
     }
   },
   bn: {
@@ -82,7 +85,10 @@ const text = {
       amount: 'পরিমাণ',
       important: 'গুরুত্বপূর্ণ',
       payNow: 'এখনই পরিশোধ করুন',
-      viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন'
+      viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন',
+      downloadAdmitCard: 'অ্যাডমিট কার্ড ডাউনলোড',
+      downloadingAdmitCard: 'ডাউনলোড হচ্ছে...',
+      admitCardDownloadFailed: 'এই মুহূর্তে অ্যাডমিট কার্ড ডাউনলোড করা যাচ্ছে না।'
     }
   }
 };
@@ -239,6 +245,8 @@ const fetchStudentDashboardData = async () => {
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
+  const [downloadingNoticeId, setDownloadingNoticeId] = useState('');
+  const [admitCardDownloadError, setAdmitCardDownloadError] = useState('');
 
   const { data, isLoading } = useSWR('student-dashboard', fetchStudentDashboardData, {
     refreshInterval: 60000
@@ -259,6 +267,46 @@ export default function StudentDashboardPage() {
     }
 
     return parsed.toLocaleDateString('en-GB');
+  };
+
+  const downloadBlob = (blob, filename) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+  };
+
+  const downloadAdmitCard = async (notice) => {
+    const noticeId = String(notice?._id || '').trim();
+    const actionPath = String(notice?.actionPath || '').trim();
+
+    if (!noticeId || !actionPath) {
+      setAdmitCardDownloadError(t.notices.admitCardDownloadFailed);
+      return;
+    }
+
+    const { token } = getAuthContext();
+    if (!token) {
+      setAdmitCardDownloadError(t.notices.admitCardDownloadFailed);
+      return;
+    }
+
+    try {
+      setAdmitCardDownloadError('');
+      setDownloadingNoticeId(noticeId);
+      const blob = await getBlob(actionPath, token, { timeoutMs: 120000 });
+
+      const examToken = String(notice?.title || 'Admit_Card').replace(/[^A-Za-z0-9_-]/g, '_') || 'Admit_Card';
+      downloadBlob(blob, `${examToken}.pdf`);
+    } catch (error) {
+      setAdmitCardDownloadError(String(error?.message || t.notices.admitCardDownloadFailed));
+    } finally {
+      setDownloadingNoticeId('');
+    }
   };
 
   return (
@@ -301,6 +349,10 @@ export default function StudentDashboardPage() {
               const noticeId = String(notice?._id || '');
               const isImportant = Boolean(notice?.isImportant);
               const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
+              const isAdmitCardDownloadNotice =
+                String(notice?.actionType || '').trim() === 'ADMIT_CARD_DOWNLOAD' &&
+                Boolean(String(notice?.actionPath || '').trim());
+              const actionLabel = String(notice?.actionLabel || '').trim() || t.notices.downloadAdmitCard;
 
               return (
                 <div
@@ -328,7 +380,18 @@ export default function StudentDashboardPage() {
                     ) : null}
                   </div>
 
-                  {isPaymentNotice ? (
+                  {isAdmitCardDownloadNotice ? (
+                    <div className="mt-4">
+                      <button
+                        type="button"
+                        onClick={() => downloadAdmitCard(notice)}
+                        disabled={downloadingNoticeId === noticeId}
+                        className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {downloadingNoticeId === noticeId ? t.notices.downloadingAdmitCard : actionLabel}
+                      </button>
+                    </div>
+                  ) : isPaymentNotice ? (
                     <div className="mt-4">
                       {notice?.canPay ? (
                         <Link
@@ -350,6 +413,10 @@ export default function StudentDashboardPage() {
                 </div>
               );
             })}
+
+            {admitCardDownloadError ? (
+              <p className="text-sm font-medium text-red-600">{admitCardDownloadError}</p>
+            ) : null}
           </div>
         )}
       </InfoCard>

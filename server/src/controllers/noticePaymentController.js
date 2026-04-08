@@ -5,6 +5,7 @@ const NoticePayment = require('../models/notice-payment.model');
 const Student = require('../models/student.model');
 const { uploadPaymentScreenshot } = require('../services/cloudinary.service');
 const { createNoticeReceipt } = require('../services/receipt.service');
+const { syncAdmitCardFeeStatusFromNoticePayment } = require('../services/admit-card.service');
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -350,6 +351,13 @@ const recordCashNoticePayment = asyncHandler(async (req, res) => {
     generatedBy: req.user._id
   });
 
+  await syncAdmitCardFeeStatusFromNoticePayment({
+    noticeId: paymentDoc.noticeId,
+    studentId: paymentDoc.studentId,
+    paymentStatus: paymentDoc.paymentStatus,
+    actorUserId: req.user?._id
+  });
+
   res.status(201).json({
     success: true,
     message: 'Cash notice payment recorded successfully',
@@ -491,6 +499,13 @@ const verifyNoticePayment = asyncHandler(async (req, res) => {
   payment.verifiedAt = new Date();
   payment.verificationNotes = notes || undefined;
   await payment.save();
+
+  await syncAdmitCardFeeStatusFromNoticePayment({
+    noticeId: payment.noticeId,
+    studentId: payment.studentId,
+    paymentStatus: payment.paymentStatus,
+    actorUserId: req.user?._id
+  });
 
   const data = await NoticePayment.findById(payment._id)
     .populate({ path: 'noticeId', select: 'title noticeType amount dueDate' })

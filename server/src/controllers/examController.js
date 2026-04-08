@@ -7,6 +7,7 @@ const Teacher = require('../models/teacher.model');
 const Student = require('../models/student.model');
 const Grade = require('../models/grade.model');
 const Marks = require('../models/marks.model');
+const { syncAdmitCardsForExam } = require('../services/admit-card.service');
 
 const EXAM_TYPES = ['Unit Test', 'Mid Term', 'Final', 'Practical', 'Assignment'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
@@ -430,6 +431,16 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
       ? String(payload.description || '').trim()
       : String(existingExam?.description || '').trim();
 
+  const rawAdmitCardFeeAmount =
+    payload.admitCardFeeAmount !== undefined
+      ? payload.admitCardFeeAmount
+      : existingExam?.admitCardFeeAmount;
+
+  const admitCardFeeAmount = Number(rawAdmitCardFeeAmount ?? 0);
+  if (!Number.isFinite(admitCardFeeAmount) || admitCardFeeAmount < 0) {
+    throw createHttpError(400, 'Admit card fee amount must be 0 or more');
+  }
+
   const classRecord = await ClassModel.findById(classId).select('_id').lean();
   if (!classRecord) {
     throw createHttpError(400, 'Selected class does not exist');
@@ -464,6 +475,7 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
     startDate,
     endDate: endDate || undefined,
     description,
+    admitCardFeeAmount: Number(admitCardFeeAmount.toFixed(2)),
     status,
     createdBy: createdBy || existingExam?.createdBy || undefined,
 
@@ -482,6 +494,12 @@ const createExam = asyncHandler(async (req, res) => {
   try {
     const payload = await resolveExamPayload(req.body, { createdBy: req.user._id });
     const createdExam = await Exam.create(payload);
+
+    await syncAdmitCardsForExam({
+      examId: createdExam._id,
+      actorUserId: req.user._id
+    });
+
     const data = await Exam.findById(createdExam._id).populate(EXAM_POPULATE).lean();
 
     return res.status(201).json({ success: true, data });
@@ -659,6 +677,11 @@ const updateExam = asyncHandler(async (req, res) => {
     })
       .populate(EXAM_POPULATE)
       .lean();
+
+    await syncAdmitCardsForExam({
+      examId: req.params.id,
+      actorUserId: req.user._id
+    });
 
     return res.json({ success: true, data: updatedExam });
   } catch (error) {

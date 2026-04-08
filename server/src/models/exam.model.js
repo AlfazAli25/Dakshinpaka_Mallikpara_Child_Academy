@@ -95,6 +95,7 @@ const examSchema = new mongoose.Schema(
     startDate: { type: Date, required: true },
     endDate: { type: Date },
     description: { type: String, trim: true },
+    admitCardFeeAmount: { type: Number, min: 0, default: 0 },
     status: {
       type: String,
       enum: EXAM_STATUS,
@@ -187,6 +188,13 @@ examSchema.pre('validate', function preValidateExam(next) {
 
   if (!EXAM_TYPES.includes(String(this.examType || '').trim())) {
     this.examType = 'Unit Test';
+  }
+
+  const admitCardFeeAmount = Number(this.admitCardFeeAmount ?? 0);
+  if (!Number.isFinite(admitCardFeeAmount) || admitCardFeeAmount < 0) {
+    this.invalidate('admitCardFeeAmount', 'Admit card fee amount must be 0 or more');
+  } else {
+    this.admitCardFeeAmount = Number(admitCardFeeAmount.toFixed(2));
   }
 
   if (!EXAM_STATUS.includes(String(this.status || '').trim())) {

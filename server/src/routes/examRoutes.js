@@ -48,6 +48,7 @@ const ensureUpdatePayload = body().custom((value, { req }) => {
     'startDate',
     'endDate',
     'description',
+    'admitCardFeeAmount',
     'status'
   ];
 
@@ -72,6 +73,7 @@ router.post(
     body('academicYear')
       .matches(ACADEMIC_YEAR_REGEX)
       .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
+    body('admitCardFeeAmount').optional().isFloat({ min: 0 }).withMessage('Admit card fee amount must be 0 or more'),
     body('startDate').notEmpty().withMessage('Start date is required'),
     validateDateRange,
     body('status').optional().isIn(EXAM_STATUS).withMessage('Invalid exam status selected')
@@ -120,6 +122,7 @@ router.put(
       .optional()
       .matches(ACADEMIC_YEAR_REGEX)
       .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
+    body('admitCardFeeAmount').optional().isFloat({ min: 0 }).withMessage('Admit card fee amount must be 0 or more'),
     validateDateRange,
     body('status').optional().isIn(EXAM_STATUS).withMessage('Invalid exam status selected'),
     ensureUpdatePayload

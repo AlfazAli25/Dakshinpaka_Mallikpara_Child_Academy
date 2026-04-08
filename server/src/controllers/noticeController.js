@@ -291,6 +291,13 @@ const getStudentNotices = asyncHandler(async (req, res) => {
       },
       {
         $or: [
+          { studentIds: student._id },
+          { studentIds: { $size: 0 } },
+          { studentIds: { $exists: false } }
+        ]
+      },
+      {
+        $or: [
           { classIds: student.classId },
           { classIds: { $size: 0 } },
           { classIds: { $exists: false } }
