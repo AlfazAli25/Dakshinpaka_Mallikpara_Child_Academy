@@ -148,7 +148,11 @@ const downloadClassAdmitCardsZipHandler = asyncHandler(async (req, res) => {
       student: admitCard.studentId
     });
 
-    zip.addFile(generated.fileName, generated.pdfBuffer);
+    const pdfBuffer = Buffer.isBuffer(generated.pdfBuffer)
+      ? generated.pdfBuffer
+      : Buffer.from(generated.pdfBuffer);
+
+    zip.addFile(generated.fileName, pdfBuffer);
   }
 
   const firstCard = classCards[0] || {};
@@ -200,11 +204,15 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
     student: admitCard.studentId
   });
 
+  const pdfBuffer = Buffer.isBuffer(generated.pdfBuffer)
+    ? generated.pdfBuffer
+    : Buffer.from(generated.pdfBuffer);
+
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${generated.fileName}"`);
-  res.setHeader('Content-Length', generated.pdfBuffer.length);
+  res.setHeader('Content-Length', pdfBuffer.length);
   res.setHeader('Cache-Control', 'no-store');
-  res.send(generated.pdfBuffer);
+  res.send(pdfBuffer);
 });
 
 module.exports = {
