@@ -46,6 +46,82 @@ const createToastId = () => {
   return `${Date.now()}-${randomPart}`;
 };
 
+const normalizeMessage = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const toFriendlyErrorMessage = (rawMessage) => {
+  const message = normalizeMessage(rawMessage);
+  if (!message) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  const lower = message.toLowerCase();
+
+  if (
+    lower.includes('session expired')
+    || lower.includes('unauthorized')
+    || lower.includes('jwt')
+    || lower.includes('token')
+    || lower.includes('login again')
+  ) {
+    return 'Your session has expired. Please log in again.';
+  }
+
+  if (
+    lower.includes('network error')
+    || lower.includes('failed to fetch')
+    || lower.includes('ecconnrefused')
+    || lower.includes('socket hang up')
+  ) {
+    return 'Cannot connect right now. Please check your internet and try again.';
+  }
+
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'This is taking too long. Please try again.';
+  }
+
+  if (lower.includes('forbidden') || lower.includes('not allowed') || lower.includes('permission')) {
+    return 'You do not have permission to do this action.';
+  }
+
+  if (lower.includes('not found')) {
+    return 'The requested item was not found.';
+  }
+
+  if (lower.includes('e11000') || lower.includes('duplicate key') || lower.includes('already exists')) {
+    return 'This entry already exists.';
+  }
+
+  if (lower.includes('validation') || lower.includes('invalid') || lower.includes('cast to objectid')) {
+    return 'Some details are invalid. Please check and try again.';
+  }
+
+  if (
+    lower.includes('mongoservererror')
+    || lower.includes('mongoose')
+    || lower.includes('stack')
+    || lower.includes('exception')
+    || lower.includes('syntaxerror')
+    || message.length > 220
+  ) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  return message;
+};
+
+const toDisplayMessage = (type, message) => {
+  const normalized = normalizeMessage(message);
+  if (!normalized) {
+    return '';
+  }
+
+  if (type === 'error') {
+    return toFriendlyErrorMessage(normalized);
+  }
+
+  return normalized;
+};
+
 function ToastViewport({ toasts, onDismiss, onConfirm, onCancel }) {
   return (
     <div className="pointer-events-none fixed left-1/2 top-4 z-[90] flex w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 flex-col gap-2">
@@ -122,7 +198,7 @@ export function ToastProvider({ children }) {
   }, []);
 
   const confirm = useCallback((message, options = {}) => {
-    const normalizedMessage = String(message || '').trim();
+    const normalizedMessage = toDisplayMessage('confirm', message);
     if (!normalizedMessage) {
       return Promise.resolve(false);
     }
@@ -150,7 +226,7 @@ export function ToastProvider({ children }) {
   }, []);
 
   const push = useCallback((type, message, durationMs = DEFAULT_DURATION_MS) => {
-    const normalizedMessage = String(message || '').trim();
+    const normalizedMessage = toDisplayMessage(type, message);
     if (!normalizedMessage) {
       return;
     }

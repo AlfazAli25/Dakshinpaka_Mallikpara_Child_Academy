@@ -516,9 +516,7 @@ export default function AdminNoticesPage() {
       return;
     }
 
-    const notes = decision === 'REJECT'
-      ? window.prompt('Optional reason for rejection:', '') || ''
-      : '';
+    const notes = '';
 
     setVerifyingPaymentId(paymentId);
     try {
