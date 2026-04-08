@@ -213,37 +213,40 @@ const create = async (payload) => {
 	const normalizedEmail = String(email || '').toLowerCase().trim();
 	const hasProvidedEmail = Boolean(normalizedEmail);
 	const normalizedGender = String(gender || '').toUpperCase().trim();
-	const normalizedRollNo = Number(rollNo);
+	const normalizedClassId = String(classId || '').trim();
+	const hasClassId = Boolean(normalizedClassId);
+	const hasProvidedRollNo = rollNo !== undefined && rollNo !== null && String(rollNo).trim() !== '';
+	const requestedRollNo = hasProvidedRollNo ? Number(rollNo) : null;
 	const normalizedGuardianContact = String(guardianContact || '').trim();
 	const normalizedAddress = String(address || '').trim();
 	const pendingFeesProvided =
 		pendingFees !== undefined && pendingFees !== null && String(pendingFees).trim() !== '';
 	const normalizedPendingFees =
 		pendingFees === undefined || pendingFees === null || String(pendingFees).trim() === '' ? 0 : Number(pendingFees);
-	const normalizedAttendance = Number(attendance);
-	const parsedDob = new Date(dob);
+	const attendanceProvided =
+		attendance !== undefined && attendance !== null && String(attendance).trim() !== '';
+	const normalizedAttendance = attendanceProvided ? Number(attendance) : 0;
+	const dobProvided = dob !== undefined && dob !== null && String(dob).trim() !== '';
+	const parsedDob = dobProvided ? new Date(dob) : null;
+
+	let normalizedRollNo = null;
+	if (hasProvidedRollNo) {
+		normalizedRollNo = requestedRollNo;
+	}
 
 	if (
 		!name ||
 		!password ||
-		!classId ||
-		rollNo === undefined ||
-		rollNo === null ||
-		String(rollNo).trim() === '' ||
-		!normalizedGender ||
-		!dob ||
-		!normalizedGuardianContact ||
-		!normalizedAddress ||
-		attendance === undefined
+		!normalizedGuardianContact
 	) {
 		const error = new Error(
-			'All required student details are: name, password, class, roll number, gender, date of birth, guardian contact, address, and attendance'
+			'All required student details are: name, guardian contact, and password'
 		);
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0) {
+	if (hasProvidedRollNo && (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0)) {
 		const error = new Error('Roll number must be a positive whole number');
 		error.statusCode = 400;
 		throw error;
@@ -255,22 +258,41 @@ const create = async (payload) => {
 		throw error;
 	}
 
-	if (!Number.isFinite(normalizedAttendance) || normalizedAttendance < 0 || normalizedAttendance > 100) {
+	if (attendanceProvided && (!Number.isFinite(normalizedAttendance) || normalizedAttendance < 0 || normalizedAttendance > 100)) {
 		const error = new Error('Attendance must be between 0 and 100');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (!['MALE', 'FEMALE', 'OTHER'].includes(normalizedGender)) {
+	if (normalizedGender && !['MALE', 'FEMALE', 'OTHER'].includes(normalizedGender)) {
 		const error = new Error('Gender must be MALE, FEMALE, or OTHER');
 		error.statusCode = 400;
 		throw error;
 	}
 
-	if (Number.isNaN(parsedDob.getTime()) || parsedDob > new Date()) {
+	if (parsedDob && (Number.isNaN(parsedDob.getTime()) || parsedDob > new Date())) {
 		const error = new Error('Please enter a valid date of birth');
 		error.statusCode = 400;
 		throw error;
+	}
+
+	if (hasClassId && !mongoose.Types.ObjectId.isValid(normalizedClassId)) {
+		const error = new Error('Invalid class selected');
+		error.statusCode = 400;
+		throw error;
+	}
+
+	if (!hasProvidedRollNo) {
+		if (hasClassId) {
+			const highestRollNoStudent = await Student.findOne({ classId: normalizedClassId })
+				.select('rollNo')
+				.sort({ rollNo: -1 })
+				.lean();
+			const highestRollNo = Number(highestRollNoStudent?.rollNo);
+			normalizedRollNo = Number.isInteger(highestRollNo) && highestRollNo > 0 ? highestRollNo + 1 : 1;
+		} else {
+			normalizedRollNo = Math.max(1, Math.floor(Date.now() / 1000));
+		}
 	}
 
 	if (hasProvidedEmail) {
@@ -288,11 +310,13 @@ const create = async (payload) => {
 		}
 	}
 
-	const existingRollNo = await Student.findOne({ classId, rollNo: normalizedRollNo }).select('_id');
-	if (existingRollNo) {
-		const error = new Error('Roll number already exists in this class');
-		error.statusCode = 409;
-		throw error;
+	if (hasClassId) {
+		const existingRollNo = await Student.findOne({ classId: normalizedClassId, rollNo: normalizedRollNo }).select('_id');
+		if (existingRollNo) {
+			const error = new Error('Roll number already exists in this class');
+			error.statusCode = 409;
+			throw error;
+		}
 	}
 
 	const emailForLogin = hasProvidedEmail ? normalizedEmail : await generateFallbackStudentEmail();
@@ -315,11 +339,11 @@ const create = async (payload) => {
 			rollNo: normalizedRollNo,
 			profileImageUrl: uploadedStudentPhoto?.secureUrl || DEFAULT_STUDENT_PROFILE_IMAGE_URL,
 			profileImagePublicId: uploadedStudentPhoto?.publicId || undefined,
-			classId,
-			gender: normalizedGender,
-			dob: parsedDob,
+			classId: hasClassId ? normalizedClassId : undefined,
+			gender: normalizedGender || undefined,
+			dob: parsedDob || undefined,
 			guardianContact: normalizedGuardianContact,
-			address: normalizedAddress,
+			address: normalizedAddress || undefined,
 			pendingFees: normalizedPendingFees,
 			attendance: normalizedAttendance
 		});

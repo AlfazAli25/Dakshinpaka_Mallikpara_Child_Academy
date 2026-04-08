@@ -336,12 +336,10 @@ export default function AdminTeachersPage() {
       <PageHeader
         eyebrow="Administration"
         title="Teachers"
-        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records. Teacher ID is generated automatically."
+        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records."
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Teacher</h3>
-        <p className="mb-4 text-sm text-slate-600">Class and subject assignment is optional during registration. You can assign them now or later.</p>
-        <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
           <Input label={requiredLabel('Email')} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />

@@ -487,8 +487,17 @@ export default function AdminStudentsPage() {
   const onCreate = async (event) => {
     event.preventDefault();
 
+    const normalizedName = String(form.name || '').trim();
+    const normalizedGuardianContact = String(form.guardianContact || '').trim();
+
     if (String(form.password || '') !== String(form.confirmPassword || '')) {
       setError('Password and confirm password must match.');
+      setMessage('');
+      return;
+    }
+
+    if (!normalizedName || !normalizedGuardianContact || !String(form.password || '')) {
+      setError('Name, guardian contact, password, and confirm password are required.');
       setMessage('');
       return;
     }
@@ -501,37 +510,26 @@ export default function AdminStudentsPage() {
       return;
     }
 
-    if (
-      !form.classId ||
-      String(form.rollNo || '').trim() === '' ||
-      !form.gender ||
-      !form.dob ||
-      !String(form.guardianContact || '').trim() ||
-      !String(form.address || '').trim() ||
-      String(form.pendingFees || '').trim() === '' ||
-      String(form.attendance || '').trim() === ''
-    ) {
-      setError('Please enter all student details before creating the account.');
-      setMessage('');
-      return;
-    }
+    const hasRollNo = String(form.rollNo || '').trim() !== '';
+    const hasPendingFees = String(form.pendingFees || '').trim() !== '';
+    const hasAttendance = String(form.attendance || '').trim() !== '';
 
-    const normalizedPendingFees = Number(form.pendingFees);
-    const normalizedRollNo = Number(form.rollNo);
-    const normalizedAttendance = Number(form.attendance);
-    if (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0) {
+    const normalizedRollNo = hasRollNo ? Number(form.rollNo) : null;
+    if (hasRollNo && (!Number.isInteger(normalizedRollNo) || normalizedRollNo <= 0)) {
       setError('Roll number must be a positive whole number.');
       setMessage('');
       return;
     }
 
-    if (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0) {
+    const normalizedPendingFees = hasPendingFees ? Number(form.pendingFees) : null;
+    if (hasPendingFees && (!Number.isFinite(normalizedPendingFees) || normalizedPendingFees < 0)) {
       setError('Pending fees must be 0 or greater.');
       setMessage('');
       return;
     }
 
-    if (!Number.isFinite(normalizedAttendance) || normalizedAttendance < 0 || normalizedAttendance > 100) {
+    const normalizedAttendance = hasAttendance ? Number(form.attendance) : null;
+    if (hasAttendance && (!Number.isFinite(normalizedAttendance) || normalizedAttendance < 0 || normalizedAttendance > 100)) {
       setError('Attendance must be between 0 and 100.');
       setMessage('');
       return;
@@ -543,21 +541,42 @@ export default function AdminStudentsPage() {
 
     try {
       const formData = new FormData();
-      formData.append('name', String(form.name || '').trim());
+      formData.append('name', normalizedName);
 
       if (normalizedEmail) {
         formData.append('email', normalizedEmail);
       }
 
       formData.append('password', form.password);
-      formData.append('classId', form.classId);
-      formData.append('rollNo', String(normalizedRollNo));
-      formData.append('gender', form.gender);
-      formData.append('dob', form.dob);
-      formData.append('guardianContact', String(form.guardianContact || '').trim());
-      formData.append('address', String(form.address || '').trim());
-      formData.append('pendingFees', String(normalizedPendingFees));
-      formData.append('attendance', String(normalizedAttendance));
+      if (String(form.classId || '').trim()) {
+        formData.append('classId', String(form.classId || '').trim());
+      }
+
+      if (hasRollNo) {
+        formData.append('rollNo', String(normalizedRollNo));
+      }
+
+      if (String(form.gender || '').trim()) {
+        formData.append('gender', String(form.gender || '').trim());
+      }
+
+      if (String(form.dob || '').trim()) {
+        formData.append('dob', String(form.dob || '').trim());
+      }
+
+      formData.append('guardianContact', normalizedGuardianContact);
+
+      if (String(form.address || '').trim()) {
+        formData.append('address', String(form.address || '').trim());
+      }
+
+      if (hasPendingFees) {
+        formData.append('pendingFees', String(normalizedPendingFees));
+      }
+
+      if (hasAttendance) {
+        formData.append('attendance', String(normalizedAttendance));
+      }
 
       if (studentPhotoFile) {
         formData.append('studentPhoto', studentPhotoFile);
@@ -612,40 +631,33 @@ export default function AdminStudentsPage() {
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
         <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Student</h3>
-        <p className="mb-2 text-sm text-slate-600">Admin must register each student one by one with all profile details.</p>
-        <p className="mb-4 text-xs text-slate-500">Student ID is generated automatically after account creation.</p>
-        <p className="mb-2 text-xs text-blue-700">After each create, Class and Attendance are kept for the next student entry.</p>
-        <p className="mb-3 text-xs text-slate-500">Fields marked with <span className="font-semibold text-red-600">*</span> are mandatory.</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
           <Input label="Email (optional)" type="email" value={form.email} onChange={onChange('email')} className="h-11" />
           <Select
-            label={requiredLabel('Class')}
+            label="Class"
             value={form.classId}
             onChange={onChange('classId')}
-            required
             className="h-11"
             options={[{ value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' }, ...classOptions]}
           />
           <Input
-            label={requiredLabel('Roll No')}
+            label="Roll No"
             type="number"
             min="1"
             step="1"
             value={form.rollNo}
             onChange={onChange('rollNo')}
-            required
             className="h-11"
           />
           <Select
-            label={requiredLabel('Gender')}
+            label="Gender"
             value={form.gender}
             onChange={onChange('gender')}
-            required
             className="h-11"
             options={genderOptions}
           />
-          <Input label={requiredLabel('Date of Birth')} type="date" value={form.dob} onChange={onChange('dob')} required className="h-11" />
+          <Input label="Date of Birth" type="date" value={form.dob} onChange={onChange('dob')} className="h-11" />
           <Input
             label={requiredLabel('Guardian Contact')}
             value={form.guardianContact}
@@ -654,31 +666,28 @@ export default function AdminStudentsPage() {
             className="h-11"
           />
           <Input
-            label={requiredLabel('Address')}
+            label="Address"
             value={form.address}
             onChange={onChange('address')}
-            required
             className="h-11"
           />
           <Input
-            label={requiredLabel('Pending Fees (INR)')}
+            label="Pending Fees (INR)"
             type="number"
             min="0"
             step="0.01"
             value={form.pendingFees}
             onChange={onChange('pendingFees')}
-            required
             className="h-11"
           />
           <Input
-            label={requiredLabel('Attendance (%)')}
+            label="Attendance (%)"
             type="number"
             min="0"
             max="100"
             step="0.01"
             value={form.attendance}
             onChange={onChange('attendance')}
-            required
             className="h-11"
           />
           <Input

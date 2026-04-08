@@ -31,14 +31,14 @@ router.post(
 		body('name').notEmpty().withMessage('Name is required'),
 		body('email').optional({ checkFalsy: true }).isEmail().withMessage('Please enter a valid email address.'),
 		body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-		body('classId').notEmpty().withMessage('Class is required').bail().isMongoId().withMessage('Invalid class selected'),
-		body('rollNo').isInt({ min: 1 }).withMessage('Roll number must be a positive whole number'),
-		body('gender').isIn(['MALE', 'FEMALE', 'OTHER']).withMessage('Gender must be MALE, FEMALE, or OTHER'),
-		body('dob').isISO8601().withMessage('Please enter a valid date of birth'),
+		body('classId').optional({ checkFalsy: true }).isMongoId().withMessage('Invalid class selected'),
+		body('rollNo').optional({ checkFalsy: true }).isInt({ min: 1 }).withMessage('Roll number must be a positive whole number'),
+		body('gender').optional({ checkFalsy: true }).isIn(['MALE', 'FEMALE', 'OTHER']).withMessage('Gender must be MALE, FEMALE, or OTHER'),
+		body('dob').optional({ checkFalsy: true }).isISO8601().withMessage('Please enter a valid date of birth'),
 		body('guardianContact').notEmpty().withMessage('Guardian contact is required'),
-		body('address').notEmpty().withMessage('Address is required'),
-		body('pendingFees').optional().isFloat({ min: 0 }).withMessage('Pending fees must be 0 or greater'),
-		body('attendance').isFloat({ min: 0, max: 100 }).withMessage('Attendance must be between 0 and 100')
+		body('address').optional({ checkFalsy: true }).notEmpty().withMessage('Address is required'),
+		body('pendingFees').optional({ checkFalsy: true }).isFloat({ min: 0 }).withMessage('Pending fees must be 0 or greater'),
+		body('attendance').optional({ checkFalsy: true }).isFloat({ min: 0, max: 100 }).withMessage('Attendance must be between 0 and 100')
 	],
 	validate,
 	controller.create
