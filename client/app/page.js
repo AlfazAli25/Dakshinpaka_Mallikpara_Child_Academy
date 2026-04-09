@@ -51,7 +51,7 @@ const schoolVideos = [
 ];
 
 const growthHighlights = [
-  'We are a small kindergarten school with around 180 to 200 students.',
+  'We are a small kindergarten school with a close-knit learning environment.',
   'Our focus is early childhood learning through play, stories, and basic skills.',
   'Small class groups help teachers give personal attention to every child.',
   'Parents and teachers stay connected regularly to support each student.'
@@ -198,8 +198,8 @@ export default function HomePage() {
               </p>
               <h2 className="mt-4 text-3xl font-bold leading-tight text-white md:text-4xl">{t.heroTitle}</h2>
               <p className="mt-4 max-w-2xl text-sm text-red-100 md:text-base">
-                We are a small neighborhood kindergarten with around 180 to 200 students. Our school focuses on early learning,
-                child care, values, and close parent-teacher communication, with simple digital support for daily school activities.
+                We are a small neighborhood kindergarten focused on early learning, child care, values, and close
+                parent-teacher communication, with simple digital support for daily school activities.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-medium text-red-50">{t.quality}</span>
@@ -224,8 +224,8 @@ export default function HomePage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wider text-red-500">Students</p>
-                  <p className="mt-1 font-semibold text-red-900">Around 180-200</p>
+                  <p className="text-xs uppercase tracking-wider text-red-500">School Type</p>
+                  <p className="mt-1 font-semibold text-red-900">Kindergarten</p>
                 </div>
                 <div className="rounded-xl bg-white p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-wider text-red-500">Location</p>
