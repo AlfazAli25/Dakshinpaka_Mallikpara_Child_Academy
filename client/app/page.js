@@ -224,8 +224,8 @@ export default function HomePage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wider text-red-500">School Type</p>
-                  <p className="mt-1 font-semibold text-red-900">Kindergarten</p>
+                  <p className="text-xs uppercase tracking-wider text-red-500">ESTD</p>
+                  <p className="mt-1 font-semibold text-red-900">2018</p>
                 </div>
                 <div className="rounded-xl bg-white p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-wider text-red-500">Location</p>
