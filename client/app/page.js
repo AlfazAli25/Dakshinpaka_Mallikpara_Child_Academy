@@ -51,10 +51,10 @@ const schoolVideos = [
 ];
 
 const growthHighlights = [
-  'Started with a small primary section and now serves multi-grade learners.',
-  'Added digital classroom tools and activity-based teaching methods.',
-  'Expanded sports, arts, and extracurricular opportunities for students.',
-  'Strengthened parent-school communication and student support systems.'
+  'We are a small kindergarten school with around 180 to 200 students.',
+  'Our focus is early childhood learning through play, stories, and basic skills.',
+  'Small class groups help teachers give personal attention to every child.',
+  'Parents and teachers stay connected regularly to support each student.'
 ];
 
 const text = {
@@ -62,14 +62,14 @@ const text = {
     welcome: 'Welcome to',
     register: 'Register',
     login: 'Login',
-    schoolOverview: 'School Overview',
-    heroTitle: 'Shaping Young Minds with Care and Excellence',
-    quality: 'Quality Education',
-    digital: 'Digital Campus',
-    holistic: 'Holistic Growth',
+    schoolOverview: 'Kindergarten Overview',
+    heroTitle: 'A Small Kindergarten Where Every Child Is Known by Name',
+    quality: 'Foundational Learning',
+    digital: 'Simple Digital Support',
+    holistic: 'Care, Play, and Values',
     imageGallery: 'School Image Gallery',
     videoGallery: 'School Video Gallery',
-    years: 'Our Development Over the Years',
+    years: 'Our Journey as a Small School',
     join: 'Join Our School Community',
     quickAccess: 'Quick Access',
     quickNote: 'After login, you can quickly return to your panel from here.',
@@ -198,8 +198,8 @@ export default function HomePage() {
               </p>
               <h2 className="mt-4 text-3xl font-bold leading-tight text-white md:text-4xl">{t.heroTitle}</h2>
               <p className="mt-4 max-w-2xl text-sm text-red-100 md:text-base">
-                Our school focuses on academic growth, values, and all-round development. This website provides a complete digital
-                platform for parents, students, teachers, and administrators.
+                We are a small neighborhood kindergarten with around 180 to 200 students. Our school focuses on early learning,
+                child care, values, and close parent-teacher communication, with simple digital support for daily school activities.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-medium text-red-50">{t.quality}</span>
@@ -224,8 +224,8 @@ export default function HomePage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl bg-white p-4 shadow-sm">
-                  <p className="text-xs uppercase tracking-wider text-red-500">ESTD</p>
-                  <p className="mt-1 font-semibold text-red-900">2018</p>
+                  <p className="text-xs uppercase tracking-wider text-red-500">Students</p>
+                  <p className="mt-1 font-semibold text-red-900">Around 180-200</p>
                 </div>
                 <div className="rounded-xl bg-white p-4 shadow-sm">
                   <p className="text-xs uppercase tracking-wider text-red-500">Location</p>
