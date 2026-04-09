@@ -210,24 +210,6 @@ await session.endSession();
 }
 };
 
-const getPaymentStatusByTransactionForStudent = async ({ transactionId, userId }) => {
-const student = await Student.findOne({ userId });
-if (!student) {
-const error = new Error('Student record not found');
-error.statusCode = 404;
-throw error;
-}
-
-const payment = await Payment.findOne({ transactionId, studentId: student._id });
-if (!payment) {
-const error = new Error('Payment record not found for this student');
-error.statusCode = 404;
-throw error;
-}
-
-return payment;
-};
-
 const payCashByAdmin = async ({ feeId, adminUserId, amount }) => {
 const result = await runWithOptionalTransaction(async (session) => {
 const selectedFee = await getSessionQuery(Fee.findById(feeId), session);
@@ -713,7 +695,6 @@ payOnlineByAdmin,
 uploadStaticQrScreenshotByStudent,
 listPendingVerificationPayments,
 verifyStaticQrPaymentByAdmin,
-getPaymentStatusByTransactionForStudent,
 getStudentPaymentsForAdmin,
 getStudentPaymentsForStudent,
 getPaymentScreenshotPathForAdmin

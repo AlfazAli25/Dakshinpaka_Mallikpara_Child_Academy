@@ -11,7 +11,6 @@ router.get('/', protect, requireRole(['admin', 'student']), controller.list);
 router.get('/pending-verifications', protect, requireRole(['admin']), controller.listPendingVerifications);
 router.get('/student/:studentId/payments', protect, requireRole(['admin']), controller.getStudentPayments);
 router.get('/my/payments', protect, requireRole(['student']), controller.getMyPayments);
-router.get('/payments/:transactionId', protect, requireRole(['student']), controller.getPaymentStatus);
 router.get('/payments/:paymentId/screenshot', protect, requireRole(['admin']), controller.getPaymentScreenshot);
 router.post(
 	'/payments/:paymentId/verify',

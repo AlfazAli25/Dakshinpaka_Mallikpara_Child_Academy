@@ -110,26 +110,6 @@ const payOnline = asyncHandler(async (req, res) => {
 	res.json({ success: true, data: result, message: 'Online payment recorded successfully' });
 });
 
-const getPaymentStatus = asyncHandler(async (req, res) => {
-	const payment = await feeService.getPaymentStatusByTransactionForStudent({
-		transactionId: req.params.transactionId,
-		userId: req.user._id
-	});
-
-	res.json({
-		success: true,
-		data: {
-			studentId: payment.studentId,
-			amount: payment.amount,
-			transactionId: payment.transactionId,
-			paymentStatus: payment.paymentStatus,
-			createdAt: payment.createdAt,
-			updatedAt: payment.updatedAt,
-			qrCodeData: payment.qrCodeData
-		}
-	});
-});
-
 const uploadStaticQrScreenshot = asyncHandler(async (req, res) => {
 	const payment = await feeService.uploadStaticQrScreenshotByStudent({
 		feeId: req.params.id,
@@ -210,6 +190,5 @@ module.exports = {
 	verifyStaticQrPayment,
 	getStudentPayments,
 	getMyPayments,
-	getPaymentScreenshot,
-	getPaymentStatus
+	getPaymentScreenshot
 };
