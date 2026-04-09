@@ -51,9 +51,9 @@ const schoolVideos = [
 ];
 
 const growthHighlights = [
-  'We are a small kindergarten school with a close-knit learning environment.',
+  'We are a kindergarten school with a close-knit learning environment.',
   'Our focus is early childhood learning through play, stories, and basic skills.',
-  'Small class groups help teachers give personal attention to every child.',
+  'Class groups help teachers give personal attention to every child.',
   'Parents and teachers stay connected regularly to support each student.'
 ];
 
@@ -63,13 +63,13 @@ const text = {
     register: 'Register',
     login: 'Login',
     schoolOverview: 'Kindergarten Overview',
-    heroTitle: 'A Small Kindergarten Where Every Child Is Known by Name',
+    heroTitle: 'A Kindergarten Where Every Child Is Known by Name',
     quality: 'Foundational Learning',
     digital: 'Simple Digital Support',
     holistic: 'Care, Play, and Values',
     imageGallery: 'School Image Gallery',
     videoGallery: 'School Video Gallery',
-    years: 'Our Journey as a Small School',
+    years: 'Our Kindergarten Journey',
     join: 'Join Our School Community',
     quickAccess: 'Quick Access',
     quickNote: 'After login, you can quickly return to your panel from here.',
@@ -198,7 +198,7 @@ export default function HomePage() {
               </p>
               <h2 className="mt-4 text-3xl font-bold leading-tight text-white md:text-4xl">{t.heroTitle}</h2>
               <p className="mt-4 max-w-2xl text-sm text-red-100 md:text-base">
-                We are a small neighborhood kindergarten focused on early learning, child care, values, and close
+                We are a neighborhood kindergarten focused on early learning, child care, values, and close
                 parent-teacher communication, with simple digital support for daily school activities.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
