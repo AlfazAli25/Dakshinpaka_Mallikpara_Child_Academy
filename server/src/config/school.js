@@ -8,6 +8,10 @@ const SCHOOL_ADDRESS =
 const SCHOOL_MOBILE =
 	process.env.SCHOOL_MOBILE ||
 	'+91 9734196551, +91 9733114790';
+const SCHOOL_WEBSITE_URL =
+	process.env.SCHOOL_WEBSITE_URL ||
+	process.env.CLIENT_ORIGIN ||
+	'http://localhost:3000';
 const SCHOOL_TIME_ZONE =
 	process.env.SCHOOL_TIME_ZONE ||
 	'Asia/Kolkata';
@@ -17,5 +21,6 @@ module.exports = {
 	SCHOOL_BRANCH_NAME,
 	SCHOOL_ADDRESS,
 	SCHOOL_MOBILE,
+	SCHOOL_WEBSITE_URL,
 	SCHOOL_TIME_ZONE
 };

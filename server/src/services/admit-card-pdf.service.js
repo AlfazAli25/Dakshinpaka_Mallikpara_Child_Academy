@@ -14,7 +14,8 @@ const {
   SCHOOL_NAME,
   SCHOOL_ADDRESS,
   SCHOOL_MOBILE,
-  SCHOOL_TIME_ZONE
+  SCHOOL_TIME_ZONE,
+  SCHOOL_WEBSITE_URL
 } = require('../config/school');
 
 const { generateQrCodeDataUri } = require('../utils/qr-code');
@@ -454,19 +455,7 @@ const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) =
   const examYear = toSafeText(admitCard?.academicYear || exam?.academicYear, '-');
 
   const scheduleRows = getScheduleRows(admitCard, exam);
-  const admitQrPayloads = buildAdmitQrPayloads({
-    admitCard,
-    exam,
-    student,
-    studentName,
-    studentId,
-    className,
-    section,
-    rollNo,
-    examName,
-    examYear,
-    scheduleRows
-  });
+  const admitQrPayloads = [toSafeText(SCHOOL_WEBSITE_URL, 'http://localhost:3000')];
 
   const [schoolLogo, studentProfileImage, admitQrCode] = await Promise.all([
     resolveSchoolLogoDataUri(),

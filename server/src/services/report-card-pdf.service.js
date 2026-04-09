@@ -13,7 +13,8 @@ try {
 const {
   SCHOOL_NAME,
   SCHOOL_ADDRESS,
-  SCHOOL_MOBILE
+  SCHOOL_MOBILE,
+  SCHOOL_WEBSITE_URL
 } = require('../config/school');
 
 const { generateQrCodeDataUri } = require('../utils/qr-code');
@@ -459,7 +460,7 @@ const buildTableRowsHtml = ({ subjectRows = [], examColumns = [] }) => {
 
 const buildTemplateModel = async ({ reportCardData = {} }) => {
   const examColumns = normalizeExamColumns(reportCardData);
-  const reportQrPayloads = buildReportQrPayloads({ reportCardData, examColumns });
+  const reportQrPayloads = [toSafeText(SCHOOL_WEBSITE_URL, 'http://localhost:3000')];
 
   const [schoolLogo, studentProfileImage, reportQrCode] = await Promise.all([
     resolveSchoolLogoDataUri(),
