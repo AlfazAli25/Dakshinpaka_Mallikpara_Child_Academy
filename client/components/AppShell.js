@@ -10,12 +10,22 @@ import { clearSession, getToken, getUser } from '@/lib/session';
 export default function AppShell({ title, links, children, sidebarExtra = null }) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [markingReadId, setMarkingReadId] = useState('');
   const [user, setUser] = useState(null);
   const notifPanelRef = useRef(null);
   const notifButtonRef = useRef(null);
+
+  const toggleSidebar = () => {
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
+      setDesktopSidebarOpen((prev) => !prev);
+      return;
+    }
+
+    setMobileOpen((prev) => !prev);
+  };
 
   useEffect(() => {
     setUser(getUser());
@@ -165,9 +175,9 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setMobileOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20 md:hidden"
-              aria-label="Open navigation"
+              onClick={toggleSidebar}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20"
+              aria-label={desktopSidebarOpen ? 'Hide navigation' : 'Show navigation'}
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M4 7h16M4 12h16M4 17h16" />
@@ -265,6 +275,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
           title={title}
           links={links}
           mobileOpen={mobileOpen}
+          desktopOpen={desktopSidebarOpen}
           onClose={() => setMobileOpen(false)}
           extraContent={sidebarExtra}
         />

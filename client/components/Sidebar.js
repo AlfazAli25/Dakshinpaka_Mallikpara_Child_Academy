@@ -5,7 +5,7 @@ import { memo } from 'react';
 import { usePathname } from 'next/navigation';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
-function Sidebar({ title, links, mobileOpen = false, onClose = () => {}, extraContent = null }) {
+function Sidebar({ title, links, mobileOpen = false, desktopOpen = true, onClose = () => {}, extraContent = null }) {
   const pathname = usePathname();
 
   return (
@@ -20,8 +20,12 @@ function Sidebar({ title, links, mobileOpen = false, onClose = () => {}, extraCo
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto border-r border-red-900/50 bg-gradient-to-b from-red-800 via-red-700 to-red-800 p-4 text-red-50 transition-transform md:static md:z-auto md:w-72 md:translate-x-0 md:p-5 ${
+        className={`fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto border-r border-red-900/50 bg-gradient-to-b from-red-800 via-red-700 to-red-800 p-4 text-red-50 transition-all md:static md:z-auto ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        } ${
+          desktopOpen
+            ? 'md:w-72 md:translate-x-0 md:p-5 md:opacity-100'
+            : 'md:w-0 md:translate-x-0 md:border-r-0 md:p-0 md:opacity-0 md:pointer-events-none md:overflow-hidden'
         }`}
       >
         <div className="mb-5 flex items-center justify-between md:hidden">
