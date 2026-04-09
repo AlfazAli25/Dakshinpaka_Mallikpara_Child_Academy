@@ -7,10 +7,22 @@ import Sidebar from './Sidebar';
 import { get, post } from '@/lib/api';
 import { clearSession, getToken, getUser } from '@/lib/session';
 
+const DESKTOP_SIDEBAR_STATE_KEY = 'app-shell-desktop-sidebar-open';
+
 export default function AppShell({ title, links, children, sidebarExtra = null }) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+  const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    try {
+      return window.localStorage.getItem(DESKTOP_SIDEBAR_STATE_KEY) !== '0';
+    } catch (_error) {
+      return true;
+    }
+  });
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [markingReadId, setMarkingReadId] = useState('');
@@ -30,6 +42,14 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   useEffect(() => {
     setUser(getUser());
   }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DESKTOP_SIDEBAR_STATE_KEY, desktopSidebarOpen ? '1' : '0');
+    } catch (_error) {
+      // Ignore localStorage failures (private mode or blocked storage).
+    }
+  }, [desktopSidebarOpen]);
 
   useEffect(() => {
     if (user?.role !== 'admin') {
