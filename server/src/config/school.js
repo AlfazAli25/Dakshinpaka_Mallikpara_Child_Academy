@@ -10,6 +10,7 @@ const SCHOOL_MOBILE =
 	'+91 9734196551, +91 9733114790';
 const SCHOOL_WEBSITE_URL =
 	process.env.SCHOOL_WEBSITE_URL ||
+	process.env.SCHHOL_WEBSITE_URL ||
 	process.env.CLIENT_ORIGIN ||
 	'http://localhost:3000';
 const SCHOOL_TIME_ZONE =
