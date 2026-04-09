@@ -77,9 +77,10 @@ const toSafeText = (value, fallback = '-') => {
 const toSafeFileToken = (value, fallback = 'AdmitCard') =>
   toSafeText(value, fallback).replace(/[^A-Za-z0-9_-]/g, '_');
 
-const toCompactQrText = (value, fallback = '-') =>
+const toQrAlphanumericSafeText = (value, fallback = '-') =>
   toSafeText(value, fallback)
-    .replace(/[|;@]/g, '/')
+    .toUpperCase()
+    .replace(/[^A-Z0-9 $%*+\-./:]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -418,22 +419,27 @@ const buildAdmitQrPayloads = ({
     sch: normalizedScheduleRows.map((item) => [item.subjectName, item.startDate, item.endDate])
   };
 
+  const schedulePayloadText = normalizedScheduleRows
+    .map(
+      (item, index) =>
+        `${index + 1}.${toQrAlphanumericSafeText(item.subjectName, 'SUBJECT')}:${toQrAlphanumericSafeText(item.dateLabel, 'NA')}:${toQrAlphanumericSafeText(item.timeLabel, 'NA')}`
+    )
+    .join('/');
+
   const scannableTextPayload = [
-    'DMCA_ADMIT',
-    `SN:${toCompactQrText(SCHOOL_NAME)}`,
-    `SA:${toCompactQrText(SCHOOL_ADDRESS)}`,
-    `SP:${toCompactQrText(SCHOOL_MOBILE)}`,
-    `N:${toCompactQrText(studentName)}`,
-    `SID:${toCompactQrText(studentId)}`,
-    `CLS:${toCompactQrText(className)}`,
-    `SEC:${toCompactQrText(section)}`,
-    `ROLL:${toCompactQrText(rollNo)}`,
-    `EX:${toCompactQrText(examName)}`,
-    `YEAR:${toCompactQrText(examYear)}`,
-    `SCH:${normalizedScheduleRows
-      .map((item, index) => `${index + 1}.${toCompactQrText(item.subjectName)}@${toCompactQrText(item.dateLabel)}@${toCompactQrText(item.timeLabel)}`)
-      .join(';')}`
-  ].join('|');
+    'DMCA ADMIT',
+    `SN:${toQrAlphanumericSafeText(SCHOOL_NAME)}`,
+    `SA:${toQrAlphanumericSafeText(SCHOOL_ADDRESS)}`,
+    `SP:${toQrAlphanumericSafeText(SCHOOL_MOBILE)}`,
+    `N:${toQrAlphanumericSafeText(studentName)}`,
+    `SID:${toQrAlphanumericSafeText(studentId)}`,
+    `CLS:${toQrAlphanumericSafeText(className)}`,
+    `SEC:${toQrAlphanumericSafeText(section)}`,
+    `ROLL:${toQrAlphanumericSafeText(rollNo)}`,
+    `EX:${toQrAlphanumericSafeText(examName)}`,
+    `YEAR:${toQrAlphanumericSafeText(examYear)}`,
+    `SCH:${schedulePayloadText || 'NA'}`
+  ].join('/');
 
   return [scannableTextPayload, compactPayload, verbosePayload];
 };
@@ -467,9 +473,9 @@ const buildTemplateModel = async ({ admitCard = {}, exam = {}, student = {} }) =
     resolveStudentImageDataUri(student),
     generateQrCodeDataUri({
       payloads: admitQrPayloads,
-      width: 420,
-      margin: 2,
-      errorCorrectionLevel: 'M'
+      width: 560,
+      margin: 3,
+      errorCorrectionLevel: 'L'
     })
   ]);
 
