@@ -11,4 +11,4 @@ export const SCHOOL_INFO = {
   ]
 };
 
-export const POLICY_LAST_UPDATED = '28 March 2026';
+export const POLICY_LAST_UPDATED = '09 April 2026';

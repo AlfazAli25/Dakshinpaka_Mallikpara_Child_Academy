@@ -20,8 +20,8 @@ export default function AboutUsPage() {
           </p>
 
           <p>
-            For fee payments, the platform provides secure online payment support through Razorpay, along with transparent
-            payment status tracking and account updates for guardians and students.
+            For fee payments, the platform supports static QR payment submission with screenshot upload, followed by school
+            accounts/admin verification and transparent status tracking for guardians and students.
           </p>
 
           <p>

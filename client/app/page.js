@@ -291,10 +291,10 @@ export default function HomePage() {
             <div>
               <h3 className="text-xl font-semibold text-white">Important Information</h3>
               <p className="mt-1 text-sm text-red-100">
-                Policy and support pages required for secure online fee payment and user transparency.
+                Policy and support pages for static QR fee submission, payment-proof upload, and transparent verification.
               </p>
             </div>
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-red-200">Payment Compliance</p>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-red-200">Static QR Payment Support</p>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Link href="/privacy-policy" className="rounded-xl border border-white/60 bg-white px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-50">

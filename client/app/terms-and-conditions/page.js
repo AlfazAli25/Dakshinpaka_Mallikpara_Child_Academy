@@ -35,15 +35,15 @@ export default function TermsAndConditionsPage() {
             <h2 className="text-lg font-semibold text-slate-900">3. Fee Payment Terms</h2>
             <p>
               School fees may be paid through approved payment modes made available on the platform. Online transactions are
-              processed through Razorpay. The school does not store full card details or UPI PINs.
+              submitted through the school static QR channel and must include payment proof for verification. The school does
+              not store full card details or UPI PINs.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold text-slate-900">4. Transaction Confirmation</h2>
             <p>
-              A payment is considered successful only after a valid transaction reference is generated and the payment status
-              is confirmed by the payment gateway and banking network.
+              A payment is considered successful only after school accounts/admin verification and status update in the system.
             </p>
           </section>
 

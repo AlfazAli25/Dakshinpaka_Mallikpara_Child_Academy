@@ -32,9 +32,9 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-lg font-semibold text-slate-900">3. Payment Information</h2>
             <p>
-              Online payments are processed securely through Razorpay. We do not store debit or credit card numbers, CVV,
-              UPI PIN, or banking passwords on our systems. Payment data is handled by certified payment infrastructure
-              provided by Razorpay and regulated banking networks.
+              Online fee submission is supported through the school-approved static QR payment channel. Users submit payment
+              proof (screenshot) and reference details for admin verification. We do not store debit or credit card numbers,
+              CVV, UPI PIN, or banking passwords on our systems.
             </p>
           </section>
 

@@ -17,8 +17,8 @@ export default function RefundAndCancellationPage() {
           <section>
             <h2 className="text-lg font-semibold text-slate-900">1. Cancellation of Payment</h2>
             <p>
-              Once a fee payment is submitted and confirmed by the payment gateway, cancellation by the payer is generally not
-              permitted. For exceptional cases, users must contact the school office.
+              Once a fee payment proof is submitted for verification, cancellation by the payer is generally not permitted. For
+              exceptional cases, users must contact the school office.
             </p>
           </section>
 
@@ -44,7 +44,7 @@ export default function RefundAndCancellationPage() {
             <h2 className="text-lg font-semibold text-slate-900">4. Refund Processing Timeline</h2>
             <p>
               Approved refunds are initiated to the original payment source and are typically processed within 7 to 10 business
-              days, subject to banking and payment gateway timelines.
+              days, subject to banking timelines and internal verification completion.
             </p>
           </section>
 
@@ -57,10 +57,10 @@ export default function RefundAndCancellationPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-slate-900">6. Payment Gateway Note</h2>
+            <h2 className="text-lg font-semibold text-slate-900">6. Payment Safety Note</h2>
             <p>
-              Online payments are securely processed through Razorpay. The school does not store sensitive payment credentials
-              such as card numbers, CVV, or UPI PIN.
+              The platform does not store sensitive payment credentials such as card numbers, CVV, or UPI PIN. Online fee
+              submissions require payment proof and are reviewed by the school accounts/admin team.
             </p>
           </section>
         </div>

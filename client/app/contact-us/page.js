@@ -43,8 +43,8 @@ export default function ContactUsPage() {
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
           <p className="font-semibold">Payment Support</p>
           <p className="mt-1">
-            If you face any issue during online payment through Razorpay, please share the student name, class, and transaction
-            reference with our accounts office for prompt assistance.
+            If you face any issue during static QR payment submission, please share the student name, class, transaction
+            reference (if available), and payment screenshot with our accounts office for prompt assistance.
           </p>
         </div>
 
