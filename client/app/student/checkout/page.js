@@ -56,7 +56,6 @@ export default function StudentCheckoutPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [paying, setPaying] = useState(false);
-  const [paymentMode, setPaymentMode] = useState('VIA_ONLINE');
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -222,7 +221,7 @@ export default function StudentCheckoutPage() {
   };
 
   const hasPendingFeeMonth = Boolean(feeRowForSubmission);
-  const canSubmitOnline = paymentMode === 'VIA_ONLINE' && hasPendingFeeMonth && Boolean(screenshotFile) && !paying && isEnteredAmountValid;
+  const canSubmitOnline = hasPendingFeeMonth && Boolean(screenshotFile) && !paying && isEnteredAmountValid;
   const submitHint = !hasPendingFeeMonth
     ? profilePendingFees > 0
       ? `Pending fee INR ${profilePendingFees} exists, but fee ledger records are missing. Please contact admin.`
@@ -238,39 +237,15 @@ export default function StudentCheckoutPage() {
       <PageHeader
         eyebrow="Student Payments"
         title="Checkout"
-        description="Choose payment mode and submit online screenshot for verification when paying via QR."
+        description="Pay via static QR and submit screenshot for admin verification."
       />
 
       <div className="card-hover rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-600">Total Payable</p>
         <p className="mt-2 text-3xl font-bold text-slate-900">INR {payableAmount}</p>
-        <p className="mt-2 text-sm text-slate-500">Choose a payment mode. Cash collection is handled by Admin only.</p>
+        <p className="mt-2 text-sm text-slate-500">Student payments are submitted via static QR only. Cash collection is handled by Admin at the school office.</p>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setPaymentMode('VIA_CASH')}
-            className={`rounded-lg border px-4 py-3 text-left text-sm ${
-              paymentMode === 'VIA_CASH' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700'
-            }`}
-          >
-            <p className="font-semibold">Via Cash</p>
-            <p className="mt-1 text-xs">Pay at the Admin desk. QR is not required for cash payment.</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPaymentMode('VIA_ONLINE')}
-            className={`rounded-lg border px-4 py-3 text-left text-sm ${
-              paymentMode === 'VIA_ONLINE' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-700'
-            }`}
-          >
-            <p className="font-semibold">Via Online</p>
-            <p className="mt-1 text-xs">Pay through static QR and upload screenshot for admin verification.</p>
-          </button>
-        </div>
-
-        {paymentMode === 'VIA_ONLINE' && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-800">Outstanding Fee</p>
             <p className="mt-2 text-sm text-slate-700">Pending Amount: INR {effectivePendingAmount}</p>
             <p className="text-xs text-slate-500">Payments are applied to your oldest pending ledger entry automatically.</p>
@@ -344,14 +319,6 @@ export default function StudentCheckoutPage() {
             </button>
             <p className={`mt-2 text-xs ${hasPendingFeeMonth ? 'text-slate-500' : 'text-amber-700'}`}>{submitHint}</p>
           </div>
-        )}
-
-        {paymentMode === 'VIA_CASH' && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Cash Payment</p>
-            <p className="mt-1 text-sm text-slate-600">Please visit the admin office to complete cash payment. QR code is hidden in cash mode.</p>
-          </div>
-        )}
       </div>
 
       <Table columns={checkoutColumns} rows={checkoutHistory} loading={loading} scrollY maxHeightClass="max-h-[288px]" />

@@ -279,12 +279,12 @@ export default function AdminFeesPage() {
       <PageHeader
         eyebrow="Administration"
         title="Fees"
-        description="Process cash and in-person online payments, and review student screenshot submissions."
+        description="Process cash or direct online records, and verify student static-QR screenshot submissions."
       />
 
       <form onSubmit={onProcessPayment} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Process Payments</h3>
-        <p className="mb-4 text-sm text-slate-600">Record cash or in-person online payments. Use the queue below only for student-uploaded screenshots.</p>
+        <p className="mb-4 text-sm text-slate-600">Record cash or direct online confirmations. Use the queue below only for student-uploaded static QR screenshots.</p>
 
         <div className="grid gap-3 md:grid-cols-2">
           <Input
@@ -328,7 +328,7 @@ export default function AdminFeesPage() {
               required
             >
               <option value="CASH">Via Cash</option>
-              <option value="ONLINE">Via Online</option>
+              <option value="ONLINE">Online (Direct Record)</option>
             </select>
           </div>
 
@@ -354,7 +354,7 @@ export default function AdminFeesPage() {
 
         {paymentMode === 'ONLINE' && (
           <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Static QR Code (Online Payment)</p>
+            <p className="text-sm font-semibold text-slate-800">Static QR Code (Reference)</p>
             <Image
               src="/static-payment-qr.svg"
               alt="Static payment QR"
