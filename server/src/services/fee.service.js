@@ -4,7 +4,6 @@ const Student = require('../models/student.model');
 const Payment = require('../models/payment.model');
 const NoticePayment = require('../models/notice-payment.model');
 const createCrudService = require('./crud.service');
-const smepayService = require('./smepay.service');
 const { createFeeReceipt } = require('./receipt.service');
 const { createActionLog } = require('./action-log.service');
 const { notifyAdminPaymentSubmitted } = require('./notification.service');
@@ -51,13 +50,6 @@ const findById = async (id) =>
 Fee.findById(id).populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] });
 
 const buildTransactionId = (prefix = 'TXN') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
-
-const buildStudentPayload = (student) => ({
-name: student.name || 'Student',
-email: student.email || process.env.ADMIN_EMAIL || '',
-phone: student.phone || '',
-admissionNo: student.admissionNo || ''
-});
 
 const resolveRequestedAmount = ({ amount, totalPendingAmount }) => {
 const fallbackAmount =
@@ -216,229 +208,6 @@ return handler(null);
 } finally {
 await session.endSession();
 }
-};
-
-const createSmepayQrPaymentByStudent = async ({ feeId, userId, amount }) => {
-const student = await Student.findOne({ userId });
-if (!student) {
-const error = new Error('Student record not found');
-error.statusCode = 404;
-throw error;
-}
-
-const selectedFee = await Fee.findOne({ _id: feeId, studentId: student._id });
-if (!selectedFee) {
-const error = new Error('Fee record not found for this student');
-error.statusCode = 404;
-throw error;
-}
-
-await ensureMonthlyFeesForStudent({ studentId: student._id });
-const { pendingRows, totalPendingAmount } = await getPendingFeeRowsForStudent({ studentId: student._id });
-if (totalPendingAmount <= 0) {
-const error = new Error('All monthly fees are already paid');
-error.statusCode = 400;
-throw error;
-}
-
-const payAmount = resolveRequestedAmount({ amount, totalPendingAmount });
-const primaryPendingFee = pendingRows[0]?.fee;
-
-const alreadyPending = await Payment.findOne({
-studentId: student._id,
-paymentStatus: 'PENDING',
-paymentMethod: 'SMEPAY_QR',
-amount: payAmount
-}).sort({ createdAt: -1 });
-
-if (alreadyPending) {
-return alreadyPending;
-}
-
-const transactionId = buildTransactionId('TXN');
-const payment = await Payment.create({
-studentId: student._id,
-feeId: primaryPendingFee?._id || selectedFee._id,
-amount: payAmount,
-transactionId,
-paymentStatus: 'PENDING',
-paymentMethod: 'SMEPAY_QR',
-processedBy: 'SYSTEM',
-remainingBalance: Number(Math.max(totalPendingAmount - payAmount, 0).toFixed(2)),
-logs: [
-{
-source: 'REQUEST',
-status: 'PENDING',
-message: 'Payment request created locally before SMEpay call',
-payload: { feeId: String(primaryPendingFee?._id || selectedFee._id), amount: payAmount }
-}
-]
-});
-
-try {
-const gatewayResponse = await smepayService.createDynamicQr({
-transactionId,
-amount: payAmount,
-student: buildStudentPayload(student)
-});
-
-payment.providerOrderId = gatewayResponse.providerOrderId;
-payment.providerReferenceId = gatewayResponse.providerReferenceId;
-payment.qrCodeData = gatewayResponse.qrCodeData;
-payment.rawProviderResponse = gatewayResponse.raw;
-payment.logs.push({
-source: 'REQUEST',
-status: 'PENDING',
-message: 'SMEpay QR created successfully',
-payload: gatewayResponse.raw
-});
-await payment.save();
-
-await createActionLog({
-actorId: userId,
-action: 'FEE_SMEPAY_QR_CREATED',
-module: 'FEE',
-entityId: String(payment.feeId),
-metadata: { paymentId: String(payment._id), amount: payAmount, transactionId }
-});
-
-return payment;
-} catch (error) {
-payment.paymentStatus = 'FAILED';
-payment.logs.push({
-source: 'REQUEST',
-status: 'FAILED',
-message: error.message || 'SMEpay QR creation failed',
-payload: error.providerResponse || null
-});
-await payment.save();
-throw error;
-}
-};
-
-const processSmepayWebhook = async ({ payload, rawBody, signature }) => {
-const isValid = smepayService.verifyWebhookSignature({ rawBody, signature });
-if (!isValid) {
-const error = new Error('Invalid SMEpay webhook signature');
-error.statusCode = 401;
-throw error;
-}
-
-const transactionId = payload.transactionId || payload.transaction_id || payload.orderId || payload.order_id;
-if (!transactionId) {
-const error = new Error('transactionId is missing in webhook payload');
-error.statusCode = 400;
-throw error;
-}
-
-const normalizedStatus = smepayService.normalizeStatus(payload.status || payload.paymentStatus);
-const existingPayment = await Payment.findOne({ transactionId });
-if (!existingPayment) {
-const error = new Error('Payment record not found for transactionId');
-error.statusCode = 404;
-throw error;
-}
-
-if (existingPayment.paymentStatus === 'SUCCESS') {
-existingPayment.logs.push({
-source: 'WEBHOOK',
-status: normalizedStatus,
-message: 'Duplicate webhook received after payment already succeeded',
-payload
-});
-await existingPayment.save();
-return { payment: existingPayment, idempotent: true, updated: false };
-}
-
-if (normalizedStatus === 'SUCCESS') {
-const result = await runWithOptionalTransaction(async (session) => {
-const payment = await getSessionQuery(Payment.findById(existingPayment._id), session);
-if (!payment) {
-const error = new Error('Payment record not found while processing webhook');
-error.statusCode = 404;
-throw error;
-}
-
-if (payment.paymentStatus === 'SUCCESS') {
-return { payment, updated: false, allocation: null };
-}
-
-await ensureMonthlyFeesForStudent({ studentId: payment.studentId, session });
-const allocation = await allocatePaymentAcrossOldestMonths({
-studentId: payment.studentId,
-amount: payment.amount,
-paymentMethod: 'SMEPAY_QR',
-session
-});
-
-payment.paymentStatus = 'SUCCESS';
-payment.paidAt = new Date();
-payment.providerReferenceId = payload.referenceId || payload.reference_id || payment.providerReferenceId;
-payment.processedBy = 'SYSTEM';
-payment.feeId = allocation.primaryFee?._id || payment.feeId;
-payment.allocations = allocation.allocations;
-payment.remainingBalance = allocation.remainingBalance;
-payment.logs.push({
-source: 'WEBHOOK',
-status: 'SUCCESS',
-message: `Applied INR ${allocation.payAmount} across monthly ledger entries`,
-payload: {
-transactionId,
-remainingBalance: allocation.remainingBalance,
-allocationCount: allocation.allocations.length
-}
-});
-await payment.save({ session });
-
-const receipt = await recordFeeReceipt({
-studentId: payment.studentId,
-fee: allocation.primaryFee,
-payment,
-amount: allocation.payAmount,
-paymentMethod: 'SMEPAY_QR',
-session
-});
-
-return { payment, updated: true, allocation, receipt };
-});
-
-if (result.updated) {
-await createActionLog({
-action: 'FEE_SMEPAY_SUCCESS',
-module: 'FEE',
-entityId: String(result.payment.feeId),
-metadata: {
-paymentId: String(result.payment._id),
-transactionId,
-amount: result.allocation?.payAmount || result.payment.amount,
-remainingBalance: result.payment.remainingBalance
-}
-});
-}
-
-return { payment: result.payment, idempotent: false, updated: result.updated };
-}
-
-if (normalizedStatus === 'FAILED' || normalizedStatus === 'CANCELLED') {
-existingPayment.paymentStatus = normalizedStatus;
-existingPayment.logs.push({
-source: 'WEBHOOK',
-status: normalizedStatus,
-message: 'Payment marked unsuccessful from SMEpay webhook',
-payload
-});
-await existingPayment.save();
-return { payment: existingPayment, idempotent: false, updated: true };
-}
-
-existingPayment.logs.push({
-source: 'WEBHOOK',
-status: normalizedStatus,
-message: 'Webhook received with non-terminal status',
-payload
-});
-await existingPayment.save();
-return { payment: existingPayment, idempotent: false, updated: false };
 };
 
 const getPaymentStatusByTransactionForStudent = async ({ transactionId, userId }) => {
@@ -941,11 +710,9 @@ findAll,
 findById,
 payCashByAdmin,
 payOnlineByAdmin,
-createSmepayQrPaymentByStudent,
 uploadStaticQrScreenshotByStudent,
 listPendingVerificationPayments,
 verifyStaticQrPaymentByAdmin,
-processSmepayWebhook,
 getPaymentStatusByTransactionForStudent,
 getStudentPaymentsForAdmin,
 getStudentPaymentsForStudent,

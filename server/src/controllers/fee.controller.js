@@ -110,48 +110,6 @@ const payOnline = asyncHandler(async (req, res) => {
 	res.json({ success: true, data: result, message: 'Online payment recorded successfully' });
 });
 
-const createSmepayQr = asyncHandler(async (req, res) => {
-	const payment = await feeService.createSmepayQrPaymentByStudent({
-		feeId: req.params.id,
-		userId: req.user._id,
-		amount: req.body?.amount
-	});
-
-	res.status(201).json({
-		success: true,
-		message: 'SMEpay dynamic QR generated successfully',
-		data: {
-			studentId: payment.studentId,
-			amount: payment.amount,
-			transactionId: payment.transactionId,
-			paymentStatus: payment.paymentStatus,
-			qrCodeData: payment.qrCodeData,
-			providerOrderId: payment.providerOrderId,
-			createdAt: payment.createdAt,
-			updatedAt: payment.updatedAt
-		}
-	});
-});
-
-const smepayWebhook = asyncHandler(async (req, res) => {
-	const signature = req.headers['x-smepay-signature'] || req.headers['x-signature'];
-	const result = await feeService.processSmepayWebhook({
-		payload: req.body,
-		rawBody: req.rawBody,
-		signature
-	});
-
-	res.json({
-		success: true,
-		message: result.idempotent ? 'Duplicate webhook ignored safely' : 'Webhook processed successfully',
-		data: {
-			transactionId: result.payment.transactionId,
-			paymentStatus: result.payment.paymentStatus,
-			updated: result.updated
-		}
-	});
-});
-
 const getPaymentStatus = asyncHandler(async (req, res) => {
 	const payment = await feeService.getPaymentStatusByTransactionForStudent({
 		transactionId: req.params.transactionId,
@@ -247,13 +205,11 @@ module.exports = {
 	list,
 	payCash,
 	payOnline,
-	createSmepayQr,
 	uploadStaticQrScreenshot,
 	listPendingVerifications,
 	verifyStaticQrPayment,
 	getStudentPayments,
 	getMyPayments,
 	getPaymentScreenshot,
-	smepayWebhook,
 	getPaymentStatus
 };

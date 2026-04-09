@@ -7,8 +7,6 @@ const { screenshotUpload } = require('../middleware/upload.middleware');
 
 const router = express.Router();
 
-router.post('/smepay/webhook', controller.smepayWebhook);
-
 router.get('/', protect, requireRole(['admin', 'student']), controller.list);
 router.get('/pending-verifications', protect, requireRole(['admin']), controller.listPendingVerifications);
 router.get('/student/:studentId/payments', protect, requireRole(['admin']), controller.getStudentPayments);
@@ -46,14 +44,6 @@ router.post(
 	],
 	validate,
 	controller.payOnline
-);
-router.post(
-	'/:id/pay-smepay-qr',
-	protect,
-	requireRole(['student']),
-	[body('amount').optional().isFloat({ gt: 0 }).withMessage('Amount must be greater than 0')],
-	validate,
-	controller.createSmepayQr
 );
 router.post(
 	'/:id/upload-static-qr-screenshot',

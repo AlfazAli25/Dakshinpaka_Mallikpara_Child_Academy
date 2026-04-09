@@ -33,7 +33,7 @@ const paymentSchema = new mongoose.Schema(
     },
     providerOrderId: { type: String, trim: true },
     providerReferenceId: { type: String, trim: true },
-    paymentMethod: { type: String, trim: true, default: 'SMEPAY_QR' },
+    paymentMethod: { type: String, trim: true, default: 'STATIC_QR' },
     screenshotPath: { type: String, trim: true },
     screenshotPublicId: { type: String, trim: true },
     allocations: { type: [paymentAllocationSchema], default: [] },
