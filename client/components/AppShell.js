@@ -52,6 +52,23 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   }, [desktopSidebarOpen]);
 
   useEffect(() => {
+    if (!mobileOpen) {
+      return undefined;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
     if (user?.role !== 'admin') {
       return;
     }
@@ -290,7 +307,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
         </div>
       </div>
 
-      <div className="flex min-h-[calc(100vh-65px)]">
+      <div className="flex h-[calc(100vh-65px)] min-h-0 overflow-hidden">
         <Sidebar
           title={title}
           links={links}
@@ -299,7 +316,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
           onClose={() => setMobileOpen(false)}
           extraContent={sidebarExtra}
         />
-        <main className="smooth-enter w-full flex-1 overflow-x-hidden p-4 md:p-7">{children}</main>
+        <main className="smooth-enter min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-7">{children}</main>
       </div>
     </div>
   );
