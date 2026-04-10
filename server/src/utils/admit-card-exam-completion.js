@@ -7,38 +7,38 @@ const toValidDate = (value) => {
   return parsed;
 };
 
-const getScheduleEndTimestamp = (rows = []) => {
+const getScheduleStartTimestamp = (rows = []) => {
   const normalizedRows = Array.isArray(rows) ? rows : [];
 
-  const endTimes = normalizedRows
-    .map((item) => toValidDate(item?.endDate)?.getTime() || 0)
+  const startTimes = normalizedRows
+    .map((item) => toValidDate(item?.startDate || item?.endDate)?.getTime() || 0)
     .filter((value) => value > 0);
 
-  if (endTimes.length === 0) {
+  if (startTimes.length === 0) {
     return 0;
   }
 
-  return Math.max(...endTimes);
+  return Math.min(...startTimes);
 };
 
 const resolveExamCutoffDate = ({ exam = {}, admitCard = {} } = {}) => {
-  const examScheduleEndMs = getScheduleEndTimestamp(exam?.schedule);
-  if (examScheduleEndMs > 0) {
-    return new Date(examScheduleEndMs);
+  const examScheduleStartMs = getScheduleStartTimestamp(exam?.schedule);
+  if (examScheduleStartMs > 0) {
+    return new Date(examScheduleStartMs);
   }
 
-  const admitScheduleEndMs = getScheduleEndTimestamp(admitCard?.scheduleSnapshot);
-  if (admitScheduleEndMs > 0) {
-    return new Date(admitScheduleEndMs);
+  const admitScheduleStartMs = getScheduleStartTimestamp(admitCard?.scheduleSnapshot);
+  if (admitScheduleStartMs > 0) {
+    return new Date(admitScheduleStartMs);
   }
 
   return (
-    toValidDate(exam?.endDate) ||
-    toValidDate(admitCard?.examEndDate) ||
     toValidDate(exam?.startDate) ||
     toValidDate(admitCard?.examStartDate) ||
     toValidDate(exam?.examDate) ||
     toValidDate(exam?.date) ||
+    toValidDate(exam?.endDate) ||
+    toValidDate(admitCard?.examEndDate) ||
     null
   );
 };

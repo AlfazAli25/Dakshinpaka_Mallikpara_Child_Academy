@@ -26,6 +26,8 @@ const shouldBypassCache = (req) => {
     path.includes('/auth/') ||
     path.includes('/notifications') ||
     path.includes('/attendance') ||
+    path.includes('/notices/student') ||
+    path.includes('/admit-cards/my/available') ||
     path.includes('/students/me/profile') ||
     path.includes('/students/by-user/') ||
     path.includes('/students/') && path.includes('/profile') ||
