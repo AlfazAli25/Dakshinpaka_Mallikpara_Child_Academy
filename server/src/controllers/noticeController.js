@@ -5,6 +5,7 @@ const NoticePayment = require('../models/notice-payment.model');
 const Student = require('../models/student.model');
 const Teacher = require('../models/teacher.model');
 const ClassModel = require('../models/class.model');
+const AdmitCard = require('../models/admit-card.model');
 const Exam = require('../models/exam.model');
 
 const DEFAULT_PAGE = 1;
@@ -12,6 +13,16 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 const toId = (value) => String(value?._id || value || '');
+
+const parseAdmitCardIdFromActionPath = (value) => {
+  const path = String(value || '').trim();
+  if (!path) {
+    return '';
+  }
+
+  const match = path.match(/\/admit-cards\/([a-f0-9]{24})\/download/i);
+  return match ? String(match[1]).trim() : '';
+};
 
 const normalizeNoticePaymentStatus = (status) => {
   const normalized = String(status || '').trim().toUpperCase();
@@ -100,13 +111,42 @@ const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
     return notices;
   }
 
+  const admitCardDownloadNotices = notices.filter(
+    (item) => String(item?.actionType || '').trim() === 'ADMIT_CARD_DOWNLOAD'
+  );
+
+  if (admitCardDownloadNotices.length === 0) {
+    return notices;
+  }
+
+  const directExamIdSet = new Set(
+    admitCardDownloadNotices
+      .map((item) => toId(item?.admitCardExamId))
+      .filter((examId) => mongoose.Types.ObjectId.isValid(examId))
+  );
+
+  const admitCardIdSet = new Set(
+    admitCardDownloadNotices
+      .map((item) => toId(item?.admitCardId) || parseAdmitCardIdFromActionPath(item?.actionPath))
+      .filter((admitCardId) => mongoose.Types.ObjectId.isValid(admitCardId))
+  );
+
+  const admitCards = admitCardIdSet.size > 0
+    ? await AdmitCard.find({ _id: { $in: Array.from(admitCardIdSet) } })
+      .select('_id examId')
+      .lean()
+    : [];
+
+  const admitCardExamIdMap = new Map(
+    admitCards.map((item) => [toId(item?._id), toId(item?.examId)])
+  );
+
+  const admitCardLinkedExamIds = admitCards
+    .map((item) => toId(item?.examId))
+    .filter((examId) => mongoose.Types.ObjectId.isValid(examId));
+
   const admitCardExamIds = Array.from(
-    new Set(
-      notices
-        .filter((item) => String(item?.actionType || '').trim() === 'ADMIT_CARD_DOWNLOAD')
-        .map((item) => toId(item?.admitCardExamId))
-        .filter((examId) => mongoose.Types.ObjectId.isValid(examId))
-    )
+    new Set([...Array.from(directExamIdSet), ...admitCardLinkedExamIds])
   );
 
   if (admitCardExamIds.length === 0) {
@@ -133,7 +173,14 @@ const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
       return true;
     }
 
-    const examId = toId(notice?.admitCardExamId);
+    const directExamId = toId(notice?.admitCardExamId);
+    const admitCardId = toId(notice?.admitCardId) || parseAdmitCardIdFromActionPath(notice?.actionPath);
+    const resolvedExamId =
+      (directExamId && mongoose.Types.ObjectId.isValid(directExamId) ? directExamId : '') ||
+      admitCardExamIdMap.get(admitCardId) ||
+      '';
+
+    const examId = toId(resolvedExamId);
     if (!examId) {
       return true;
     }
