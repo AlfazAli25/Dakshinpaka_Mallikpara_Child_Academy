@@ -7,6 +7,7 @@ const Teacher = require('../models/teacher.model');
 const ClassModel = require('../models/class.model');
 const AdmitCard = require('../models/admit-card.model');
 const Exam = require('../models/exam.model');
+const { isExamCompletedForAdmitCard } = require('../utils/admit-card-exam-completion');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -82,29 +83,6 @@ const buildUnexpiredDueDateFilter = () => {
   };
 };
 
-const toValidDate = (value) => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-};
-
-const isExamCompletedForAdmitCard = (exam = {}) => {
-  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
-  if (normalizedStatus === 'completed') {
-    return true;
-  }
-
-  const endDate = toValidDate(exam?.endDate || exam?.startDate || exam?.examDate || exam?.date);
-  if (!endDate) {
-    return false;
-  }
-
-  return endDate.getTime() <= Date.now();
-};
-
 const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
   const notices = Array.isArray(items) ? items : [];
   if (notices.length === 0) {
@@ -154,12 +132,12 @@ const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
   }
 
   const examRows = await Exam.find({ _id: { $in: admitCardExamIds } })
-    .select('_id status endDate startDate examDate date')
+    .select('_id status endDate startDate examDate date schedule')
     .lean();
 
   const completedExamIdSet = new Set(
     examRows
-      .filter((exam) => isExamCompletedForAdmitCard(exam))
+      .filter((exam) => isExamCompletedForAdmitCard({ exam }))
       .map((exam) => toId(exam?._id))
       .filter(Boolean)
   );
@@ -182,7 +160,7 @@ const filterOutCompletedExamAdmitCardNotices = async (items = []) => {
 
     const examId = toId(resolvedExamId);
     if (!examId) {
-      return true;
+      return false;
     }
 
     return !completedExamIdSet.has(examId);

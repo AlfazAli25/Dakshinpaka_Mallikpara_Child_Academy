@@ -10,6 +10,7 @@ const {
   getAdmitCardById
 } = require('../services/admit-card.service');
 const { createAdmitCardPdf } = require('../services/admit-card-pdf.service');
+const { isExamCompletedForAdmitCard } = require('../utils/admit-card-exam-completion');
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -18,29 +19,6 @@ const createHttpError = (statusCode, message) => {
 };
 
 const toId = (value) => String(value?._id || value || '').trim();
-
-const toValidDate = (value) => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-};
-
-const isExamCompletedForAdmitCard = (exam = {}) => {
-  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
-  if (normalizedStatus === 'completed') {
-    return true;
-  }
-
-  const endDate = toValidDate(exam?.endDate || exam?.startDate || exam?.examDate || exam?.date);
-  if (!endDate) {
-    return false;
-  }
-
-  return endDate.getTime() <= Date.now();
-};
 
 const toSafeFileToken = (value, fallback = 'File') => {
   const normalized = String(value || '')
@@ -82,10 +60,12 @@ const listMyAvailableAdmitCardsHandler = asyncHandler(async (req, res) => {
   })
     .sort({ availableAt: -1, updatedAt: -1 })
     .populate({ path: 'classId', select: 'name section' })
-    .populate({ path: 'examId', select: 'examName academicYear startDate endDate examDate date status' })
+    .populate({ path: 'examId', select: 'examName academicYear startDate endDate examDate date status schedule' })
     .lean();
 
-  const availableCards = data.filter((item) => !isExamCompletedForAdmitCard(item?.examId));
+  const availableCards = data.filter(
+    (item) => !isExamCompletedForAdmitCard({ exam: item?.examId, admitCard: item })
+  );
 
   return res.json({ success: true, data: availableCards });
 });
@@ -222,7 +202,7 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
       throw createHttpError(403, 'Admit card download is not available yet');
     }
 
-    if (isExamCompletedForAdmitCard(admitCard.examId)) {
+    if (isExamCompletedForAdmitCard({ exam: admitCard.examId, admitCard })) {
       throw createHttpError(403, 'Admit card download is not available for completed exams');
     }
   }

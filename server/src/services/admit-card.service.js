@@ -4,6 +4,7 @@ const Exam = require('../models/exam.model');
 const Student = require('../models/student.model');
 const Notice = require('../models/notice.model');
 const NoticePayment = require('../models/notice-payment.model');
+const { isExamCompletedForAdmitCard } = require('../utils/admit-card-exam-completion');
 
 const VERIFIED_NOTICE_PAYMENT_STATUSES = new Set(['VERIFIED', 'PAID']);
 const ADMIT_CARD_NOTICE_TITLE = 'Admit Card Available';
@@ -36,24 +37,6 @@ const toDisplayDate = (value) => {
   }
 
   return parsed.toLocaleDateString('en-GB');
-};
-
-const isExamCompletedForAdmitCard = ({ exam = {}, admitCard = {} } = {}) => {
-  const normalizedStatus = String(exam?.status || '').trim().toLowerCase();
-  if (normalizedStatus === 'completed') {
-    return true;
-  }
-
-  const endDate = toDate(
-    admitCard?.examEndDate ||
-      exam?.endDate ||
-      admitCard?.examStartDate ||
-      exam?.startDate ||
-      exam?.examDate ||
-      exam?.date
-  );
-
-  return Boolean(endDate && endDate.getTime() <= Date.now());
 };
 
 const buildScheduleSnapshot = (exam = {}) => {
