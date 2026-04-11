@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Mail, MapPin, MessageCircle, PhoneCall, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
 import { get } from '@/lib/api';
@@ -243,21 +242,9 @@ export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_18%_8%,rgba(127,29,29,0.42),rgba(15,23,42,0.98)_46%,rgba(2,6,23,1)_100%)] text-red-50">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <motion.div
-          className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-red-700/28 blur-3xl"
-          animate={{ x: [0, 24, 0], y: [0, -14, 0] }}
-          transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute right-0 top-32 h-80 w-80 rounded-full bg-rose-700/24 blur-3xl"
-          animate={{ x: [0, -28, 0], y: [0, 12, 0] }}
-          transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute bottom-8 left-1/3 h-64 w-64 rounded-full bg-red-500/22 blur-3xl"
-          animate={{ x: [0, 18, 0], y: [0, -16, 0] }}
-          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-        />
+        <div className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-red-700/28 blur-3xl" />
+        <div className="absolute right-0 top-32 h-80 w-80 rounded-full bg-rose-700/24 blur-3xl" />
+        <div className="absolute bottom-8 left-1/3 h-64 w-64 rounded-full bg-red-500/22 blur-3xl" />
       </div>
 
       <header className="sticky top-0 z-30 border-b border-red-500/25 bg-slate-950/75 backdrop-blur-xl">
@@ -314,21 +301,9 @@ export default function HomePage() {
 
       <main className="relative mx-auto w-full max-w-7xl space-y-8 px-4 pb-12 pt-8 md:px-6 md:pb-16 md:pt-10">
         <section className="relative overflow-hidden rounded-[2rem] border border-red-200/70 bg-gradient-to-br from-red-700 via-red-600 to-red-900 text-red-50 shadow-[0_38px_90px_-44px_rgba(127,29,29,0.96)]">
-          <motion.div
-            className="absolute -left-20 top-14 h-44 w-44 rounded-3xl bg-red-300/35"
-            animate={{ y: [0, -12, 0], rotate: [0, 8, 0] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute right-6 top-8 h-28 w-28 rounded-full border-8 border-red-300/35"
-            animate={{ y: [0, 10, 0], scale: [1, 1.08, 1] }}
-            transition={{ duration: 7.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <motion.div
-            className="absolute -bottom-16 right-12 h-56 w-56 rounded-full bg-red-950/25 blur-2xl"
-            animate={{ y: [0, -14, 0], x: [0, -8, 0] }}
-            transition={{ duration: 9.5, repeat: Infinity, ease: 'easeInOut' }}
-          />
+          <div className="absolute -left-20 top-14 h-44 w-44 rounded-3xl bg-red-300/35" />
+          <div className="absolute right-6 top-8 h-28 w-28 rounded-full border-8 border-red-300/35" />
+          <div className="absolute -bottom-16 right-12 h-56 w-56 rounded-full bg-red-950/25 blur-2xl" />
 
           <div className="relative grid gap-6 p-6 md:p-10 lg:grid-cols-[1.2fr,0.8fr]">
             <div>
@@ -416,28 +391,16 @@ export default function HomePage() {
             </div>
 
             <div className="grid gap-4">
-              <motion.div
-                className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]"
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: 0.4 }}
-              >
+              <div className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.schoolIdentity}</p>
                 <div className="mt-4 grid place-items-center rounded-2xl border border-red-500/30 bg-slate-950/70 p-4">
                   <img src="/School_Logo.png" alt={`${SCHOOL_NAME} Emblem`} className="h-32 w-32 object-contain md:h-40 md:w-40" />
                 </div>
                 <p className="mt-3 text-base font-semibold text-red-50 md:text-lg">{SCHOOL_NAME}</p>
                 <p className="mt-1 text-sm font-medium text-red-100/80">ESTD 2018</p>
-              </motion.div>
+              </div>
 
-              <motion.div
-                className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]"
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.4 }}
-                transition={{ duration: 0.45, delay: 0.05 }}
-              >
+              <div className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.contactDetails}</p>
                 <div className="mt-3 space-y-2.5">
                   {phoneNumbers.map((number) => (
@@ -492,7 +455,7 @@ export default function HomePage() {
                     </a>
                   ) : null}
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
