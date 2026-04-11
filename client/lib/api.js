@@ -1,4 +1,4 @@
-import { clearSession, getToken, isTokenExpired } from './session';
+import { clearSession } from './session';
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
 const REQUEST_TIMEOUT_MS = 15000;
 const GET_CACHE_TTL_MS = 12000;
@@ -152,14 +152,22 @@ const shouldRetryError = (error) => {
   return true;
 };
 
-const handleUnauthorized = () => {
+const isAuthEndpoint = (path = '') => {
+  const normalizedPath = String(path || '').toLowerCase();
+  return (
+    normalizedPath.startsWith('/auth/login') ||
+    normalizedPath.startsWith('/auth/register') ||
+    normalizedPath.startsWith('/auth/register-status') ||
+    normalizedPath.startsWith('/auth/forgot-password')
+  );
+};
+
+const handleUnauthorized = (path = '') => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  const token = getToken();
-  const shouldInvalidateSession = !token || isTokenExpired(token);
-  if (!shouldInvalidateSession) {
+  if (isAuthEndpoint(path)) {
     return;
   }
 
@@ -194,7 +202,7 @@ const request = async (path, options = {}) => {
     if (!response.ok) {
       const rawMessage = json?.message || '';
       if (response.status === 401) {
-        handleUnauthorized();
+        handleUnauthorized(path);
       }
 
       throw buildApiError({ statusCode: response.status, rawMessage });
@@ -377,7 +385,7 @@ export const getBlob = async (path, token, options = {}) => {
       const rawMessage = json?.message || '';
 
       if (response.status === 401) {
-        handleUnauthorized();
+        handleUnauthorized(path);
       }
 
       throw buildApiError({ statusCode: response.status, rawMessage });

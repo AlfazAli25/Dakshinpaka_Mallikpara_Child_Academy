@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
-import { getUser } from '@/lib/session';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 
 const MONTHLY_FEE_AMOUNT = 200;
@@ -212,8 +211,8 @@ export default function StudentLayout({ children }) {
   });
 
   useEffect(() => {
-    const user = getUser();
-    if (!user || user.role !== 'student') {
+    const { token, user } = getAuthContext();
+    if (!token || !user || user.role !== 'student') {
       router.replace('/login');
       return;
     }

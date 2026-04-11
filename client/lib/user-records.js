@@ -1,23 +1,23 @@
 import { get } from './api';
 import { clearSession, getToken, getUser, isTokenExpired } from './session';
 
-export const getAuthContext = () => ({
-  token: (() => {
-    const token = getToken();
-    if (token && isTokenExpired(token)) {
-      clearSession();
-      return '';
-    }
-    return token;
-  })(),
-  user: (() => {
-    const token = getToken();
-    if (token && isTokenExpired(token)) {
-      return null;
-    }
-    return getUser();
-  })()
-});
+export const getAuthContext = () => {
+  const token = getToken();
+  if (!token) {
+    clearSession();
+    return { token: '', user: null };
+  }
+
+  if (isTokenExpired(token)) {
+    clearSession();
+    return { token: '', user: null };
+  }
+
+  return {
+    token,
+    user: getUser()
+  };
+};
 
 export const getCurrentStudentRecord = async () => {
   const { token } = getAuthContext();

@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { getUser } from '@/lib/session';
+import { getAuthContext } from '@/lib/user-records';
 
 const links = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -21,8 +21,8 @@ export default function AdminLayout({ children }) {
   const router = useRouter();
 
   useEffect(() => {
-    const user = getUser();
-    if (!user || user.role !== 'admin') {
+    const { token, user } = getAuthContext();
+    if (!token || !user || user.role !== 'admin') {
       router.replace('/login');
     }
   }, [router]);

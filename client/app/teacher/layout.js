@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
-import { getUser } from '@/lib/session';
+import { getAuthContext } from '@/lib/user-records';
 
 const links = [
   { href: '/teacher/dashboard', label: 'Dashboard' },
@@ -18,8 +18,8 @@ export default function TeacherLayout({ children }) {
   const [teacherName, setTeacherName] = useState('');
 
   useEffect(() => {
-    const user = getUser();
-    if (!user || user.role !== 'teacher') {
+    const { token, user } = getAuthContext();
+    if (!token || !user || user.role !== 'teacher') {
       router.replace('/login');
       return;
     }
