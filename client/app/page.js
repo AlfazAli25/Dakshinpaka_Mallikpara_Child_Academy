@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Mail, MapPin, PhoneCall, Sparkles } from 'lucide-react';
+import { ArrowRight, Mail, MapPin, MessageCircle, PhoneCall, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
@@ -11,6 +11,8 @@ import { get } from '@/lib/api';
 import { clearSession, getUser } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
 import { SCHOOL_INFO } from '@/lib/policy-info';
+
+const HOMEPAGE_WHATSAPP_NUMBER = '8509658357';
 
 const schoolImages = [
   {
@@ -73,6 +75,17 @@ const toMapHref = (address = '') => {
   return trimmedAddress ? `https://maps.google.com/?q=${encodeURIComponent(trimmedAddress)}` : '#';
 };
 
+const toWhatsAppHref = (phoneNumber = '', message = '') => {
+  const digitsOnly = String(phoneNumber || '').replace(/\D/g, '');
+  if (!digitsOnly) {
+    return '';
+  }
+
+  const internationalNumber = digitsOnly.length === 10 ? `91${digitsOnly}` : digitsOnly;
+  const messageQuery = String(message || '').trim() ? `?text=${encodeURIComponent(String(message).trim())}` : '';
+  return `https://wa.me/${internationalNumber}${messageQuery}`;
+};
+
 const text = {
   en: {
     welcome: 'Welcome to',
@@ -92,8 +105,11 @@ const text = {
     email: 'Email',
     location: 'Location',
     tapToCall: 'Tap to Call',
+    tapToChat: 'Tap to Chat',
     openInMaps: 'Open in Maps',
     callNow: 'Call School Office',
+    chatOnWhatsApp: 'Chat on WhatsApp',
+    whatsapp: 'WhatsApp',
     imageGallery: 'School Image Gallery',
     imageGalleryNote: 'Moments from activities, celebrations, and classroom life.',
     videoGallery: 'School Video Gallery',
@@ -131,8 +147,11 @@ const text = {
     email: 'Email',
     location: 'Location',
     tapToCall: 'Tap to Call',
+    tapToChat: 'Tap to Chat',
     openInMaps: 'Open in Maps',
     callNow: 'Call School Office',
+    chatOnWhatsApp: 'Chat on WhatsApp',
+    whatsapp: 'WhatsApp',
     imageGallery: '????? ??? ????????',
     imageGalleryNote: 'Moments from activities, celebrations, and classroom life.',
     videoGallery: '????? ????? ????????',
@@ -206,6 +225,14 @@ export default function HomePage() {
   }, []);
 
   const locationHref = useMemo(() => toMapHref(schoolAddress), [schoolAddress]);
+  const whatsappHref = useMemo(
+    () =>
+      toWhatsAppHref(
+        HOMEPAGE_WHATSAPP_NUMBER,
+        `Hello ${SCHOOL_NAME}, I want to know more about admission and school activities.`
+      ),
+    []
+  );
 
   const onLogout = () => {
     clearSession();
@@ -357,6 +384,18 @@ export default function HomePage() {
                     {t.callNow}
                   </a>
                 ) : null}
+
+                {whatsappHref ? (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+                  >
+                    <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                    {t.chatOnWhatsApp}
+                  </a>
+                ) : null}
               </div>
 
               <div className="mt-8 rounded-2xl border border-white/30 bg-white/10 p-4 backdrop-blur sm:p-5">
@@ -402,17 +441,30 @@ export default function HomePage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">{t.contactDetails}</p>
                 <div className="mt-3 space-y-2.5">
                   {phoneNumbers.map((number) => (
-                    <a
-                      key={number}
-                      href={toTelHref(number)}
-                      className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-900 transition hover:border-red-200 hover:bg-red-100/70"
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <PhoneCall className="h-4 w-4 text-red-700" aria-hidden="true" />
-                        {number}
-                      </span>
-                      <span className="text-[11px] uppercase tracking-[0.08em] text-red-700">{t.tapToCall}</span>
-                    </a>
+                    <div key={number} className="flex flex-wrap items-center gap-2">
+                      <a
+                        href={toTelHref(number)}
+                        className="flex flex-1 items-center justify-between rounded-xl border border-red-100 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-900 transition hover:border-red-200 hover:bg-red-100/70"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <PhoneCall className="h-4 w-4 text-red-700" aria-hidden="true" />
+                          {number}
+                        </span>
+                        <span className="text-[11px] uppercase tracking-[0.08em] text-red-700">{t.tapToCall}</span>
+                      </a>
+
+                      {whatsappHref ? (
+                        <a
+                          href={whatsappHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                        >
+                          <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                          <span className="text-[11px] uppercase tracking-[0.08em]">{t.tapToChat}</span>
+                        </a>
+                      ) : null}
+                    </div>
                   ))}
 
                   {SCHOOL_INFO?.email ? (
@@ -450,14 +502,27 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-600">{t.phone}</p>
             <div className="mt-2 space-y-2">
               {phoneNumbers.map((number) => (
-                <a
-                  key={`strip-${number}`}
-                  href={toTelHref(number)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-900 transition hover:bg-red-100"
-                >
-                  <PhoneCall className="h-4 w-4" aria-hidden="true" />
-                  {number}
-                </a>
+                <div key={`strip-${number}`} className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={toTelHref(number)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-900 transition hover:bg-red-100"
+                  >
+                    <PhoneCall className="h-4 w-4" aria-hidden="true" />
+                    {number}
+                  </a>
+
+                  {whatsappHref ? (
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
+                    >
+                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                      {t.whatsapp}
+                    </a>
+                  ) : null}
+                </div>
               ))}
             </div>
           </article>
