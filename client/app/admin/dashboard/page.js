@@ -130,9 +130,12 @@ export default function AdminDashboardPage() {
         description="Track key school metrics and quickly navigate core management operations."
       />
 
-      <DashboardTopSection name={currentUserName} unreadNotifications={dashboardData.unreadNotifications} />
-
-      <DashboardHero3D />
+      <section className="relative overflow-hidden rounded-3xl border border-red-100/70 bg-gradient-to-br from-white via-red-50/60 to-red-100/70 p-3 shadow-[0_30px_64px_-42px_rgba(153,27,27,0.7)] dark:border-red-400/20 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/35 md:p-4">
+        <DashboardHero3D backgroundMode />
+        <div className="relative z-10">
+          <DashboardTopSection name={currentUserName} unreadNotifications={dashboardData.unreadNotifications} />
+        </div>
+      </section>
 
       <SchoolBrandPanel subtitle="Manage academics, communication, and operations from one trusted school platform." />
 

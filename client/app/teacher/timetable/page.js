@@ -47,7 +47,7 @@ export default function TeacherTimetablePage() {
         description="Review your weekly class schedule with class, subject, and timing details."
       />
 
-      <section className="rounded-2xl border border-red-100 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
         <div className="border-b border-red-100 px-4 py-3 md:px-5">
           <h2 className="text-base font-semibold text-slate-900">Weekly Grid View</h2>
           <p className="text-xs text-slate-600">Only your assigned periods are shown.</p>
@@ -57,9 +57,12 @@ export default function TeacherTimetablePage() {
           <table className="min-w-[1100px] w-full text-sm">
             <thead className="sticky top-0 z-10 bg-red-700 text-red-50">
               <tr>
-                <th className="px-3 py-3 text-left font-semibold">Day / Period</th>
-                {TIMETABLE_PERIODS.map((periodNumber) => (
-                  <th key={periodNumber} className="px-3 py-3 text-left font-semibold">
+                <th className="rounded-tl-xl px-3 py-3 text-left font-semibold">Day / Period</th>
+                {TIMETABLE_PERIODS.map((periodNumber, index) => (
+                  <th
+                    key={periodNumber}
+                    className={`px-3 py-3 text-left font-semibold ${index === TIMETABLE_PERIODS.length - 1 ? 'rounded-tr-xl' : ''}`}
+                  >
                     Period {periodNumber}
                   </th>
                 ))}

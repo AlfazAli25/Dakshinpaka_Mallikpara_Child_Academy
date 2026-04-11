@@ -84,14 +84,17 @@ export default function StudentTimetablePage() {
         rightSlot={<LanguageToggle />}
       />
 
-      <section className="rounded-2xl border border-red-100 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
         <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
             <thead className="sticky top-0 z-10 bg-red-700 text-red-50">
               <tr>
-                <th className="px-3 py-3 text-left font-semibold">{t.dayPeriod}</th>
-                {TIMETABLE_PERIODS.map((periodNumber) => (
-                  <th key={periodNumber} className="px-3 py-3 text-left font-semibold">
+                <th className="rounded-tl-xl px-3 py-3 text-left font-semibold">{t.dayPeriod}</th>
+                {TIMETABLE_PERIODS.map((periodNumber, index) => (
+                  <th
+                    key={periodNumber}
+                    className={`px-3 py-3 text-left font-semibold ${index === TIMETABLE_PERIODS.length - 1 ? 'rounded-tr-xl' : ''}`}
+                  >
                     {t.periodLabel} {periodNumber}
                   </th>
                 ))}

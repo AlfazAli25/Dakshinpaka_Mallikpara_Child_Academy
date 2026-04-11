@@ -423,15 +423,18 @@ export default function StudentDashboardPage() {
         }
       />
 
-      <PortalTopSection
-        role="Student"
-        heading={studentProfile?.userId?.name ? `Welcome back, ${studentProfile.userId.name}` : t.title}
-        subheading={t.description}
-        metricLabel="Important Notices"
-        metricValue={String(importantNoticeCount)}
-      />
-
-      <DashboardHero3D />
+      <section className="relative overflow-hidden rounded-3xl border border-red-100/70 bg-gradient-to-br from-white via-red-50/60 to-red-100/70 p-3 shadow-[0_30px_64px_-42px_rgba(153,27,27,0.7)] dark:border-red-400/20 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/35 md:p-4">
+        <DashboardHero3D backgroundMode />
+        <div className="relative z-10">
+          <PortalTopSection
+            role="Student"
+            heading={studentProfile?.userId?.name ? `Welcome back, ${studentProfile.userId.name}` : t.title}
+            subheading={t.description}
+            metricLabel="Important Notices"
+            metricValue={String(importantNoticeCount)}
+          />
+        </div>
+      </section>
 
       <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
 
