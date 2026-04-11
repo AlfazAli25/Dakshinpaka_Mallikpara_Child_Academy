@@ -1,16 +1,36 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Bell, ChevronRight, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import Sidebar from './Sidebar';
+import ThemeToggle from '@/components/ui/theme-toggle';
 import { get, post } from '@/lib/api';
 import { clearSession, getToken, getUser } from '@/lib/session';
 
 const DESKTOP_SIDEBAR_STATE_KEY = 'app-shell-desktop-sidebar-open';
+const ParticlesBackground3D = dynamic(() => import('@/components/animations/ParticlesBackground3D'), {
+  ssr: false
+});
+
+const toTitleCase = (value = '') =>
+  String(value || '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const formatRole = (role = '') => {
+  if (!role) {
+    return 'User';
+  }
+
+  return toTitleCase(role);
+};
 
 export default function AppShell({ title, links, children, sidebarExtra = null }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
@@ -29,6 +49,18 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   const [user, setUser] = useState(null);
   const notifPanelRef = useRef(null);
   const notifButtonRef = useRef(null);
+
+  const activePageLabel = useMemo(() => {
+    const segments = String(pathname || '')
+      .split('/')
+      .filter(Boolean);
+
+    if (segments.length === 0) {
+      return 'Home';
+    }
+
+    return toTitleCase(segments[segments.length - 1] || 'Dashboard');
+  }, [pathname]);
 
   const toggleSidebar = () => {
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
@@ -206,34 +238,46 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f7]">
-      <div className="sticky top-0 z-30 border-b border-red-900 bg-gradient-to-r from-red-800 via-red-700 to-red-800 px-4 py-3 shadow-md">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+    <div className="relative min-h-screen">
+      <ParticlesBackground3D className="opacity-45" />
+
+      <div className="sticky top-0 z-30 border-b border-red-900/40 bg-gradient-to-r from-red-900/95 via-red-800/95 to-red-900/95 px-3 py-3 shadow-lg backdrop-blur md:px-5">
+        <div className="flex items-center justify-between gap-2 md:gap-4">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3">
             <button
               type="button"
               onClick={toggleSidebar}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/45 bg-white/10 text-white hover:bg-white/20"
-              aria-label={desktopSidebarOpen ? 'Hide navigation' : 'Show navigation'}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/35 bg-white/10 text-white hover:bg-white/20"
+              aria-label={desktopSidebarOpen ? 'Collapse navigation' : 'Expand navigation'}
             >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 7h16M4 12h16M4 17h16" />
-              </svg>
+              <Menu className="h-4.5 w-4.5" aria-hidden="true" />
             </button>
 
             <Link
               href="/"
-              className="inline-flex h-16 w-16 items-center justify-center rounded-xl hover:bg-white/10"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/35 bg-white/95 shadow-sm"
               aria-label="Go to public homepage"
               title="Public homepage"
             >
-              <img src="/School_Logo.png" alt="School Logo" className="h-14 w-14 rounded-xl object-contain" />
+              <img src="/School_Logo.png" alt="School Logo" className="h-9 w-9 rounded-lg object-contain" />
             </Link>
+
+            <div className="min-w-0">
+              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100/90">{title}</p>
+              <p className="truncate text-sm font-semibold text-white/95 md:text-base">
+                {activePageLabel}
+                <span className="mx-1.5 inline-flex text-red-200/90">
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </span>
+                Workspace
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:gap-3">
+            <ThemeToggle />
 
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' ? (
               <div className="relative">
                 <button
                   ref={notifButtonRef}
@@ -241,26 +285,28 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                   onClick={() => setNotifOpen((prev) => !prev)}
                   aria-expanded={notifOpen}
                   aria-haspopup="dialog"
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/45 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
+                  className="relative inline-flex h-10 items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
                 >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M15 17h5l-1.4-1.4a2 2 0 01-.6-1.4V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5" />
-                    <path d="M9 17a3 3 0 006 0" />
-                  </svg>
-                  <span>{unreadCount > 0 ? `${unreadCount} Unread` : 'Notifications'}</span>
+                  <Bell className="h-4 w-4" aria-hidden="true" />
+                  <span className="hidden sm:inline">Alerts</span>
+                  {unreadCount > 0 ? (
+                    <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-red-700">
+                      {unreadCount}
+                    </span>
+                  ) : null}
                 </button>
 
-                {notifOpen && (
+                {notifOpen ? (
                   <div
                     ref={notifPanelRef}
-                    className="fixed inset-x-3 top-[4.4rem] z-50 flex max-h-[72vh] flex-col rounded-xl border border-red-100 bg-white p-2 shadow-xl sm:absolute sm:right-0 sm:top-12 sm:inset-x-auto sm:w-80 sm:max-h-[24rem]"
+                    className="fixed inset-x-3 top-[4.7rem] z-50 flex max-h-[72vh] flex-col rounded-2xl border border-red-100 bg-white/95 p-2 shadow-xl backdrop-blur sm:absolute sm:right-0 sm:top-12 sm:inset-x-auto sm:w-96 sm:max-h-[24rem] dark:border-red-400/20 dark:bg-slate-900/95"
                   >
                     <div className="flex items-center justify-between px-2 py-1">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700">Payment Alerts</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-200">Payment Alerts</p>
                       <button
                         type="button"
                         onClick={() => setNotifOpen(false)}
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 sm:hidden"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-red-400/30 dark:text-red-200 dark:hover:bg-slate-800 sm:hidden"
                         aria-label="Close notifications"
                       >
                         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -268,9 +314,10 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                         </svg>
                       </button>
                     </div>
+
                     <div className="min-h-0 flex-1 overflow-auto">
                       {notifications.length === 0 ? (
-                        <p className="px-2 py-3 text-sm text-slate-500">No notifications.</p>
+                        <p className="px-2 py-3 text-sm text-slate-500 dark:text-red-100/80">No notifications.</p>
                       ) : (
                         notifications.map((item) => (
                           <button
@@ -278,36 +325,49 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                             type="button"
                             onClick={() => onNotificationClick(item)}
                             disabled={markingReadId === item._id}
-                            className={`block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-red-50 ${
-                              item.status === 'UNREAD' ? 'bg-red-50 text-slate-900' : 'text-slate-700'
+                            className={`block w-full rounded-xl px-2 py-2 text-left text-sm hover:bg-red-50 dark:hover:bg-red-900/20 ${
+                              item.status === 'UNREAD'
+                                ? 'bg-red-50 text-slate-900 dark:bg-red-900/20 dark:text-red-50'
+                                : 'text-slate-700 dark:text-red-100'
                             }`}
                           >
                             <p className="break-words font-semibold">{item.title || 'Notification'}</p>
-                            <p className="break-words text-xs text-slate-600">{item.message || '-'}</p>
-                            <p className="text-xs text-slate-500">{new Date(item.submittedAt).toLocaleString('en-GB')}</p>
+                            <p className="break-words text-xs text-slate-600 dark:text-red-100/80">{item.message || '-'}</p>
+                            <p className="text-xs text-slate-500 dark:text-red-100/70">{new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                           </button>
                         ))
                       )}
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
 
-            {user && (
+            {user ? (
+              <div className="hidden items-center rounded-xl border border-white/35 bg-white/10 px-3 py-1.5 text-white md:flex">
+                <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/90">{formatRole(user.role)}</p>
+                  <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || 'Account'}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {user ? (
               <button
                 type="button"
                 onClick={onLogout}
-                className="inline-flex h-10 items-center rounded-lg border border-white/45 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50"
+                className="inline-flex h-10 items-center gap-1 rounded-xl border border-white/35 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50"
               >
-                Logout
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-65px)] min-h-0 overflow-hidden">
+      <div className="relative flex h-[calc(100vh-76px)] min-h-0 overflow-hidden">
         <Sidebar
           title={title}
           links={links}
@@ -316,7 +376,10 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
           onClose={() => setMobileOpen(false)}
           extraContent={sidebarExtra}
         />
-        <main className="smooth-enter min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-7">{children}</main>
+
+        <main className="smooth-enter min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-7">
+          <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+        </main>
       </div>
     </div>
   );

@@ -13,17 +13,44 @@
   --surface-base: #f8f6f6;
   --surface-alt: #ffffff;
   --text-primary: #0f172a;
+  --background-layer-a: radial-gradient(1100px 540px at 90% -20%, rgba(254, 226, 226, 0.95) 0%, rgba(254, 226, 226, 0) 60%);
+  --background-layer-b: radial-gradient(900px 420px at -10% 120%, rgba(254, 242, 242, 0.9) 0%, rgba(254, 242, 242, 0) 65%);
+}
+
+.dark,
+[data-theme='dark'] {
+  --surface-base: #09090b;
+  --surface-alt: #111827;
+  --text-primary: #fef2f2;
+  --background-layer-a: radial-gradient(1050px 520px at 88% -22%, rgba(127, 29, 29, 0.46) 0%, rgba(127, 29, 29, 0) 62%);
+  --background-layer-b: radial-gradient(960px 470px at -8% 120%, rgba(127, 29, 29, 0.38) 0%, rgba(127, 29, 29, 0) 66%);
 }
 
 body {
-  background:
-    radial-gradient(1100px 540px at 90% -20%, rgba(254, 226, 226, 0.95) 0%, rgba(254, 226, 226, 0) 60%),
-    radial-gradient(900px 420px at -10% 120%, rgba(254, 242, 242, 0.9) 0%, rgba(254, 242, 242, 0) 65%),
-    var(--surface-base);
+  background: var(--background-layer-a), var(--background-layer-b), var(--surface-base);
   color: var(--text-primary);
-  font-family: 'Nunito Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Nunito Sans', 'Trebuchet MS', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   scroll-behavior: smooth;
   overflow-x: hidden;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(220, 38, 38, 0.4) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(248, 113, 113, 0.65) 0%, rgba(185, 28, 28, 0.8) 100%);
 }
 
 ::selection {
