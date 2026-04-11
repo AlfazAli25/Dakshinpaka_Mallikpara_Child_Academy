@@ -346,7 +346,7 @@ export default function StudentFeesPage() {
             <LanguageToggle />
             <Link
               href={`/student/checkout?amount=${pendingTotal}`}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-red-700 px-7 text-base font-bold text-white shadow-md hover:bg-red-800"
             >
               Checkout
             </Link>

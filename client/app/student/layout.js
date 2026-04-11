@@ -169,8 +169,7 @@ const translations = {
       { href: '/student/exams', label: 'Exams' },
       { href: '/student/results', label: 'Results' },
       { href: '/student/attendance', label: 'Attendance' },
-      { href: '/student/fees', label: 'Fees' },
-      { href: '/student/checkout', label: 'Checkout' }
+      { href: '/student/fees', label: 'Fees' }
     ]
   },
   bn: {
@@ -195,8 +194,7 @@ const translations = {
       { href: '/student/exams', label: 'পরীক্ষা' },
       { href: '/student/results', label: 'ফলাফল' },
       { href: '/student/attendance', label: 'উপস্থিতি' },
-      { href: '/student/fees', label: 'ফি' },
-      { href: '/student/checkout', label: 'চেকআউট' }
+      { href: '/student/fees', label: 'ফি' }
     ]
   }
 };
