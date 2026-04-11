@@ -15,6 +15,8 @@ import { useToast } from '@/lib/toast-context';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONTHLY_FEE_AMOUNT = 200;
+const normalizeClassToken = (value) => String(value || '').trim().toLowerCase();
+const normalizeSectionToken = (value) => String(value || '').trim().toUpperCase();
 
 const feeColumns = [
   { key: 'month', label: 'Month' },
@@ -84,7 +86,8 @@ const getStudentFormFromProfile = (student) => ({
   email: student?.userId?.email || '',
   admissionNo: student?.admissionNo || '',
   rollNo: student?.rollNo === 0 || student?.rollNo ? String(student.rollNo) : '',
-  classId: student?.classId?._id ? String(student.classId._id) : '',
+  className: student?.classId?.name || '',
+  section: student?.classId?.section || '',
   gender: student?.gender || '',
   dob: student?.dob ? String(student.dob).slice(0, 10) : '',
   guardianContact: student?.guardianContact || '',
@@ -104,13 +107,14 @@ export default function StudentUserProfilePage() {
   const [saving, setSaving] = useState(false);
   const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
   const [receiptError, setReceiptError] = useState('');
-  const [classOptions, setClassOptions] = useState([]);
+  const [classRecords, setClassRecords] = useState([]);
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
     admissionNo: '',
     rollNo: '',
-    classId: '',
+    className: '',
+    section: '',
     gender: '',
     dob: '',
     guardianContact: '',
@@ -204,12 +208,7 @@ export default function StudentUserProfilePage() {
 
   const loadClasses = async () => {
     const response = await get('/classes', getToken());
-    setClassOptions(
-      (response.data || []).map((item) => ({
-        value: String(item._id),
-        label: item.name || 'Class'
-      }))
-    );
+    setClassRecords(Array.isArray(response.data) ? response.data : []);
   };
 
   useEffect(() => {
@@ -222,8 +221,110 @@ export default function StudentUserProfilePage() {
     }
   }, [profile]);
 
+  const classNameOptions = useMemo(() => {
+    const uniqueClassNames = new Map();
+
+    (Array.isArray(classRecords) ? classRecords : []).forEach((item) => {
+      const className = String(item?.name || '').trim();
+      if (!className) {
+        return;
+      }
+
+      const token = normalizeClassToken(className);
+      if (!token || uniqueClassNames.has(token)) {
+        return;
+      }
+
+      uniqueClassNames.set(token, {
+        value: className,
+        label: className
+      });
+    });
+
+    return Array.from(uniqueClassNames.values()).sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      })
+    );
+  }, [classRecords]);
+
+  const selectedClassRecords = useMemo(() => {
+    const selectedClassToken = normalizeClassToken(editForm.className);
+    if (!selectedClassToken) {
+      return [];
+    }
+
+    return (Array.isArray(classRecords) ? classRecords : []).filter(
+      (item) => normalizeClassToken(item?.name) === selectedClassToken
+    );
+  }, [classRecords, editForm.className]);
+
+  const sectionOptions = useMemo(() => {
+    const uniqueSections = new Map();
+
+    selectedClassRecords.forEach((item) => {
+      const sectionValue = String(item?.section || '').trim();
+      if (!sectionValue) {
+        return;
+      }
+
+      const token = normalizeSectionToken(sectionValue);
+      if (!token || uniqueSections.has(token)) {
+        return;
+      }
+
+      uniqueSections.set(token, {
+        value: sectionValue,
+        label: sectionValue
+      });
+    });
+
+    return Array.from(uniqueSections.values()).sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      })
+    );
+  }, [selectedClassRecords]);
+
+  useEffect(() => {
+    if (!editForm.className) {
+      if (editForm.section) {
+        setEditForm((prev) => ({ ...prev, section: '' }));
+      }
+      return;
+    }
+
+    if (sectionOptions.length === 0) {
+      if (editForm.section) {
+        setEditForm((prev) => ({ ...prev, section: '' }));
+      }
+      return;
+    }
+
+    if (sectionOptions.length === 1 && !editForm.section) {
+      setEditForm((prev) => ({ ...prev, section: sectionOptions[0].value }));
+      return;
+    }
+
+    const sectionExists = sectionOptions.some((item) => item.value === editForm.section);
+    if (!sectionExists && editForm.section) {
+      setEditForm((prev) => ({ ...prev, section: '' }));
+    }
+  }, [editForm.className, editForm.section, sectionOptions]);
+
   const onEditChange = (field) => (event) => {
     setEditForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onClassNameChange = (event) => {
+    const nextClassName = String(event.target.value || '');
+    setEditForm((prev) => ({
+      ...prev,
+      className: nextClassName,
+      section: ''
+    }));
   };
 
   const onCancelEdit = () => {
@@ -251,6 +352,8 @@ export default function StudentUserProfilePage() {
     const nextRollNoText = String(editForm.rollNo || '').trim();
     const nextGuardianContact = String(editForm.guardianContact || '').trim();
     const nextAddress = String(editForm.address || '').trim();
+    const nextClassName = String(editForm.className || '').trim();
+    const nextSection = String(editForm.section || '').trim();
 
     if (nextName && nextName !== String(originalForm.name || '').trim()) {
       payload.name = nextName;
@@ -279,8 +382,49 @@ export default function StudentUserProfilePage() {
       payload.rollNo = normalizedRollNo;
     }
 
-    if (editForm.classId && editForm.classId !== String(originalForm.classId || '').trim()) {
-      payload.classId = editForm.classId;
+    const originalClassId = String(profile?.student?.classId?._id || '').trim();
+    const originalClassName = String(originalForm.className || '').trim();
+    const originalSection = String(originalForm.section || '').trim();
+    const didClassSelectionChange =
+      normalizeClassToken(nextClassName) !== normalizeClassToken(originalClassName) ||
+      normalizeSectionToken(nextSection) !== normalizeSectionToken(originalSection);
+
+    if (didClassSelectionChange) {
+      if (!nextClassName) {
+        setError('Please select a class.');
+        return;
+      }
+
+      const matchingClassRecords = (Array.isArray(classRecords) ? classRecords : []).filter(
+        (item) => normalizeClassToken(item?.name) === normalizeClassToken(nextClassName)
+      );
+
+      if (matchingClassRecords.length === 0) {
+        setError('Selected class is not available. Please refresh and try again.');
+        return;
+      }
+
+      const classHasSections = matchingClassRecords.some((item) => String(item?.section || '').trim());
+      if (classHasSections && !nextSection) {
+        setError('Please select a section for the selected class.');
+        return;
+      }
+
+      const selectedClassRecord = classHasSections
+        ? matchingClassRecords.find(
+            (item) => normalizeSectionToken(item?.section) === normalizeSectionToken(nextSection)
+          )
+        : matchingClassRecords[0];
+
+      if (!selectedClassRecord?._id) {
+        setError('Selected class and section combination is invalid.');
+        return;
+      }
+
+      const resolvedClassId = String(selectedClassRecord._id);
+      if (resolvedClassId !== originalClassId) {
+        payload.classId = resolvedClassId;
+      }
     }
 
     if (editForm.gender && editForm.gender !== String(originalForm.gender || '').trim()) {
@@ -386,8 +530,19 @@ export default function StudentUserProfilePage() {
   const linkedRecordId = student?._id ? String(student._id) : '';
   const canEdit = Boolean(linkedRecordId) && !linkedRecordId.startsWith('user-');
   const classSelectOptions = [
-    { value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' },
-    ...classOptions
+    { value: '', label: classNameOptions.length > 0 ? 'Select Class' : 'No classes found' },
+    ...classNameOptions
+  ];
+  const sectionSelectOptions = [
+    {
+      value: '',
+      label: !editForm.className
+        ? 'Select Class First'
+        : sectionOptions.length > 0
+          ? 'Select Section'
+          : 'No Section Required'
+    },
+    ...sectionOptions
   ];
   const studentDetailItems = [
     { label: 'Name', value: student?.userId?.name || '-' },
@@ -460,7 +615,15 @@ export default function StudentUserProfilePage() {
                 <Input label="Email" type="email" value={editForm.email} onChange={onEditChange('email')} className="h-10" />
                 <Input label="Student ID" value={editForm.admissionNo} onChange={onEditChange('admissionNo')} className="h-10" />
                 <Input label="Roll No" type="number" min="1" step="1" value={editForm.rollNo} onChange={onEditChange('rollNo')} className="h-10" />
-                <Select label="Class" value={editForm.classId} onChange={onEditChange('classId')} className="h-10" options={classSelectOptions} />
+                <Select label="Class" value={editForm.className} onChange={onClassNameChange} className="h-10" options={classSelectOptions} />
+                <Select
+                  label="Section"
+                  value={editForm.section}
+                  onChange={onEditChange('section')}
+                  className="h-10"
+                  options={sectionSelectOptions}
+                  disabled={!editForm.className || sectionOptions.length === 0}
+                />
                 <Select label="Gender" value={editForm.gender} onChange={onEditChange('gender')} className="h-10" options={genderOptions} />
                 <Input label="Date of Birth" type="date" value={editForm.dob} onChange={onEditChange('dob')} className="h-10" />
                 <Input label="Guardian Contact" value={editForm.guardianContact} onChange={onEditChange('guardianContact')} className="h-10" />
