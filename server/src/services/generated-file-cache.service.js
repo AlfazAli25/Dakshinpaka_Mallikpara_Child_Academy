@@ -2,8 +2,17 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
+const os = require('os');
 
-const CACHE_DIR = path.resolve(__dirname, '..', '..', 'uploads', 'generated-cache');
+const DEFAULT_CACHE_DIR = path.resolve(__dirname, '..', '..', 'uploads', 'generated-cache');
+const isServerlessRuntime = Boolean(
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT
+);
+const CACHE_DIR = process.env.GENERATED_FILE_CACHE_DIR
+  ? path.resolve(process.env.GENERATED_FILE_CACHE_DIR)
+  : isServerlessRuntime
+    ? path.resolve(os.tmpdir(), 'generated-file-cache')
+    : DEFAULT_CACHE_DIR;
 const DEFAULT_TTL_MS = Number(process.env.GENERATED_FILE_CACHE_TTL_MS || 10 * 60 * 1000);
 const MAX_CACHE_ENTRIES = Number(process.env.GENERATED_FILE_CACHE_MAX_ENTRIES || 200);
 const CLEANUP_INTERVAL_MS = Number(process.env.GENERATED_FILE_CACHE_CLEANUP_INTERVAL_MS || 60 * 1000);
