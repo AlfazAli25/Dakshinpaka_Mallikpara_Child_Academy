@@ -2,6 +2,6 @@
 
 import FloatingInput from '@/components/forms/FloatingInput';
 
-export default function Input(props) {
-  return <FloatingInput floating {...props} />;
+export default function Input({ floating = false, ...props }) {
+  return <FloatingInput floating={floating} {...props} />;
 }

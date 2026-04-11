@@ -8,13 +8,14 @@ export default function ModernSelect({
   label,
   options = [],
   className = '',
+  wrapperClassName = '',
   error = '',
   success = '',
   hint = '',
   ...props
 }) {
   return (
-    <div className={cn('mb-3', className)}>
+    <div className={cn('mb-3', wrapperClassName)}>
       <label className="block">
         {label ? <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">{label}</span> : null}
         <div className="relative">
@@ -22,10 +23,11 @@ export default function ModernSelect({
             {...props}
             aria-invalid={Boolean(error)}
             className={cn(
-              'h-11 w-full appearance-none rounded-xl border bg-white/90 px-3 pr-10 text-sm text-slate-900 shadow-[0_8px_24px_-18px_rgba(153,27,27,0.35)] transition focus:outline-none focus:ring-4 dark:bg-slate-900/75 dark:text-red-50',
+              'h-11 w-full appearance-none rounded-xl border bg-white px-3 pr-10 text-sm text-slate-900 shadow-[0_8px_24px_-18px_rgba(153,27,27,0.35)] transition focus:outline-none focus:ring-4 dark:border-red-400/30 dark:bg-slate-800/90 dark:text-red-50',
               error
                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100 dark:border-red-500/70 dark:focus:ring-red-500/20'
-                : 'border-red-200/90 focus:border-red-500 focus:ring-red-100 dark:border-red-400/35 dark:focus:ring-red-500/20'
+                : 'border-red-200/90 focus:border-red-500 focus:ring-red-100 dark:border-red-400/35 dark:focus:ring-red-500/20',
+              className
             )}
           >
             {options.map((option) => (
