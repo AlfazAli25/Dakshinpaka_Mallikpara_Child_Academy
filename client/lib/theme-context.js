@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const THEME_STORAGE_KEY = 'sms-ui-theme';
+const THEME_VERSION_KEY = 'sms-ui-theme-version';
+const THEME_VERSION = '2';
 
 const ThemeContext = createContext(null);
 
@@ -11,12 +13,17 @@ const resolveTheme = () => {
     return 'light';
   }
 
+  const storedVersion = String(window.localStorage.getItem(THEME_VERSION_KEY) || '').trim();
+  if (storedVersion !== THEME_VERSION) {
+    return 'light';
+  }
+
   const stored = String(window.localStorage.getItem(THEME_STORAGE_KEY) || '').trim();
   if (stored === 'dark' || stored === 'light') {
     return stored;
   }
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 };
 
 const applyThemeToDom = (theme) => {
@@ -50,6 +57,7 @@ export function ThemeProvider({ children }) {
 
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem(THEME_VERSION_KEY, THEME_VERSION);
     } catch (_error) {
       // Ignore local storage write failures.
     }

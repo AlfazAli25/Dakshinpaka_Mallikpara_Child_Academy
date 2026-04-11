@@ -44,10 +44,10 @@ export default function FloatingInput({
   };
 
   const sharedInputClassName = cn(
-    'peer h-11 w-full rounded-xl border bg-white px-3 text-sm text-slate-900 shadow-[0_8px_24px_-18px_rgba(153,27,27,0.35)] transition focus:outline-none focus:ring-4 dark:border-red-400/30 dark:bg-slate-800/90 dark:text-red-50',
+    'peer h-11 w-full rounded-xl border bg-white px-3 text-sm text-slate-900 shadow-[0_8px_24px_-18px_rgba(153,27,27,0.35)] transition focus:outline-none focus:ring-4',
     error
-      ? 'border-red-400 focus:border-red-500 focus:ring-red-100 dark:border-red-500/70 dark:focus:ring-red-500/20'
-      : 'border-red-200/90 focus:border-red-500 focus:ring-red-100 dark:border-red-400/35 dark:focus:ring-red-500/20'
+      ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+      : 'border-red-200/90 focus:border-red-500 focus:ring-red-100'
   );
 
   return (
@@ -64,13 +64,13 @@ export default function FloatingInput({
             onKeyDown={handleKeyDown}
             className={cn(sharedInputClassName, 'placeholder:text-transparent', className)}
           />
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 bg-white px-1 text-sm font-medium text-slate-600 transition-all peer-placeholder-shown:top-1/2 peer-focus:top-0 peer-focus:-translate-y-1/2 peer-focus:text-xs peer-focus:text-red-700 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:-translate-y-1/2 peer-[:not(:placeholder-shown)]:text-xs dark:bg-slate-800/95 dark:text-red-100 dark:peer-focus:text-red-200">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 bg-white px-1 text-sm font-medium text-slate-600 transition-all peer-placeholder-shown:top-1/2 peer-focus:top-0 peer-focus:-translate-y-1/2 peer-focus:text-xs peer-focus:text-red-700 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:-translate-y-1/2 peer-[:not(:placeholder-shown)]:text-xs">
             {label}
           </span>
         </label>
       ) : (
         <label htmlFor={inputId} className="block">
-          {label ? <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">{label}</span> : null}
+          {label ? <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span> : null}
           <input
             id={inputId}
             {...props}
@@ -78,7 +78,7 @@ export default function FloatingInput({
             aria-invalid={Boolean(error)}
             onWheel={handleWheel}
             onKeyDown={handleKeyDown}
-            className={cn(sharedInputClassName, 'placeholder:text-slate-400 dark:placeholder:text-red-100/70', className)}
+            className={cn(sharedInputClassName, 'placeholder:text-slate-400', className)}
           />
         </label>
       )}
@@ -90,10 +90,10 @@ export default function FloatingInput({
         className={cn(
           'mt-1 min-h-[16px] text-xs',
           error
-            ? 'text-red-600 dark:text-red-300'
+            ? 'text-red-600'
             : success
-              ? 'text-emerald-600 dark:text-emerald-300'
-              : 'text-slate-500 dark:text-red-100/75'
+              ? 'text-emerald-600'
+              : 'text-slate-500'
         )}
       >
         {error || success || hint || ''}
