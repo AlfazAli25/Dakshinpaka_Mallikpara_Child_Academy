@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import PageHeader from '@/components/PageHeader';
+import Button from '@/components/ui/button';
 import { del, get, patch, post, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
@@ -628,7 +629,10 @@ export default function AdminNoticesPage() {
         description="Create notices for students, teachers, or everyone, mark important updates, and collect notice-specific payments."
       />
 
-      <form onSubmit={onSubmit} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
+      <form
+        onSubmit={onSubmit}
+        className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_28px_60px_-36px_rgba(153,27,27,0.7)] backdrop-blur-xl md:p-5 dark:border-red-400/20 dark:bg-slate-900/75"
+      >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Input
             label="Title"
@@ -639,12 +643,12 @@ export default function AdminNoticesPage() {
           />
 
           <div className="mb-3 block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">Notice Type</span>
+            <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Notice Type</span>
             <select
               value={form.noticeType}
               onChange={onFieldChange('noticeType')}
               disabled={saving}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
             >
               {NOTICE_TYPES.map((item) => {
                 const disabled = form.recipientRole !== 'student' && item === 'Payment';
@@ -658,12 +662,12 @@ export default function AdminNoticesPage() {
           </div>
 
           <div className="mb-3 block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">Audience</span>
+            <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Audience</span>
             <select
               value={form.recipientRole}
               onChange={onFieldChange('recipientRole')}
               disabled={saving}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
             >
               {RECIPIENT_ROLES.map((item) => (
                 <option key={item.value} value={item.value}>{item.label}</option>
@@ -673,29 +677,29 @@ export default function AdminNoticesPage() {
         </div>
 
         <label className="mb-3 block">
-          <span className="mb-1.5 block text-sm font-medium text-slate-700">Description</span>
+          <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Description</span>
           <textarea
             value={form.description}
             onChange={onFieldChange('description')}
             disabled={saving}
             rows={3}
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+            className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
             placeholder="Write a short notice description"
             required
           />
         </label>
 
         {form.recipientRole === 'all' ? (
-          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <div className="mb-3 rounded-xl border border-red-100 bg-red-50/60 px-3 py-2 text-xs text-slate-600 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-100/80">
             This notice will be sent to all students and teachers. Class selection is not required.
           </div>
         ) : (
-          <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-3">
+          <div className="mb-3 rounded-xl border border-red-100 bg-red-50/50 px-3 py-3 dark:border-red-400/20 dark:bg-red-900/20">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-700">
+              <p className="text-sm font-medium text-slate-700 dark:text-red-100">
                 {form.recipientRole === 'teacher' ? 'Target Teacher Classes' : 'Target Classes'}
               </p>
-              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-red-100">
                 <input
                   type="checkbox"
                   checked={allClassesSelected}
@@ -713,7 +717,7 @@ export default function AdminNoticesPage() {
                 const checked = form.classIds.includes(classId);
 
                 return (
-                  <label key={classId} className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                  <label key={classId} className="inline-flex items-center gap-2 rounded-lg border border-red-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-red-400/20 dark:bg-slate-900/75 dark:text-red-100">
                     <input
                       type="checkbox"
                       checked={checked}
@@ -726,7 +730,7 @@ export default function AdminNoticesPage() {
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-500 dark:text-red-100/75">
               {form.recipientRole === 'teacher'
                 ? 'Leave class selection empty (All Teachers checked) to publish to every teacher.'
                 : 'Leave class selection empty (All Classes checked) to publish to every class.'}
@@ -758,25 +762,25 @@ export default function AdminNoticesPage() {
 
           {editingId ? (
             <div className="mb-3 block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Status</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Status</span>
               <select
                 value={form.status}
                 onChange={onFieldChange('status')}
                 disabled={saving}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
               >
                 <option value="Active">Active</option>
                 <option value="Expired">Expired</option>
               </select>
             </div>
           ) : (
-            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 md:col-span-3">
+            <div className="mb-3 rounded-xl border border-red-100 bg-red-50/60 px-3 py-2 text-xs text-slate-600 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-100/75 md:col-span-3">
               New notices are created as Active by default. Use the expire action later when needed.
             </div>
           )}
         </div>
 
-        <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-700">
+        <label className="mb-3 inline-flex items-center gap-2 text-sm text-slate-700 dark:text-red-100">
           <input
             type="checkbox"
             checked={Boolean(form.isImportant)}
@@ -788,28 +792,27 @@ export default function AdminNoticesPage() {
         </label>
 
         <div className="mt-2 flex flex-wrap gap-2">
-          <button
+          <Button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {saving ? 'Saving...' : editingId ? 'Update Notice' : 'Create Notice'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
             onClick={resetForm}
             disabled={saving}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
           >
             Clear
-          </button>
+          </Button>
         </div>
       </form>
 
-      <section className="rounded-2xl border border-red-100 bg-white shadow-sm">
-        <div className="border-b border-red-100 px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Published Notices</h2>
-          <p className="text-xs text-slate-600">Review, edit, expire, publish, or delete notices.</p>
+      <section className="rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <div className="border-b border-red-100 px-4 py-3 md:px-5 dark:border-red-400/20">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-red-50">Published Notices</h2>
+          <p className="text-xs text-slate-600 dark:text-red-100/80">Review, edit, expire, publish, or delete notices.</p>
         </div>
 
         <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
@@ -909,21 +912,21 @@ export default function AdminNoticesPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-emerald-100 bg-white shadow-sm">
-        <div className="border-b border-emerald-100 px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Record Notice Payment by Cash (Admin)</h2>
-          <p className="text-xs text-slate-600">Use this when a student pays notice amount at the admin desk in cash.</p>
+      <section className="rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <div className="border-b border-red-100 px-4 py-3 md:px-5 dark:border-red-400/20">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-red-50">Record Notice Payment by Cash (Admin)</h2>
+          <p className="text-xs text-slate-600 dark:text-red-100/80">Use this when a student pays notice amount at the admin desk in cash.</p>
         </div>
 
         <form onSubmit={onRecordCashNoticePayment} className="space-y-3 px-4 py-4 md:px-5">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label className="mb-1 block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Payment Notice</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Payment Notice</span>
               <select
                 value={cashPaymentForm.noticeId}
                 onChange={onCashPaymentFieldChange('noticeId')}
                 disabled={loading || recordingCashPayment}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
               >
                 <option value="">Select payment notice</option>
                 {paymentNoticeOptions.map((notice) => (
@@ -935,12 +938,12 @@ export default function AdminNoticesPage() {
             </label>
 
             <label className="mb-1 block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-700">Student</span>
+              <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Student</span>
               <select
                 value={cashPaymentForm.studentId}
                 onChange={onCashPaymentFieldChange('studentId')}
                 disabled={loading || recordingCashPayment || loadingSelectedNoticePayments || !cashPaymentForm.noticeId}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
               >
                 <option value="">
                   {!cashPaymentForm.noticeId
@@ -970,55 +973,55 @@ export default function AdminNoticesPage() {
               placeholder="Receipt no / voucher no"
             />
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="text-xs font-semibold text-slate-600">Selected Notice Amount</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
+            <div className="rounded-xl border border-red-100 bg-red-50/60 px-3 py-2 dark:border-red-400/20 dark:bg-red-900/20">
+              <p className="text-xs font-semibold text-slate-600 dark:text-red-100/80">Selected Notice Amount</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-red-50">
                 {selectedCashNotice ? `INR ${Number(selectedCashNotice?.amount || 0)}` : '-'}
               </p>
             </div>
           </div>
 
           <label className="mb-1 block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">Notes (optional)</span>
+            <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-red-100">Notes (optional)</span>
             <textarea
               value={cashPaymentForm.notes}
               onChange={onCashPaymentFieldChange('notes')}
               disabled={loading || recordingCashPayment}
               rows={2}
               placeholder="Optional note for this cash collection"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-red-200 bg-white/90 px-3 py-2 text-sm text-slate-900 transition focus:border-red-600 focus:ring-4 focus:ring-red-100 dark:border-red-400/35 dark:bg-slate-900/75 dark:text-red-50 dark:focus:ring-red-500/20"
             />
           </label>
 
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="submit"
               disabled={loading || recordingCashPayment || loadingSelectedNoticePayments}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {recordingCashPayment ? 'Recording...' : 'Record Cash Payment'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
               onClick={resetCashPaymentForm}
               disabled={loading || recordingCashPayment}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               Clear
-            </button>
+            </Button>
           </div>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-amber-100 bg-white shadow-sm">
-        <div className="border-b border-amber-100 px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Notice Payment Verification Queue</h2>
-          <p className="text-xs text-slate-600">Approve or reject screenshots submitted for payment-related notices.</p>
+      <section className="rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <div className="border-b border-red-100 px-4 py-3 md:px-5 dark:border-red-400/20">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-red-50">Notice Payment Verification Queue</h2>
+          <p className="text-xs text-slate-600 dark:text-red-100/80">Approve or reject screenshots submitted for payment-related notices.</p>
         </div>
 
         <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-amber-600 text-amber-50">
+            <thead className="sticky top-0 z-10 bg-gradient-to-r from-red-900 via-red-700 to-red-900 text-red-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Notice</th>
                 <th className="px-3 py-3 text-left font-semibold">Student</th>
@@ -1105,15 +1108,15 @@ export default function AdminNoticesPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-blue-100 bg-white shadow-sm">
-        <div className="border-b border-blue-100 px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Notice Payment History</h2>
-          <p className="text-xs text-slate-600">All notice payment records including verified, pending, and rejected statuses.</p>
+      <section className="rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <div className="border-b border-red-100 px-4 py-3 md:px-5 dark:border-red-400/20">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-red-50">Notice Payment History</h2>
+          <p className="text-xs text-slate-600 dark:text-red-100/80">All notice payment records including verified, pending, and rejected statuses.</p>
         </div>
 
         <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1300px] w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-blue-700 text-blue-50">
+            <thead className="sticky top-0 z-10 bg-gradient-to-r from-red-900 via-red-700 to-red-900 text-red-50">
               <tr>
                 <th className="px-3 py-3 text-left font-semibold">Notice</th>
                 <th className="px-3 py-3 text-left font-semibold">Student</th>

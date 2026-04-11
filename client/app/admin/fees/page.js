@@ -5,6 +5,8 @@ import Image from 'next/image';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
+import Button from '@/components/ui/button';
 import { get, getBlob, post } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
@@ -215,6 +217,20 @@ export default function AdminFeesPage() {
     [selectedStudentRows]
   );
 
+  const feeSummary = useMemo(() => {
+    const totalDue = rows.reduce((sum, row) => sum + Number(row.amountDueValue || 0), 0);
+    const totalPaid = rows.reduce((sum, row) => sum + Number(row.amountPaidValue || 0), 0);
+    const totalPending = rows.reduce((sum, row) => sum + Number(row.pendingAmountValue || 0), 0);
+
+    return {
+      totalDue,
+      totalPaid,
+      totalPending,
+      pendingVerificationCount: pendingVerifications.length,
+      filteredVerificationCount: filteredPendingVerifications.length
+    };
+  }, [filteredPendingVerifications.length, pendingVerifications.length, rows]);
+
   const onProcessPayment = async (event) => {
     event.preventDefault();
     if (!selectedStudentId) {
@@ -303,9 +319,32 @@ export default function AdminFeesPage() {
         description="Process cash or direct online records, and verify student static-QR screenshot submissions."
       />
 
-      <form onSubmit={onProcessPayment} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Process Payments</h3>
-        <p className="mb-4 text-sm text-slate-600">Record cash or direct online confirmations. Use the queue below only for student-uploaded static QR screenshots.</p>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-red-100/85 bg-white/85 p-4 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-700 dark:text-red-200">Total Due</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-red-50">INR {feeSummary.totalDue}</p>
+        </div>
+        <div className="rounded-2xl border border-red-100/85 bg-white/85 p-4 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-700 dark:text-red-200">Total Paid</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-red-50">INR {feeSummary.totalPaid}</p>
+        </div>
+        <div className="rounded-2xl border border-red-100/85 bg-white/85 p-4 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-700 dark:text-red-200">Total Pending</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-red-50">INR {feeSummary.totalPending}</p>
+        </div>
+        <div className="rounded-2xl border border-red-100/85 bg-white/85 p-4 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-700 dark:text-red-200">Pending Verifications</p>
+          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-red-50">{feeSummary.pendingVerificationCount}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-red-100/75">Filtered: {feeSummary.filteredVerificationCount}</p>
+        </div>
+      </section>
+
+      <form
+        onSubmit={onProcessPayment}
+        className="rounded-3xl border border-red-100/85 bg-white/85 p-5 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75"
+      >
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-red-50">Process Payments</h3>
+        <p className="mb-4 text-sm text-slate-600 dark:text-red-100/80">Record cash or direct online confirmations. Use the queue below only for student-uploaded static QR screenshots.</p>
 
         <div className="grid gap-3 md:grid-cols-2">
           <Input
@@ -317,7 +356,7 @@ export default function AdminFeesPage() {
             required
           />
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <div className="rounded-xl border border-red-100 bg-red-50/65 px-3 py-2 text-sm text-slate-700 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-100">
             {selectedStudent
               ? `Selected: ${selectedStudent.userId?.name || 'Student'} (${selectedStudent.admissionNo || '-'})`
               : studentSearch.trim()
@@ -328,8 +367,8 @@ export default function AdminFeesPage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Auto Allocation</label>
-            <div className="h-11 rounded-lg border border-slate-300 bg-slate-50 px-3 text-sm leading-[44px] text-slate-700">
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-red-100">Auto Allocation</label>
+            <div className="h-11 rounded-xl border border-red-200 bg-red-50/60 px-3 text-sm leading-[44px] text-slate-700 dark:border-red-400/30 dark:bg-red-900/20 dark:text-red-100">
               {oldestPendingFee
                 ? `Oldest pending starts from ${oldestPendingFee.month}`
                 : studentSearch.trim()
@@ -340,18 +379,16 @@ export default function AdminFeesPage() {
             </div>
           </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Payment Mode</label>
-            <select
-              value={paymentMode}
-              onChange={(event) => setPaymentMode(event.target.value)}
-              className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
-              required
-            >
-              <option value="CASH">Via Cash</option>
-              <option value="ONLINE">Online (Direct Record)</option>
-            </select>
-          </div>
+          <Select
+            label="Payment Mode"
+            value={paymentMode}
+            onChange={(event) => setPaymentMode(event.target.value)}
+            options={[
+              { value: 'CASH', label: 'Via Cash' },
+              { value: 'ONLINE', label: 'Online (Direct Record)' }
+            ]}
+            required
+          />
 
           <Input
             label="Payment Amount"
@@ -374,31 +411,32 @@ export default function AdminFeesPage() {
         </div>
 
         {paymentMode === 'ONLINE' && (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Static QR Code (Reference)</p>
+          <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-400/20 dark:bg-red-900/20">
+            <p className="text-sm font-semibold text-slate-800 dark:text-red-100">Static QR Code (Reference)</p>
             <Image
               src="/static-payment-qr.svg"
               alt="Static payment QR"
               width={192}
               height={192}
-              className="mt-3 h-48 w-48 rounded-lg border border-slate-200 bg-white p-2"
+              className="mt-3 h-48 w-48 rounded-xl border border-red-100 bg-white p-2 dark:border-red-400/20 dark:bg-slate-900/80"
             />
-            <p className="mt-2 text-xs text-slate-500">For in-person collection, confirm payment and record it directly. Screenshot upload is not required here.</p>
+            <p className="mt-2 text-xs text-slate-500 dark:text-red-100/75">For in-person collection, confirm payment and record it directly. Screenshot upload is not required here.</p>
           </div>
         )}
 
-        <button
+        <Button
           type="submit"
           disabled={submittingCash || !oldestPendingFee}
-          className="mt-4 h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="mt-4"
+          size="md"
         >
           {submittingCash ? 'Processing...' : paymentMode === 'CASH' ? 'Process Cash Payment' : 'Record Online Payment'}
-        </button>
+        </Button>
       </form>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Static QR Verification Queue</h3>
-        <p className="mb-3 text-sm text-slate-600">Review uploaded screenshots, then approve or reject payment verification.</p>
+      <div className="rounded-3xl border border-red-100/85 bg-white/85 p-5 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <h3 className="text-lg font-semibold text-slate-900 dark:text-red-50">Static QR Verification Queue</h3>
+        <p className="mb-3 text-sm text-slate-600 dark:text-red-100/80">Review uploaded screenshots, then approve or reject payment verification.</p>
 
         <Input
           label="Search Student (ID / Name)"
@@ -430,31 +468,34 @@ export default function AdminFeesPage() {
         {filteredPendingVerifications.length > 0 && (
           <div className="mt-4 space-y-2">
             {filteredPendingVerifications.map((item) => (
-              <div key={item._id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 px-3 py-2">
-                <p className="text-sm text-slate-700">
+              <div key={item._id} className="flex flex-wrap items-center gap-2 rounded-xl border border-red-100 bg-red-50/40 px-3 py-2 dark:border-red-400/20 dark:bg-red-900/15">
+                <p className="text-sm text-slate-700 dark:text-red-100">
                   {item.studentId?.admissionNo || '-'} - {item.studentId?.userId?.name || 'Student'} - INR {item.amount}
                 </p>
-                <button
+                <Button
                   type="button"
                   onClick={() => onViewScreenshot(item._id)}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  variant="outline"
+                  size="sm"
                 >
                   View Screenshot
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => onVerify(item._id, 'APPROVE')}
-                  className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                  size="sm"
+                  className="bg-emerald-600 hover:bg-emerald-700"
                 >
                   Approve
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => onVerify(item._id, 'REJECT')}
-                  className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                  variant="danger"
+                  size="sm"
                 >
                   Reject
-                </button>
+                </Button>
               </div>
             ))}
           </div>

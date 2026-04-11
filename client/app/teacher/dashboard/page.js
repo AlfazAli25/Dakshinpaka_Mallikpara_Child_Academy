@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
@@ -8,10 +9,16 @@ import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import Table from '@/components/Table';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
+import PortalTopSection from '@/components/dashboard/PortalTopSection';
+import Button from '@/components/ui/button';
 import { get, getBlob, post } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+
+const DashboardHero3D = dynamic(() => import('@/components/dashboard/DashboardHero3D'), {
+  ssr: false
+});
 
 const formatInr = (value) => {
   const numeric = Number(value);
@@ -344,6 +351,11 @@ export default function TeacherDashboardPage() {
     [salaryRows, downloadingSalaryReceiptId]
   );
 
+  const importantTeacherNoticeCount = useMemo(
+    () => teacherNotices.filter((item) => Boolean(item?.isImportant)).length,
+    [teacherNotices]
+  );
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -351,6 +363,16 @@ export default function TeacherDashboardPage() {
         title="Teacher Dashboard"
         description="Review today's classes, attendance work, and exam tasks at a glance."
       />
+
+      <PortalTopSection
+        role="Teacher"
+        heading={teacherProfile?.userId?.name ? `Welcome back, ${teacherProfile.userId.name}` : 'Teacher Dashboard'}
+        subheading="Track classes, salary updates, notices, and confirmations from one premium workspace."
+        metricLabel="Important Notices"
+        metricValue={String(importantTeacherNoticeCount)}
+      />
+
+      <DashboardHero3D />
 
       <SchoolBrandPanel subtitle="Guide students confidently with school updates, class insights, and exam readiness tools." />
 
@@ -427,7 +449,7 @@ export default function TeacherDashboardPage() {
                       <Link
                         key={classId}
                         href={`/teacher/classes/${classId}`}
-                        className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                        className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-400/30 dark:bg-red-900/20 dark:text-red-100 dark:hover:bg-red-900/35"
                       >
                         {formatClassLabel(classItem, 'Class')}
                       </Link>
@@ -441,31 +463,33 @@ export default function TeacherDashboardPage() {
       </div>
 
       {!loading && pendingSalaryConfirmations.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-          <h3 className="text-lg font-semibold text-amber-900">Payment Confirmation Required</h3>
-          <p className="mt-1 text-sm text-amber-800">Please confirm whether you received these salary payments.</p>
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/85 p-5 shadow-[0_24px_52px_-36px_rgba(146,64,14,0.72)] dark:border-amber-500/35 dark:bg-amber-900/20">
+          <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Payment Confirmation Required</h3>
+          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/85">Please confirm whether you received these salary payments.</p>
           <div className="mt-3 space-y-2">
             {pendingSalaryConfirmations.map((item) => (
-              <div key={item._id} className="rounded-lg border border-amber-200 bg-white px-3 py-2">
-                <p className="text-sm font-semibold text-slate-900">{item.message}</p>
-                <p className="text-xs text-slate-500">Requested: {new Date(item.submittedAt).toLocaleString('en-GB')}</p>
+              <div key={item._id} className="rounded-xl border border-amber-200 bg-white/90 px-3 py-2 dark:border-amber-500/35 dark:bg-slate-900/75">
+                <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{item.message}</p>
+                <p className="text-xs text-slate-500 dark:text-red-100/70">Requested: {new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                 <div className="mt-2 flex gap-2">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => onRespondSalaryConfirmation(item._id, 'YES')}
                     disabled={respondingNotificationId === item._id}
-                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700"
                   >
                     {respondingNotificationId === item._id ? 'Processing...' : 'Yes'}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => onRespondSalaryConfirmation(item._id, 'NO')}
                     disabled={respondingNotificationId === item._id}
-                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    size="sm"
+                    variant="danger"
                   >
                     {respondingNotificationId === item._id ? 'Processing...' : 'No'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -477,11 +501,11 @@ export default function TeacherDashboardPage() {
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`notice-skeleton-${index}`} className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-100" />
+              <div key={`notice-skeleton-${index}`} className="h-14 animate-pulse rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800" />
             ))}
           </div>
         ) : teacherNotices.length === 0 ? (
-          <p className="text-sm text-slate-500">No teacher notices right now.</p>
+          <p className="text-sm text-slate-500 dark:text-red-100/80">No teacher notices right now.</p>
         ) : (
           <div className="space-y-2">
             {teacherNotices.map((notice, index) => {
@@ -489,14 +513,18 @@ export default function TeacherDashboardPage() {
               return (
                 <div
                   key={String(notice?._id || `notice-${index}`)}
-                  className={`rounded-lg border px-3 py-2 ${isImportant ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}
+                  className={`rounded-xl border px-3 py-2 ${
+                    isImportant
+                      ? 'border-amber-200 bg-amber-50/85 dark:border-amber-500/35 dark:bg-amber-900/20'
+                      : 'border-red-100 bg-red-50/45 dark:border-red-400/20 dark:bg-red-900/15'
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{notice?.title || '-'}</p>
-                    <p className="text-xs text-slate-500">{formatDateTimeValue(notice?.createdAt)}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{notice?.title || '-'}</p>
+                    <p className="text-xs text-slate-500 dark:text-red-100/70">{formatDateTimeValue(notice?.createdAt)}</p>
                   </div>
-                  <p className="mt-1 text-sm text-slate-700">{notice?.description || '-'}</p>
-                  {isImportant ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700">Important</p> : null}
+                  <p className="mt-1 text-sm text-slate-700 dark:text-red-100/85">{notice?.description || '-'}</p>
+                  {isImportant ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">Important</p> : null}
                 </div>
               );
             })}

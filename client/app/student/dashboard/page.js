@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import useSWR from 'swr';
 import StatCard from '@/components/StatCard';
 import PageHeader from '@/components/PageHeader';
@@ -9,10 +10,15 @@ import LanguageToggle from '@/components/LanguageToggle';
 import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
+import PortalTopSection from '@/components/dashboard/PortalTopSection';
 import { get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
+
+const DashboardHero3D = dynamic(() => import('@/components/dashboard/DashboardHero3D'), {
+  ssr: false
+});
 
 const text = {
   en: {
@@ -336,6 +342,10 @@ export default function StudentDashboardPage() {
   const studentProfile = data?.studentProfile || null;
   const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : DEFAULT_STATS), [data]);
   const notices = useMemo(() => (Array.isArray(data?.notices) ? data.notices : []), [data]);
+  const importantNoticeCount = useMemo(
+    () => notices.filter((item) => Boolean(item?.isImportant)).length,
+    [notices]
+  );
 
   const formatDate = (value) => {
     if (!value) {
@@ -398,7 +408,7 @@ export default function StudentDashboardPage() {
         description={t.description}
         rightSlot={
           <div className="flex w-full items-center justify-end gap-3 md:w-[560px] md:justify-between">
-            <div className="h-24 w-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:-mt-8 md:h-[152px] md:w-[152px]">
+            <div className="h-24 w-24 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm md:-mt-8 md:h-[152px] md:w-[152px] dark:border-red-400/20 dark:bg-slate-900/80">
               <img
                 src={studentProfile?.profileImageUrl || '/default-student-avatar.svg'}
                 alt={t.profilePhotoTitle}
@@ -413,17 +423,27 @@ export default function StudentDashboardPage() {
         }
       />
 
+      <PortalTopSection
+        role="Student"
+        heading={studentProfile?.userId?.name ? `Welcome back, ${studentProfile.userId.name}` : t.title}
+        subheading={t.description}
+        metricLabel="Important Notices"
+        metricValue={String(importantNoticeCount)}
+      />
+
+      <DashboardHero3D />
+
       <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
 
       <InfoCard title={t.notices.title}>
         {isLoading ? (
           <div className="space-y-2">
-            <div className="h-4 w-11/12 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-9/12 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-10/12 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-11/12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-9/12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-10/12 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
           </div>
         ) : notices.length === 0 ? (
-          <p className="text-base font-semibold text-slate-600">{t.notices.empty}</p>
+          <p className="text-base font-semibold text-slate-600 dark:text-red-100/85">{t.notices.empty}</p>
         ) : (
           <div className="space-y-4">
             {notices.map((notice) => {
@@ -438,12 +458,16 @@ export default function StudentDashboardPage() {
               return (
                 <div
                   key={noticeId}
-                  className={`rounded-xl border p-5 ${isImportant ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+                  className={`rounded-2xl border p-5 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.8)] ${
+                    isImportant
+                      ? 'border-amber-300 bg-amber-50/85 dark:border-amber-500/35 dark:bg-amber-900/20'
+                      : 'border-red-100 bg-red-50/50 dark:border-red-400/20 dark:bg-red-900/15'
+                  }`}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
-                      <p className="text-xl font-bold text-slate-900">{notice?.title || '-'}</p>
-                      <p className="mt-2 text-base font-medium text-slate-700">{notice?.description || '-'}</p>
+                      <p className="text-xl font-bold text-slate-900 dark:text-red-50">{notice?.title || '-'}</p>
+                      <p className="mt-2 text-base font-medium text-slate-700 dark:text-red-100/85">{notice?.description || '-'}</p>
                     </div>
                     {isImportant ? (
                       <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
@@ -452,7 +476,7 @@ export default function StudentDashboardPage() {
                     ) : null}
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-700">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-700 dark:text-red-100/80">
                     {notice?.dueDate ? (
                       <p>{t.notices.dueDate}: {formatDate(notice.dueDate)}</p>
                     ) : null}
@@ -467,7 +491,7 @@ export default function StudentDashboardPage() {
                         type="button"
                         onClick={() => downloadAdmitCard(notice)}
                         disabled={downloadingNoticeId === noticeId}
-                        className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {downloadingNoticeId === noticeId ? t.notices.downloadingAdmitCard : actionLabel}
                       </button>
@@ -477,14 +501,14 @@ export default function StudentDashboardPage() {
                       {notice?.canPay ? (
                         <Link
                           href={`/student/payment/${noticeId}`}
-                          className="inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                          className="inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-800"
                         >
                           {t.notices.payNow}
                         </Link>
                       ) : (
                         <Link
                           href="/student/fees"
-                          className="inline-flex rounded-lg bg-slate-700 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800"
+                          className="inline-flex rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-400/30 dark:bg-slate-900 dark:text-red-100 dark:hover:bg-slate-800"
                         >
                           {t.notices.viewInFees}
                         </Link>
@@ -496,7 +520,7 @@ export default function StudentDashboardPage() {
             })}
 
             {admitCardDownloadError ? (
-              <p className="text-sm font-medium text-red-600">{admitCardDownloadError}</p>
+              <p className="text-sm font-medium text-red-600 dark:text-red-300">{admitCardDownloadError}</p>
             ) : null}
           </div>
         )}
@@ -511,11 +535,11 @@ export default function StudentDashboardPage() {
       {isLoading ? (
         <InfoCard title={t.detailsTitle}>
           <div className="space-y-2">
-            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-3/5 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
+            <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-3/5 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-2/5 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
           </div>
         </InfoCard>
       ) : studentProfile ? (

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '@/components/PageHeader';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import Button from '@/components/ui/button';
+import AppModal from '@/components/modals/AppModal';
 import { del, get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
@@ -536,6 +538,31 @@ export default function AdminMarksPage() {
 
   const hasPrevious = pagination.page > 1;
   const hasNext = pagination.totalPages > 0 && pagination.page < pagination.totalPages;
+  const summaryCards = useMemo(
+    () => [
+      {
+        label: 'Records On Current Page',
+        value: String(rows.length)
+      },
+      {
+        label: 'Grouped Students',
+        value: String(groupedRows.length)
+      },
+      {
+        label: 'Total Records',
+        value: String(pagination.total || 0)
+      },
+      {
+        label: 'Active Filters',
+        value: String(
+          [selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId, searchText]
+            .filter((item) => String(item || '').trim())
+            .length
+        )
+      }
+    ],
+    [groupedRows.length, pagination.total, rows.length, searchText, selectedClassId, selectedExamId, selectedStudentId, selectedSubjectId]
+  );
 
   const openDeleteDialog = (row) => {
     setDeleteTarget({
@@ -555,7 +582,19 @@ export default function AdminMarksPage() {
         description="View, filter, and manage marks entries across all classes and exams."
       />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {summaryCards.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-2xl border border-red-100/85 bg-white/85 p-4 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-red-700 dark:text-red-200">{item.label}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-red-50">{item.value}</p>
+          </div>
+        ))}
+      </section>
+
+      <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Select
             label="Class Filter"
@@ -601,9 +640,9 @@ export default function AdminMarksPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="text-base font-semibold text-slate-900">Download Class Report Cards (ZIP)</h3>
-        <p className="mt-1 text-sm text-slate-600">
+      <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">Download Class Report Cards (ZIP)</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-red-100/80">
           Select class and section to download all student report cards in one ZIP file after Final Exam completion.
         </p>
 
@@ -625,7 +664,7 @@ export default function AdminMarksPage() {
           />
 
           <div className="flex items-end">
-            <button
+            <Button
               type="button"
               onClick={onDownloadReportCardsZip}
               disabled={
@@ -633,18 +672,19 @@ export default function AdminMarksPage() {
                 !reportCardClassId ||
                 !reportCardSection
               }
-              className="h-11 w-full rounded-md bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-11 w-full"
+              fullWidth
             >
               {downloadingReportCardsZip ? 'Preparing ZIP...' : 'Download Class Report Cards (ZIP)'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <div className="max-h-[420px] overflow-x-auto overflow-y-auto">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-red-700 text-left">
+            <thead className="sticky top-0 z-10 bg-gradient-to-r from-red-900 via-red-700 to-red-900 text-left">
               <tr>
                 <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
@@ -704,16 +744,17 @@ export default function AdminMarksPage() {
                       <td className="px-4 py-3 text-slate-700">{row.grade}</td>
                       <td className="px-4 py-3 text-slate-700">{row.remarks}</td>
                       <td className="px-4 py-3 text-slate-700">
-                        <button
+                        <Button
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
                             openDeleteDialog(row);
                           }}
-                          className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                          variant="danger"
+                          size="sm"
                         >
                           Delete
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -724,59 +765,63 @@ export default function AdminMarksPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <p className="text-sm text-slate-600">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-red-100/85 bg-white/85 px-4 py-3 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <p className="text-sm text-slate-600 dark:text-red-100/80">
           Page {pagination.page} of {pagination.totalPages || 0} | Total records: {pagination.total}
         </p>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={() => setPagination((prev) => ({ ...prev, page: Math.max(prev.page - 1, 1) }))}
             disabled={!hasPrevious || loadingMarks}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            variant="outline"
+            size="sm"
           >
             Previous
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
             disabled={!hasNext || loadingMarks}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            variant="outline"
+            size="sm"
           >
             Next
-          </button>
+          </Button>
         </div>
       </div>
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Delete Marks Entry</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              This action will permanently remove marks for {deleteTarget.studentName} ({deleteTarget.rollNumber}) in {deleteTarget.subjectName} - {deleteTarget.examName}.
-            </p>
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onDeleteMark}
-                disabled={deletingMarkId === deleteTarget.id}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {deletingMarkId === deleteTarget.id ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AppModal
+        open={Boolean(deleteTarget)}
+        title="Delete Marks Entry"
+        description={
+          deleteTarget
+            ? `This action will permanently remove marks for ${deleteTarget.studentName} (${deleteTarget.rollNumber}) in ${deleteTarget.subjectName} - ${deleteTarget.examName}.`
+            : ''
+        }
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={onDeleteMark}
+              loading={Boolean(deleteTarget && deletingMarkId === deleteTarget.id)}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-red-100/80">
+          Please confirm before deleting this marks entry.
+        </p>
+      </AppModal>
     </div>
   );
 }
