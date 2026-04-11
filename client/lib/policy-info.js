@@ -1,8 +1,8 @@
 export const SCHOOL_INFO = {
   name: 'Dakshinpaka Mallikpara Child Academy',
   legalName: 'Dakshinpaka Mallikpara Child Academy',
-  addressLines: ['Dakshinpaka Mallikpara Child Academy Campus', 'Dakshinpaka, Mallikpara, West Bengal - 721101, India'],
-  phone: '+91 98300 11223',
+  addressLines: ['Dakshinpaka Mallikpara Child Academy Campus', 'Dakshinpaka, Mallikpara, West Bengal - 732123, India'],
+  phone: ['+91 9734196551', '+91 9733114790'],
   email: 'contact@dakshinpakaacademy.in',
   officeHours: [
     'Monday to Friday: 9:00 AM to 5:00 PM',
