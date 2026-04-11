@@ -17,6 +17,17 @@ deriveFeeStatus
 
 const base = createCrudService(Fee);
 
+const FEE_POPULATE = {
+	path: 'studentId',
+	select: 'userId admissionNo rollNo classId guardianContact pendingFees attendance',
+	populate: [
+		{ path: 'userId', select: 'name email role' },
+		{ path: 'classId', select: 'name section' }
+	]
+};
+
+const FEE_LIST_SELECT = 'studentId amountDue amountPaid status dueDate paymentDate paymentMethod monthKey createdAt updatedAt';
+
 const PENDING_SCREENSHOT_VERIFICATION_MESSAGE =
 'Payment screenshot pending verification. Please verify before processing payment.';
 
@@ -41,13 +52,21 @@ await ensureMonthlyFeesForStudent({ studentId: filter.studentId });
 await ensureMonthlyFeesForAllStudents();
 }
 
-return Fee.find(filter)
-.populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] })
-.sort({ dueDate: 1, createdAt: 1 });
+const normalizedFilter = {
+	sort: filter.sort ?? filter._sort ?? 'dueDate',
+	order: filter.order ?? filter._order ?? 'asc',
+	select: filter.select ?? filter._select ?? FEE_LIST_SELECT,
+	...filter
+};
+
+return base.findAll(normalizedFilter, FEE_POPULATE);
 };
 
 const findById = async (id) =>
-Fee.findById(id).populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] });
+Fee.findById(id)
+	.select(FEE_LIST_SELECT)
+	.populate(FEE_POPULATE)
+	.lean();
 
 const buildTransactionId = (prefix = 'TXN') => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
@@ -74,7 +93,9 @@ const getSessionQuery = (query, session) => (session ? query.session(session) : 
 
 const getPendingFeeRowsForStudent = async ({ studentId, session }) => {
 const feeRows = await getSessionQuery(
-Fee.find({ studentId }).sort({ dueDate: 1, createdAt: 1 }),
+Fee.find({ studentId })
+	.select('amountDue amountPaid status dueDate paymentDate paymentMethod monthKey studentId')
+	.sort({ dueDate: 1, createdAt: 1 }),
 session
 );
 
@@ -104,7 +125,7 @@ if (excludePaymentId) {
 query._id = { $ne: excludePaymentId };
 }
 
-return getSessionQuery(Payment.findOne(query), session);
+return getSessionQuery(Payment.findOne(query).select('_id paymentStatus paymentMethod'), session);
 };
 
 const recordFeeReceipt = async ({ studentId, fee, payment, amount, paymentMethod, generatedBy, session }) => {
@@ -112,7 +133,7 @@ const student = await getSessionQuery(
 Student.findById(studentId).populate([
 { path: 'userId', select: 'name email role' },
 { path: 'classId', select: 'name section' }
-]),
+]).lean(),
 session
 );
 if (!student) {
@@ -410,14 +431,14 @@ throw error;
 const student = await Student.findOne({ userId }).populate([
 { path: 'userId', select: 'name email role' },
 { path: 'classId', select: 'name section' }
-]);
+]).lean();
 if (!student) {
 const error = new Error('Student record not found');
 error.statusCode = 404;
 throw error;
 }
 
-const selectedFee = await Fee.findOne({ _id: feeId, studentId: student._id });
+const selectedFee = await Fee.findOne({ _id: feeId, studentId: student._id }).select('_id studentId').lean();
 if (!selectedFee) {
 const error = new Error('Fee record not found for this student');
 error.statusCode = 404;
@@ -505,9 +526,11 @@ return payment;
 
 const listPendingVerificationPayments = async () =>
 Payment.find({ paymentStatus: 'PENDING_VERIFICATION', paymentMethod: 'STATIC_QR' })
-.populate({ path: 'studentId', populate: [{ path: 'userId' }, { path: 'classId' }] })
-.populate('feeId')
-.sort({ createdAt: -1 });
+	.select('studentId feeId amount paymentStatus paymentMethod transactionId providerReferenceId screenshotPath createdAt')
+	.populate({ path: 'studentId', populate: [{ path: 'userId', select: 'name email role' }, { path: 'classId', select: 'name section' }] })
+	.populate({ path: 'feeId', select: 'amountDue amountPaid status dueDate paymentDate monthKey' })
+	.sort({ createdAt: -1 })
+	.lean();
 
 const verifyStaticQrPaymentByAdmin = async ({ paymentId, decision, adminUserId, notes, transactionReference }) => {
 const payment = await Payment.findById(paymentId);
@@ -616,11 +639,13 @@ throw error;
 
 const getStudentPaymentsForAdmin = async ({ studentId }) =>
 Payment.find({ studentId })
-.populate('processedByAdmin', 'name email')
-.sort({ createdAt: -1 });
+	.select('studentId feeId amount transactionId providerReferenceId paymentStatus paymentMethod processedBy processedByAdmin verifiedByAdmin verifiedAt paidAt remainingBalance screenshotPath verificationNotes createdAt allocations')
+	.populate('processedByAdmin', 'name email')
+	.sort({ createdAt: -1 })
+	.lean();
 
 const getStudentPaymentsForStudent = async ({ userId }) => {
-const student = await Student.findOne({ userId });
+const student = await Student.findOne({ userId }).select('_id').lean();
 if (!student) {
 const error = new Error('Student record not found');
 error.statusCode = 404;
@@ -670,7 +695,7 @@ return rightTime - leftTime;
 };
 
 const getPaymentScreenshotPathForAdmin = async ({ paymentId }) => {
-const payment = await Payment.findById(paymentId);
+const payment = await Payment.findById(paymentId).select('screenshotPath').lean();
 if (!payment) {
 const error = new Error('Payment record not found');
 error.statusCode = 404;

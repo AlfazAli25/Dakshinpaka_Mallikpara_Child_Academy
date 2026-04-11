@@ -464,7 +464,15 @@ export default function AdminTeachersPage() {
           {loading ? 'Creating...' : 'Create Teacher'}
         </button>
       </form>
-      <Table columns={columns} rows={rows} loading={loadingTeachers} getRowHref={(row) => `/admin/teachers/${row.id}`} />
+      <Table
+        columns={columns}
+        rows={rows}
+        loading={loadingTeachers}
+        virtualize
+        virtualizationThreshold={60}
+        virtualHeight={420}
+        getRowHref={(row) => `/admin/teachers/${row.id}`}
+      />
 
       {deleteTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">

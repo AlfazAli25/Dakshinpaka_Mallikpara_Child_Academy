@@ -85,6 +85,8 @@ export default function AdminFeesPage() {
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [studentSearch, setStudentSearch] = useState('');
   const [verificationSearch, setVerificationSearch] = useState('');
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
+  const [debouncedVerificationSearch, setDebouncedVerificationSearch] = useState('');
   const [transactionReference, setTransactionReference] = useState('');
   const [amount, setAmount] = useState('');
 
@@ -99,6 +101,22 @@ export default function AdminFeesPage() {
       toast.success(message);
     }
   }, [message, toast]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedStudentSearch(studentSearch);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [studentSearch]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedVerificationSearch(verificationSearch);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [verificationSearch]);
 
   const loadData = async () => {
     setLoadingData(true);
@@ -147,10 +165,13 @@ export default function AdminFeesPage() {
     });
   }, []);
 
-  const filteredStudents = useMemo(() => filterStudentsBySearch(students, studentSearch), [students, studentSearch]);
+  const filteredStudents = useMemo(
+    () => filterStudentsBySearch(students, debouncedStudentSearch),
+    [debouncedStudentSearch, students]
+  );
 
   const selectedStudent = useMemo(() => {
-    const query = String(studentSearch || '').trim().toLowerCase();
+    const query = String(debouncedStudentSearch || '').trim().toLowerCase();
     if (!query) {
       return null;
     }
@@ -170,13 +191,13 @@ export default function AdminFeesPage() {
     }
 
     return null;
-  }, [filteredStudents, studentSearch, students]);
+  }, [debouncedStudentSearch, filteredStudents, students]);
 
   const selectedStudentId = String(selectedStudent?._id || '');
 
   const filteredPendingVerifications = useMemo(
-    () => filterVerificationRows(pendingVerifications, verificationSearch),
-    [pendingVerifications, verificationSearch]
+    () => filterVerificationRows(pendingVerifications, debouncedVerificationSearch),
+    [debouncedVerificationSearch, pendingVerifications]
   );
 
   const selectedStudentRows = useMemo(
@@ -392,6 +413,9 @@ export default function AdminFeesPage() {
           loading={loadingData}
           scrollY
           maxHeightClass="max-h-[288px]"
+          virtualize
+          virtualizationThreshold={40}
+          virtualHeight={288}
           rows={filteredPendingVerifications.map((item) => ({
             id: item._id,
             studentAdmissionNo: item.studentId?.admissionNo || '-',

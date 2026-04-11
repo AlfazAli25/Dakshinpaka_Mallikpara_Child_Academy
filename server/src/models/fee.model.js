@@ -39,6 +39,8 @@ feeSchema.pre('validate', function onValidate(next) {
 
 feeSchema.index({ studentId: 1, dueDate: 1 });
 feeSchema.index({ studentId: 1, status: 1, dueDate: 1 });
+feeSchema.index({ studentId: 1, status: 1, createdAt: -1 });
+feeSchema.index({ createdAt: -1 });
 feeSchema.index(
   { studentId: 1, monthKey: 1 },
   { unique: true, partialFilterExpression: { monthKey: { $exists: true, $type: 'string' } } }

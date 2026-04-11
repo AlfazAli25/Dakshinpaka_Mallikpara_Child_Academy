@@ -39,5 +39,7 @@ marksSchema.pre('validate', function preValidateMarks(next) {
 marksSchema.index({ studentId: 1, subjectId: 1, examId: 1 }, { unique: true });
 marksSchema.index({ classId: 1, subjectId: 1, examId: 1 });
 marksSchema.index({ studentId: 1, examId: 1 });
+marksSchema.index({ examId: 1 });
+marksSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Marks', marksSchema);

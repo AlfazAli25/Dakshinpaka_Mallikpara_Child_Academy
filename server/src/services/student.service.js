@@ -20,6 +20,7 @@ const STUDENT_POPULATE = [
 	{ path: 'userId', select: 'name email role' },
 	{ path: 'classId', select: 'name section' }
 ];
+const STUDENT_LIST_SELECT = 'userId admissionNo rollNo profileImageUrl classId guardianContact pendingFees attendance createdAt';
 
 const withSession = (query, session) => (session ? query.session(session) : query);
 const DEFAULT_STUDENT_PROFILE_IMAGE_URL = '/default-student-avatar.svg';
@@ -79,7 +80,7 @@ const generateStudentAdmissionNo = async () => {
 	for (let attempt = 0; attempt < 10; attempt += 1) {
 		const suffix = `${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
 		const candidate = `STU-${suffix}`;
-		const existing = await Student.findOne({ admissionNo: candidate }).select('_id');
+		const existing = await Student.findOne({ admissionNo: candidate }).select('_id').lean();
 		if (!existing) {
 			return candidate;
 		}
@@ -110,89 +111,117 @@ const uploadStudentPhotoIfProvided = async (studentPhotoFile) => {
 	}
 };
 
-const findAll = (filter = {}) => base.findAll(filter, STUDENT_POPULATE);
+const findAll = (filter = {}) => base.findAll({ select: STUDENT_LIST_SELECT, ...filter }, STUDENT_POPULATE);
 const findById = (id) => base.findById(id, STUDENT_POPULATE);
 const findByUserId = (userId) => Student.findOne({ userId }).populate(STUDENT_POPULATE).lean();
 
 const findAllForAdmin = async ({ search, page, limit } = {}) => {
-	const [students, studentUsers] = await Promise.all([
-		Student.find({})
-			.select('userId admissionNo rollNo profileImageUrl classId guardianContact pendingFees attendance createdAt')
-			.populate({ path: 'userId', select: 'name email role' })
-			.populate({ path: 'classId', select: 'name section' })
-			.sort({ createdAt: -1 })
-			.lean(),
-		User.find({ role: 'student' }).select('name email role createdAt').sort({ createdAt: -1 }).lean()
+	const normalizedSearch = String(search || '').trim();
+	const safePage = toPositiveInt(page, 1);
+	const safeLimit = Math.min(toPositiveInt(limit, 20), 200);
+	const hasPagination = page !== undefined || limit !== undefined;
+	const skip = (safePage - 1) * safeLimit;
+
+	let linkedFilter = {};
+	let matchingStudentUserIds = [];
+
+	if (normalizedSearch) {
+		const admissionExactFilter = { admissionNo: normalizedSearch };
+		const [matchingUsers, admissionMatchCount] = await Promise.all([
+			User.find({ role: 'student', name: { $regex: normalizedSearch, $options: 'i' } }).select('_id').lean(),
+			Student.countDocuments(admissionExactFilter)
+		]);
+
+		matchingStudentUserIds = matchingUsers.map((item) => item._id).filter(Boolean);
+
+		if (admissionMatchCount > 0) {
+			linkedFilter = admissionExactFilter;
+		} else {
+			linkedFilter = matchingStudentUserIds.length > 0 ? { userId: { $in: matchingStudentUserIds } } : { _id: null };
+		}
+	}
+
+	const linkedQuery = Student.find(linkedFilter)
+		.select(STUDENT_LIST_SELECT)
+		.populate({ path: 'userId', select: 'name email role createdAt' })
+		.populate({ path: 'classId', select: 'name section' })
+		.sort({ createdAt: -1 });
+
+	if (hasPagination) {
+		linkedQuery.skip(skip).limit(safeLimit);
+	}
+
+	const [linkedRows, linkedTotal] = await Promise.all([
+		linkedQuery.lean(),
+		Student.countDocuments(linkedFilter)
 	]);
 
-	const linkedUserIds = new Set(
-		students
-			.map((item) => item.userId?._id?.toString())
-			.filter(Boolean)
-	);
-
-	const unlinkedAccounts = studentUsers
-		.filter((user) => !linkedUserIds.has(user._id.toString()))
-		.map((user) => ({
-			_id: `user-${user._id.toString()}`,
-			userId: user,
-			admissionNo: '-',
-			rollNo: '-',
-			profileImageUrl: DEFAULT_STUDENT_PROFILE_IMAGE_URL,
-			classId: null,
-			guardianContact: '-',
-			pendingFees: 0,
-			attendance: 0,
-			isLinkedRecord: false
+	if (linkedRows.length > 0 || normalizedSearch || hasPagination) {
+		const data = linkedRows.map((item) => ({
+			...item,
+			isLinkedRecord: true
 		}));
 
-	const linkedRows = students.map((item) => ({
-		...item,
-		isLinkedRecord: true
-	}));
-
-	const mergedRows = [...linkedRows, ...unlinkedAccounts];
-	const normalizedSearch = String(search || '').trim().toLowerCase();
-	const toPaginatedResult = (items) => {
-		const rawPage = page;
-		const rawLimit = limit;
-		const hasPagination = rawPage !== undefined || rawLimit !== undefined;
 		if (!hasPagination) {
-			return items;
+			return data;
 		}
 
-		const safePage = toPositiveInt(rawPage, 1);
-		const safeLimit = Math.min(toPositiveInt(rawLimit, 20), 200);
-		const total = items.length;
-		const start = (safePage - 1) * safeLimit;
-		const end = start + safeLimit;
-
 		return {
-			data: items.slice(start, end),
+			data,
 			pagination: {
 				page: safePage,
 				limit: safeLimit,
-				total,
-				totalPages: total === 0 ? 0 : Math.ceil(total / safeLimit)
+				total: linkedTotal,
+				totalPages: linkedTotal === 0 ? 0 : Math.ceil(linkedTotal / safeLimit)
 			}
 		};
+	}
+
+	const unlinkedFilter = {
+		role: 'student',
+		...(normalizedSearch
+			? {
+				name: { $regex: normalizedSearch, $options: 'i' }
+			}
+			: {})
 	};
+	const unlinkedQuery = User.find(unlinkedFilter)
+		.select('name email role createdAt')
+		.sort({ createdAt: -1 });
 
-	if (!normalizedSearch) {
-		return toPaginatedResult(mergedRows);
+	if (hasPagination) {
+		unlinkedQuery.skip(skip).limit(safeLimit);
 	}
 
-	const exactAdmissionMatches = mergedRows.filter(
-		(item) => String(item.admissionNo || '').toLowerCase() === normalizedSearch
-	);
-	if (exactAdmissionMatches.length > 0) {
-		return toPaginatedResult(exactAdmissionMatches);
+	const unlinkedUsers = await unlinkedQuery.lean();
+
+	const data = unlinkedUsers.map((user) => ({
+		_id: `user-${String(user._id || '')}`,
+		userId: user,
+		admissionNo: '-',
+		rollNo: '-',
+		profileImageUrl: DEFAULT_STUDENT_PROFILE_IMAGE_URL,
+		classId: null,
+		guardianContact: '-',
+		pendingFees: 0,
+		attendance: 0,
+		isLinkedRecord: false
+	}));
+
+	if (!hasPagination) {
+		return data;
 	}
 
-	return toPaginatedResult(
-		mergedRows.filter((item) => String(item.userId?.name || '').toLowerCase().includes(normalizedSearch))
-	);
-
+	const unlinkedTotal = await User.countDocuments(unlinkedFilter);
+	return {
+		data,
+		pagination: {
+			page: safePage,
+			limit: safeLimit,
+			total: unlinkedTotal,
+			totalPages: unlinkedTotal === 0 ? 0 : Math.ceil(unlinkedTotal / safeLimit)
+		}
+	};
 };
 
 const create = async (payload) => {
@@ -302,7 +331,7 @@ const create = async (payload) => {
 			throw error;
 		}
 
-		const existingEmail = await User.findOne({ email: normalizedEmail });
+		const existingEmail = await User.findOne({ email: normalizedEmail }).select('_id').lean();
 		if (existingEmail) {
 			const error = new Error('Email already in use');
 			error.statusCode = 409;
@@ -311,7 +340,7 @@ const create = async (payload) => {
 	}
 
 	if (hasClassId) {
-		const existingRollNo = await Student.findOne({ classId: normalizedClassId, rollNo: normalizedRollNo }).select('_id');
+		const existingRollNo = await Student.findOne({ classId: normalizedClassId, rollNo: normalizedRollNo }).select('_id').lean();
 		if (existingRollNo) {
 			const error = new Error('Roll number already exists in this class');
 			error.statusCode = 409;
@@ -432,7 +461,9 @@ const updateById = async (id, payload = {}) => {
 	}
 
 	if (nextAdmissionNo && nextAdmissionNo !== String(student.admissionNo || '').trim()) {
-		const existingAdmissionNo = await Student.findOne({ admissionNo: nextAdmissionNo, _id: { $ne: student._id } });
+		const existingAdmissionNo = await Student.findOne({ admissionNo: nextAdmissionNo, _id: { $ne: student._id } })
+			.select('_id')
+			.lean();
 		if (existingAdmissionNo) {
 			const error = new Error('Admission number already in use');
 			error.statusCode = 409;
@@ -448,7 +479,9 @@ const updateById = async (id, payload = {}) => {
 			classId: nextClassId,
 			rollNo: nextRollNo,
 			_id: { $ne: student._id }
-		});
+		})
+			.select('_id')
+			.lean();
 		if (existingRollNoInClass) {
 			const error = new Error('Roll number already exists in this class');
 			error.statusCode = 409;
@@ -475,7 +508,7 @@ const updateById = async (id, payload = {}) => {
 			throw error;
 		}
 
-		const existingEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: student.userId } });
+		const existingEmail = await User.findOne({ email: normalizedEmail, _id: { $ne: student.userId } }).select('_id').lean();
 		if (existingEmail) {
 			const error = new Error('Email already in use');
 			error.statusCode = 409;
@@ -586,7 +619,7 @@ const getAdminProfile = async (studentId) => {
 };
 
 const getAdminProfileByUserId = async (userId) => {
-	const user = await User.findById(userId).select('name email role');
+	const user = await User.findById(userId).select('name email role').lean();
 	if (!user || user.role !== 'student') {
 		const error = new Error('Student account not found');
 		error.statusCode = 404;

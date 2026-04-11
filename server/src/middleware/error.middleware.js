@@ -1,4 +1,5 @@
 const { logError } = require('../utils/logger');
+const { captureException } = require('../config/monitoring');
 
 const notFound = (req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
@@ -6,6 +7,13 @@ const notFound = (req, res) => {
 
 const errorHandler = (err, req, res, _next) => {
   const statusCode = err.statusCode || 500;
+
+  captureException(err, {
+    requestId: req.requestId,
+    method: req.method,
+    endpoint: req.originalUrl,
+    statusCode
+  });
 
   logError('api_error', {
     requestId: req.requestId,

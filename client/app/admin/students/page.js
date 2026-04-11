@@ -175,6 +175,7 @@ export default function AdminStudentsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [typedStudentId, setTypedStudentId] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
+  const [debouncedStudentSearch, setDebouncedStudentSearch] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const latestStudentsRequestIdRef = useRef(0);
@@ -204,6 +205,14 @@ export default function AdminStudentsPage() {
     }
   }, [cropSourceUrl]);
 
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedStudentSearch(studentSearch);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [studentSearch]);
+
   const openDeleteDialog = useCallback((row) => {
     setDeleteTarget(row);
     setTypedStudentId('');
@@ -211,13 +220,18 @@ export default function AdminStudentsPage() {
     setError('');
   }, []);
 
-  const loadStudents = useCallback(async ({ forceRefresh = false } = {}) => {
+  const loadStudents = useCallback(async ({ forceRefresh = false, searchTerm = '' } = {}) => {
     const requestId = latestStudentsRequestIdRef.current + 1;
     latestStudentsRequestIdRef.current = requestId;
     setLoadingStudents(true);
     const token = getToken();
+    const normalizedSearch = String(searchTerm || '').trim();
+    const studentListPath = normalizedSearch
+      ? `/students/admin/all?search=${encodeURIComponent(normalizedSearch)}`
+      : '/students/admin/all';
+
     try {
-      const response = await get('/students/admin/all', token, {
+      const response = await get(studentListPath, token, {
         forceRefresh,
         retryCount: 2,
         retryDelayMs: 250
@@ -334,9 +348,15 @@ export default function AdminStudentsPage() {
 
   useEffect(() => {
     if (pathname === '/admin/students') {
-      Promise.all([loadStudents(), loadClasses()]).catch((apiError) => setError(apiError.message));
+      loadClasses().catch((apiError) => setError(apiError.message));
     }
-  }, [loadClasses, loadStudents, pathname]);
+  }, [loadClasses, pathname]);
+
+  useEffect(() => {
+    if (pathname === '/admin/students') {
+      loadStudents({ searchTerm: debouncedStudentSearch }).catch((apiError) => setError(apiError.message));
+    }
+  }, [debouncedStudentSearch, loadStudents, pathname]);
 
   useEffect(() => {
     const triggerRefresh = () => {
@@ -346,7 +366,7 @@ export default function AdminStudentsPage() {
       }
 
       lastRefreshAtRef.current = now;
-      loadStudents({ forceRefresh: true }).catch((apiError) => setError(apiError.message));
+      loadStudents({ forceRefresh: true, searchTerm: debouncedStudentSearch }).catch((apiError) => setError(apiError.message));
     };
 
     const refreshWhenVisible = () => {
@@ -368,7 +388,7 @@ export default function AdminStudentsPage() {
       window.removeEventListener('focus', refreshOnFocus);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [loadStudents, pathname]);
+  }, [debouncedStudentSearch, loadStudents, pathname]);
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
@@ -608,20 +628,6 @@ export default function AdminStudentsPage() {
     }
   };
 
-  const filteredRows = useMemo(() => {
-    const query = String(studentSearch || '').trim().toLowerCase();
-    if (!query) {
-      return rows;
-    }
-
-    const exactIdMatches = rows.filter((row) => String(row.admissionNo || '').toLowerCase() === query);
-    if (exactIdMatches.length > 0) {
-      return exactIdMatches;
-    }
-
-    return rows.filter((row) => String(row.name || '').toLowerCase().includes(query));
-  }, [rows, studentSearch]);
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -846,8 +852,11 @@ export default function AdminStudentsPage() {
 
       <Table
         columns={columns}
-        rows={filteredRows}
+        rows={rows}
         loading={loadingStudents}
+        virtualize
+        virtualizationThreshold={80}
+        virtualHeight={460}
         getRowHref={(row) => row.profileHref || ''}
       />
 

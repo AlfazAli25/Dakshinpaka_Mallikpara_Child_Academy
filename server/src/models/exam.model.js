@@ -214,9 +214,11 @@ examSchema.pre('validate', function preValidateExam(next) {
 });
 
 examSchema.index({ examName: 1, classId: 1, academicYear: 1 }, { unique: true });
+examSchema.index({ academicYear: 1 });
 examSchema.index({ classId: 1, startDate: 1 });
 examSchema.index({ classId: 1, status: 1, startDate: 1 });
 examSchema.index({ subjects: 1, startDate: 1 });
 examSchema.index({ classId: 1, 'schedule.subjectId': 1, 'schedule.startDate': 1 });
+examSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Exam', examSchema);

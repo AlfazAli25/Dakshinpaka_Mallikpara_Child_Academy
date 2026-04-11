@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const AdmZip = require('adm-zip');
+const fs = require('fs');
+const archiver = require('archiver');
 const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
 const AdmitCard = require('../models/admit-card.model');
@@ -11,6 +12,10 @@ const {
 } = require('../services/admit-card.service');
 const { createAdmitCardPdf } = require('../services/admit-card-pdf.service');
 const { isExamCompletedForAdmitCard } = require('../utils/admit-card-exam-completion');
+const {
+  getOrCreateGeneratedFile,
+  streamGeneratedFile
+} = require('../services/generated-file-cache.service');
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -19,6 +24,7 @@ const createHttpError = (statusCode, message) => {
 };
 
 const toId = (value) => String(value?._id || value || '').trim();
+const buildCacheKey = (...parts) => parts.map((item) => String(item ?? '')).join(':');
 
 const toSafeFileToken = (value, fallback = 'File') => {
   const normalized = String(value || '')
@@ -46,6 +52,47 @@ const toBooleanInput = (value) => {
 
   return null;
 };
+
+const createAdmitCardsZipFile = ({ classCards, targetFilePath }) =>
+  new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(targetFilePath);
+    const archive = archiver('zip', { zlib: { level: 6 } });
+
+    output.on('close', resolve);
+    output.on('error', reject);
+
+    archive.on('warning', (error) => {
+      if (error?.code === 'ENOENT') {
+        return;
+      }
+
+      reject(error);
+    });
+
+    archive.on('error', reject);
+    archive.pipe(output);
+
+    (async () => {
+      for (const admitCard of classCards) {
+        const generated = await createAdmitCardPdf({
+          admitCard,
+          exam: admitCard.examId,
+          student: admitCard.studentId
+        });
+
+        const pdfBuffer = Buffer.isBuffer(generated?.pdfBuffer)
+          ? generated.pdfBuffer
+          : Buffer.from(generated?.pdfBuffer || []);
+
+        archive.append(pdfBuffer, { name: String(generated?.fileName || 'Admit_Card.pdf') });
+      }
+
+      await archive.finalize();
+    })().catch((error) => {
+      archive.abort();
+      reject(error);
+    });
+  });
 
 const listMyAvailableAdmitCardsHandler = asyncHandler(async (req, res) => {
   const student = await Student.findOne({ userId: req.user?._id }).select('_id').lean();
@@ -144,22 +191,6 @@ const downloadClassAdmitCardsZipHandler = asyncHandler(async (req, res) => {
     throw createHttpError(404, 'No admit cards found for this class');
   }
 
-  const zip = new AdmZip();
-
-  for (const admitCard of classCards) {
-    const generated = await createAdmitCardPdf({
-      admitCard,
-      exam: admitCard.examId,
-      student: admitCard.studentId
-    });
-
-    const pdfBuffer = Buffer.isBuffer(generated.pdfBuffer)
-      ? generated.pdfBuffer
-      : Buffer.from(generated.pdfBuffer);
-
-    zip.addFile(generated.fileName, pdfBuffer);
-  }
-
   const firstCard = classCards[0] || {};
   const className = String(firstCard?.classId?.name || 'Class').trim();
   const classSection = String(firstCard?.classId?.section || '').trim();
@@ -169,13 +200,21 @@ const downloadClassAdmitCardsZipHandler = asyncHandler(async (req, res) => {
   const zipFileName =
     `Admit_Cards_${toSafeFileToken(classLabel, 'Class')}_${toSafeFileToken(examName, 'Exam')}.zip`;
 
-  const zipBuffer = zip.toBuffer();
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey('admit-card', 'class-zip', examId, classId, classCards.length),
+    fileName: zipFileName,
+    contentType: 'application/zip',
+    ttlMs: 2 * 60 * 1000,
+    extension: '.zip',
+    generateFile: async (targetFilePath) => {
+      await createAdmitCardsZipFile({ classCards, targetFilePath });
+    }
+  });
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', `attachment; filename="${zipFileName}"`);
-  res.setHeader('Content-Length', zipBuffer.length);
-  res.setHeader('Cache-Control', 'no-store');
-  res.send(zipBuffer);
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
 });
 
 const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
@@ -207,21 +246,26 @@ const downloadAdmitCardHandler = asyncHandler(async (req, res) => {
     }
   }
 
-  const generated = await createAdmitCardPdf({
-    admitCard,
-    exam: admitCard.examId,
-    student: admitCard.studentId
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey('admit-card', 'single', admitCardId, admitCard?.updatedAt || ''),
+    fileName: admitCard?.fileName || `Admit_Card_${toSafeFileToken(admitCard?.studentId?.userId?.name || 'Student')}.pdf`,
+    contentType: 'application/pdf',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      const generated = await createAdmitCardPdf({
+        admitCard,
+        exam: admitCard.examId,
+        student: admitCard.studentId
+      });
+
+      return generated.pdfBuffer;
+    }
   });
 
-  const pdfBuffer = Buffer.isBuffer(generated.pdfBuffer)
-    ? generated.pdfBuffer
-    : Buffer.from(generated.pdfBuffer);
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${generated.fileName}"`);
-  res.setHeader('Content-Length', pdfBuffer.length);
-  res.setHeader('Cache-Control', 'no-store');
-  res.send(pdfBuffer);
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
 });
 
 module.exports = {

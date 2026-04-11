@@ -1,9 +1,9 @@
+const { clearAll, getJson, setJson } = require('../services/cache.service');
+
 const DEFAULT_CACHE_TTL_MS = Number(process.env.API_CACHE_TTL_MS || 60000);
-const MAX_CACHE_ENTRIES = Number(process.env.API_CACHE_MAX_ENTRIES || 400);
 const MAX_CACHEABLE_RESPONSE_SIZE = Number(process.env.API_CACHE_MAX_BYTES || 1024 * 1024);
 const ENABLE_API_CACHE = String(process.env.ENABLE_API_CACHE || 'true').toLowerCase() !== 'false';
-
-const cacheStore = new Map();
+const REDIS_CACHE_PREFIX = String(process.env.REDIS_CACHE_PREFIX || 'sms:api:');
 
 const shouldBypassCache = (req) => {
   if (!ENABLE_API_CACHE) {
@@ -41,75 +41,67 @@ const shouldBypassCache = (req) => {
 };
 
 const invalidateApiCache = () => {
-  cacheStore.clear();
+  return clearAll().catch(() => {});
 };
 
 const buildCacheKey = (req) => {
   const authToken = String(req.headers.authorization || '').slice(0, 120);
-  return `${req.method}:${req.originalUrl}:token:${authToken}`;
-};
-
-const trimOldestEntries = () => {
-  while (cacheStore.size > MAX_CACHE_ENTRIES) {
-    const oldestKey = cacheStore.keys().next().value;
-    if (!oldestKey) {
-      break;
-    }
-    cacheStore.delete(oldestKey);
-  }
+  return `${REDIS_CACHE_PREFIX}${req.method}:${req.originalUrl}:token:${authToken}`;
 };
 
 const responseCacheMiddleware = (req, res, next) => {
-  if (!ENABLE_API_CACHE) {
-    next();
-    return;
-  }
-
-  if (req.method !== 'GET') {
-    invalidateApiCache();
-    next();
-    return;
-  }
-
-  if (shouldBypassCache(req)) {
-    next();
-    return;
-  }
-
-  const key = buildCacheKey(req);
-  const cached = cacheStore.get(key);
-
-  if (cached && cached.expiresAt > Date.now()) {
-    res.setHeader('X-API-Cache', 'HIT');
-    res.status(cached.statusCode).json(cached.payload);
-    return;
-  }
-
-  if (cached) {
-    cacheStore.delete(key);
-  }
-
-  const originalJson = res.json.bind(res);
-  res.json = (payload) => {
-    const statusCode = res.statusCode || 200;
-
-    if (statusCode >= 200 && statusCode < 300) {
-      const payloadString = JSON.stringify(payload);
-      if (Buffer.byteLength(payloadString, 'utf8') <= MAX_CACHEABLE_RESPONSE_SIZE) {
-        cacheStore.set(key, {
-          statusCode,
-          payload,
-          expiresAt: Date.now() + DEFAULT_CACHE_TTL_MS
-        });
-        trimOldestEntries();
-      }
+  (async () => {
+    if (!ENABLE_API_CACHE) {
+      next();
+      return;
     }
 
-    res.setHeader('X-API-Cache', 'MISS');
-    return originalJson(payload);
-  };
+    if (req.method !== 'GET') {
+      await invalidateApiCache();
+      next();
+      return;
+    }
 
-  next();
+    if (shouldBypassCache(req)) {
+      next();
+      return;
+    }
+
+    const key = buildCacheKey(req);
+    const cached = await getJson(key);
+
+    if (cached?.statusCode && cached?.payload) {
+      res.setHeader('X-API-Cache', 'HIT');
+      res.status(cached.statusCode).json(cached.payload);
+      return;
+    }
+
+    const originalJson = res.json.bind(res);
+    res.json = (payload) => {
+      const statusCode = res.statusCode || 200;
+
+      if (statusCode >= 200 && statusCode < 300) {
+        const payloadString = JSON.stringify(payload);
+        if (Buffer.byteLength(payloadString, 'utf8') <= MAX_CACHEABLE_RESPONSE_SIZE) {
+          setJson(
+            key,
+            {
+              statusCode,
+              payload
+            },
+            DEFAULT_CACHE_TTL_MS
+          ).catch(() => {});
+        }
+      }
+
+      res.setHeader('X-API-Cache', 'MISS');
+      return originalJson(payload);
+    };
+
+    next();
+  })().catch(() => {
+    next();
+  });
 };
 
 module.exports = {

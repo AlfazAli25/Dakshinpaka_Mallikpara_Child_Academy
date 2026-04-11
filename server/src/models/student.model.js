@@ -19,6 +19,7 @@ const studentSchema = new mongoose.Schema(
 );
 
 studentSchema.index({ classId: 1 });
+studentSchema.index({ rollNo: 1 });
 studentSchema.index(
   { classId: 1, rollNo: 1 },
   {
@@ -30,5 +31,6 @@ studentSchema.index(
   }
 );
 studentSchema.index({ userId: 1 }, { unique: true });
+studentSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Student', studentSchema);

@@ -11,5 +11,8 @@ const gradeSchema = new mongoose.Schema(
 );
 
 gradeSchema.index({ examId: 1, studentId: 1 }, { unique: true });
+gradeSchema.index({ studentId: 1, examId: 1 });
+gradeSchema.index({ examId: 1 });
+gradeSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Grade', gradeSchema);

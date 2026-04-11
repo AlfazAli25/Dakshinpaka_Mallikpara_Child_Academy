@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAttendanceKey, isAttendanceLow } from '@/lib/attendance-warning';
 
@@ -41,9 +41,15 @@ function Table({
   skeletonRowCount = 6,
   scrollY = false,
   maxHeightClass = 'max-h-[288px]',
-  autoScrollThreshold = 5
+  autoScrollThreshold = 5,
+  virtualize = false,
+  virtualizationThreshold = 80,
+  virtualRowHeight = 52,
+  virtualHeight = 420,
+  virtualOverscan = 8
 }) {
   const router = useRouter();
+  const [scrollTop, setScrollTop] = useState(0);
 
   const onRowClick = useCallback(
     (href) => {
@@ -55,11 +61,56 @@ function Table({
   );
 
   const shouldAutoScroll = !scrollY && autoScrollThreshold > 0 && rows.length > autoScrollThreshold;
-  const enableVerticalScroll = scrollY || shouldAutoScroll;
+  const shouldVirtualize =
+    Boolean(virtualize) && !loading && Number(rows.length || 0) >= Number(virtualizationThreshold || 0);
+
+  const enableVerticalScroll = scrollY || shouldAutoScroll || shouldVirtualize;
 
   const tableContainerClass = enableVerticalScroll
     ? `overflow-x-auto overflow-y-auto ${maxHeightClass}`
     : 'overflow-x-auto';
+
+  const virtualizedWindow = useMemo(() => {
+    if (!shouldVirtualize) {
+      return {
+        startIndex: 0,
+        endIndex: rows.length,
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0
+      };
+    }
+
+    const safeRowHeight = Math.max(32, Number(virtualRowHeight) || 52);
+    const safeOverscan = Math.max(2, Number(virtualOverscan) || 8);
+    const viewportHeight = Math.max(safeRowHeight * 4, Number(virtualHeight) || 420);
+    const visibleCount = Math.ceil(viewportHeight / safeRowHeight);
+    const startIndex = Math.max(0, Math.floor(scrollTop / safeRowHeight) - safeOverscan);
+    const endIndex = Math.min(rows.length, startIndex + visibleCount + safeOverscan * 2);
+    const topSpacerHeight = startIndex * safeRowHeight;
+    const bottomSpacerHeight = Math.max(0, (rows.length - endIndex) * safeRowHeight);
+
+    return {
+      startIndex,
+      endIndex,
+      topSpacerHeight,
+      bottomSpacerHeight
+    };
+  }, [rows.length, scrollTop, shouldVirtualize, virtualHeight, virtualOverscan, virtualRowHeight]);
+
+  const rowsToRender = shouldVirtualize
+    ? rows.slice(virtualizedWindow.startIndex, virtualizedWindow.endIndex)
+    : rows;
+
+  const onBodyScroll = useCallback(
+    (event) => {
+      if (!shouldVirtualize) {
+        return;
+      }
+
+      setScrollTop(event.currentTarget.scrollTop || 0);
+    },
+    [shouldVirtualize]
+  );
 
   const renderCell = (col, row) => {
     const value = row[col.key];
@@ -82,7 +133,11 @@ function Table({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
-      <div className={tableContainerClass}>
+      <div
+        className={tableContainerClass}
+        onScroll={onBodyScroll}
+        style={shouldVirtualize ? { maxHeight: `${virtualHeight}px`, height: `${virtualHeight}px` } : undefined}
+      >
         <table className="min-w-full text-sm">
           <thead className={`bg-red-700 text-left ${enableVerticalScroll ? 'sticky top-0 z-10' : ''}`}>
             <tr>
@@ -124,26 +179,41 @@ function Table({
                 </td>
               </tr>
             ) : (
-              rows.map((row, index) => {
-                const href = getRowHref ? getRowHref(row) : '';
-                const clickable = Boolean(href);
-
-                return (
-                  <tr
-                    key={row.id || index}
-                    className={`border-t border-slate-100 ${index % 2 === 1 ? 'bg-red-50/25' : ''} ${
-                      clickable ? 'cursor-pointer hover:bg-red-50' : ''
-                    }`}
-                    onClick={() => onRowClick(clickable ? href : '')}
-                  >
-                    {columns.map((col) => (
-                      <td key={col.key} className="px-4 py-3 text-slate-700">
-                        {renderCell(col, row)}
-                      </td>
-                    ))}
+              <>
+                {shouldVirtualize && virtualizedWindow.topSpacerHeight > 0 ? (
+                  <tr>
+                    <td colSpan={Math.max(columns.length, 1)} style={{ height: `${virtualizedWindow.topSpacerHeight}px` }} />
                   </tr>
-                );
-              })
+                ) : null}
+
+                {rowsToRender.map((row, index) => {
+                  const rowIndex = shouldVirtualize ? virtualizedWindow.startIndex + index : index;
+                  const href = getRowHref ? getRowHref(row) : '';
+                  const clickable = Boolean(href);
+
+                  return (
+                    <tr
+                      key={row.id || rowIndex}
+                      className={`border-t border-slate-100 ${rowIndex % 2 === 1 ? 'bg-red-50/25' : ''} ${
+                        clickable ? 'cursor-pointer hover:bg-red-50' : ''
+                      }`}
+                      onClick={() => onRowClick(clickable ? href : '')}
+                    >
+                      {columns.map((col) => (
+                        <td key={col.key} className="px-4 py-3 text-slate-700">
+                          {renderCell(col, row)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+
+                {shouldVirtualize && virtualizedWindow.bottomSpacerHeight > 0 ? (
+                  <tr>
+                    <td colSpan={Math.max(columns.length, 1)} style={{ height: `${virtualizedWindow.bottomSpacerHeight}px` }} />
+                  </tr>
+                ) : null}
+              </>
             )}
           </tbody>
         </table>

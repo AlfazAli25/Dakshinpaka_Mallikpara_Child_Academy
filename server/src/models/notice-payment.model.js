@@ -25,6 +25,8 @@ const noticePaymentSchema = new mongoose.Schema(
 
 noticePaymentSchema.index({ studentId: 1, noticeId: 1 }, { unique: true });
 noticePaymentSchema.index({ noticeId: 1, paymentStatus: 1 });
+noticePaymentSchema.index({ studentId: 1, paymentStatus: 1, createdAt: -1 });
+noticePaymentSchema.index({ createdAt: -1 });
 
 const NoticePayment = mongoose.model('NoticePayment', noticePaymentSchema);
 

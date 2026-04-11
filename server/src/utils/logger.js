@@ -1,43 +1,67 @@
-const safeJsonStringify = (value) => {
+const winston = require('winston');
+
+const truncateLongString = (value) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  if (value.length <= 1600) {
+    return value;
+  }
+
+  return `${value.slice(0, 1600)}...<truncated>`;
+};
+
+const sanitizeMeta = (value) => {
   const seen = new WeakSet();
 
-  return JSON.stringify(value, (_key, item) => {
-    if (typeof item === 'object' && item !== null) {
+  const visit = (item) => {
+    if (Array.isArray(item)) {
+      return item.map((entry) => visit(entry));
+    }
+
+    if (item && typeof item === 'object') {
       if (seen.has(item)) {
         return '[Circular]';
       }
+
       seen.add(item);
+      const output = {};
+      for (const [key, value] of Object.entries(item)) {
+        output[key] = visit(value);
+      }
+      return output;
     }
 
-    if (typeof item === 'string' && item.length > 1600) {
-      return `${item.slice(0, 1600)}...<truncated>`;
-    }
-
-    return item;
-  });
-};
-
-const writeLog = (level, message, meta = {}) => {
-  const payload = {
-    timestamp: new Date().toISOString(),
-    level,
-    message,
-    ...meta
+    return truncateLongString(item);
   };
 
-  const line = safeJsonStringify(payload);
+  return visit(value);
+};
 
-  if (level === 'error') {
-    console.error(line);
-    return;
-  }
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  defaultMeta: {
+    service: 'sms-server'
+  },
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console({
+      stderrLevels: ['error']
+    })
+  ]
+});
 
-  if (level === 'warn') {
-    console.warn(line);
-    return;
-  }
-
-  console.log(line);
+const writeLog = (level, message, meta = {}) => {
+  logger.log({
+    level,
+    message,
+    ...sanitizeMeta(meta)
+  });
 };
 
 const logInfo = (message, meta) => writeLog('info', message, meta);
@@ -45,6 +69,7 @@ const logWarn = (message, meta) => writeLog('warn', message, meta);
 const logError = (message, meta) => writeLog('error', message, meta);
 
 module.exports = {
+  logger,
   logInfo,
   logWarn,
   logError

@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const helmet = require('helmet');
+const morgan = require('morgan');
 
 const authRoutes = require('./routes/auth.routes');
 const adminRoutes = require('./routes/admin.routes');
@@ -31,15 +33,62 @@ const { attachRequestContext } = require('./middleware/request-context.middlewar
 const { requestPerformanceLogger } = require('./middleware/request-performance.middleware');
 const { rateLimitMiddleware } = require('./middleware/rate-limit.middleware');
 const { responseCacheMiddleware, invalidateApiCache } = require('./middleware/response-cache.middleware');
+const { responseStandardizeMiddleware } = require('./middleware/response-standardize.middleware');
+const { logInfo } = require('./utils/logger');
 
 const app = express();
+
+const parseAllowedOrigins = () => {
+  const rawOrigins = String(process.env.CLIENT_ORIGIN || 'http://localhost:3000');
+  return rawOrigins
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const allowedOrigins = new Set(parseAllowedOrigins());
+
+const corsOriginHandler = (origin, callback) => {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  if (allowedOrigins.has(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  const error = new Error('CORS origin not allowed');
+  error.statusCode = 403;
+  callback(error);
+};
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
 app.use(
   cors({
-    origin: process.env.CLIENT_ORIGIN || '*'
+    origin: corsOriginHandler,
+    credentials: true
+  })
+);
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: 'cross-origin'
+    }
+  })
+);
+app.use(
+  morgan('tiny', {
+    stream: {
+      write: (line) => {
+        logInfo('http_request', {
+          line: String(line || '').trim()
+        });
+      }
+    }
   })
 );
 app.use(attachRequestContext);
@@ -58,12 +107,13 @@ app.use(
   })
 );
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use('/api', responseStandardizeMiddleware);
 app.use('/api', rateLimitMiddleware);
 app.use('/api', responseCacheMiddleware);
 
 app.use((req, _res, next) => {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    invalidateApiCache();
+    invalidateApiCache().catch(() => {});
   }
   next();
 });

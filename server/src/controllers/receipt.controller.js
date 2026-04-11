@@ -10,6 +10,10 @@ const {
   createTemplateReceiptPdf,
   createTemplateTeacherSalaryReceiptPdf
 } = require('../services/receipt-pdf.service');
+const {
+  getOrCreateGeneratedFile,
+  streamGeneratedFile
+} = require('../services/generated-file-cache.service');
 const { logError, logInfo } = require('../utils/logger');
 
 const SUCCESSFUL_PAYMENT_STATUSES = new Set(['SUCCESS', 'PAID', 'VERIFIED']);
@@ -27,20 +31,7 @@ const isSuccessfulPaymentStatus = (status) =>
 const isSuccessfulNoticePaymentStatus = (status) =>
   SUCCESSFUL_NOTICE_PAYMENT_STATUSES.has(String(status || '').trim().toUpperCase());
 
-const sendPdfResponse = (res, generatedReceipt) => {
-  const normalizedPdfBuffer = Buffer.isBuffer(generatedReceipt?.pdfBuffer)
-    ? generatedReceipt.pdfBuffer
-    : Buffer.from(generatedReceipt?.pdfBuffer || []);
-  const fileName = String(generatedReceipt?.fileName || 'Fee_Receipt.pdf').trim() || 'Fee_Receipt.pdf';
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-  res.setHeader('Content-Length', normalizedPdfBuffer.length);
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('X-Receipt-Generator', String(generatedReceipt?.generator || 'template-html-puppeteer-v2'));
-  res.setHeader('X-Receipt-Version', '2026-04-07-template-design');
-  res.send(normalizedPdfBuffer);
-};
+const buildCacheKey = (...parts) => parts.map((item) => String(item ?? '')).join(':');
 
 const ensureStudentOwnsPayment = async ({ userId, paymentStudentId }) => {
   const requesterStudent = await Student.findOne({ userId }).select('_id').lean();
@@ -100,36 +91,52 @@ const downloadPaymentReceipt = asyncHandler(async (req, res) => {
 
   const receipt = await Receipt.findOne({ paymentId: payment._id, receiptType: { $in: ['FEE', 'NOTICE'] } }).lean();
 
-  let generatedReceipt;
-  try {
-    generatedReceipt = await createTemplateReceiptPdf({
-      payment,
-      student,
-      receipt,
-      requestId: req.requestId
-    });
-  } catch (error) {
-    const statusCode = Number(error?.statusCode || 500);
-    const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey('receipt', 'fee', payment._id, payment.updatedAt || '', receipt?._id || '', receipt?.updatedAt || ''),
+    fileName: `Fee_Receipt_${payment._id}.pdf`,
+    contentType: 'application/pdf',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      try {
+        const generatedReceipt = await createTemplateReceiptPdf({
+          payment,
+          student,
+          receipt,
+          requestId: req.requestId
+        });
 
-    logError('receipt_generation_failed', {
-      requestId: req.requestId,
-      paymentId,
-      requesterId: String(req.user?._id || ''),
-      statusCode,
-      message: message || 'Unknown receipt generation error'
-    });
+        return Buffer.isBuffer(generatedReceipt?.pdfBuffer)
+          ? generatedReceipt.pdfBuffer
+          : Buffer.from(generatedReceipt?.pdfBuffer || []);
+      } catch (error) {
+        const statusCode = Number(error?.statusCode || 500);
+        const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
 
-    throw createHttpError(message || 'Failed to generate receipt', statusCode);
-  }
+        logError('receipt_generation_failed', {
+          requestId: req.requestId,
+          paymentId,
+          requesterId: String(req.user?._id || ''),
+          statusCode,
+          message: message || 'Unknown receipt generation error'
+        });
 
-  sendPdfResponse(res, generatedReceipt);
+        throw createHttpError(message || 'Failed to generate receipt', statusCode);
+      }
+    }
+  });
+
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Receipt-Generator': 'template-html-puppeteer-v2',
+    'X-Receipt-Version': '2026-04-07-template-design',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
 
   logInfo('receipt_download_completed', {
     requestId: req.requestId,
     paymentId,
     requesterId: String(req.user?._id || ''),
-    byteLength: generatedReceipt?.pdfBuffer?.length || 0
+		byteLength: generatedFile?.byteLength || 0
   });
 });
 
@@ -193,36 +200,59 @@ const downloadNoticePaymentReceipt = asyncHandler(async (req, res) => {
     processedByAdmin: noticePayment.verifiedBy || null
   };
 
-  let generatedReceipt;
-  try {
-    generatedReceipt = await createTemplateReceiptPdf({
-      payment: mappedNoticePayment,
-      student,
-      receipt,
-      requestId: req.requestId
-    });
-  } catch (error) {
-    const statusCode = Number(error?.statusCode || 500);
-    const message = statusCode === 500 ? (error?.message || 'Failed to generate notice receipt') : error?.message;
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey(
+      'receipt',
+      'notice',
+      noticePayment._id,
+      noticePayment.updatedAt || '',
+      receipt?._id || '',
+      receipt?.updatedAt || ''
+    ),
+    fileName: `Notice_Receipt_${noticePayment._id}.pdf`,
+    contentType: 'application/pdf',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      try {
+        const generatedReceipt = await createTemplateReceiptPdf({
+          payment: mappedNoticePayment,
+          student,
+          receipt,
+          requestId: req.requestId
+        });
 
-    logError('notice_receipt_generation_failed', {
-      requestId: req.requestId,
-      noticePaymentId,
-      requesterId: String(req.user?._id || ''),
-      statusCode,
-      message: message || 'Unknown notice receipt generation error'
-    });
+        return Buffer.isBuffer(generatedReceipt?.pdfBuffer)
+          ? generatedReceipt.pdfBuffer
+          : Buffer.from(generatedReceipt?.pdfBuffer || []);
+      } catch (error) {
+        const statusCode = Number(error?.statusCode || 500);
+        const message = statusCode === 500 ? (error?.message || 'Failed to generate notice receipt') : error?.message;
 
-    throw createHttpError(message || 'Failed to generate notice receipt', statusCode);
-  }
+        logError('notice_receipt_generation_failed', {
+          requestId: req.requestId,
+          noticePaymentId,
+          requesterId: String(req.user?._id || ''),
+          statusCode,
+          message: message || 'Unknown notice receipt generation error'
+        });
 
-  sendPdfResponse(res, generatedReceipt);
+        throw createHttpError(message || 'Failed to generate notice receipt', statusCode);
+      }
+    }
+  });
+
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Receipt-Generator': 'template-html-puppeteer-v2',
+    'X-Receipt-Version': '2026-04-07-template-design',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
 
   logInfo('notice_receipt_download_completed', {
     requestId: req.requestId,
     noticePaymentId,
     requesterId: String(req.user?._id || ''),
-    byteLength: generatedReceipt?.pdfBuffer?.length || 0
+		byteLength: generatedFile?.byteLength || 0
   });
 });
 
@@ -270,36 +300,52 @@ const downloadTeacherSalaryReceipt = asyncHandler(async (req, res) => {
 
   const receipt = await Receipt.findOne({ payrollId: payroll._id, receiptType: 'SALARY' }).lean();
 
-  let generatedReceipt;
-  try {
-    generatedReceipt = await createTemplateTeacherSalaryReceiptPdf({
-      payroll,
-      teacher,
-      receipt,
-      requestId: req.requestId
-    });
-  } catch (error) {
-    const statusCode = Number(error?.statusCode || 500);
-    const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey('receipt', 'salary', payroll._id, payroll.updatedAt || '', receipt?._id || '', receipt?.updatedAt || ''),
+    fileName: `Salary_Receipt_${payroll._id}.pdf`,
+    contentType: 'application/pdf',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      try {
+        const generatedReceipt = await createTemplateTeacherSalaryReceiptPdf({
+          payroll,
+          teacher,
+          receipt,
+          requestId: req.requestId
+        });
 
-    logError('teacher_receipt_generation_failed', {
-      requestId: req.requestId,
-      payrollId,
-      requesterId: String(req.user?._id || ''),
-      statusCode,
-      message: message || 'Unknown receipt generation error'
-    });
+        return Buffer.isBuffer(generatedReceipt?.pdfBuffer)
+          ? generatedReceipt.pdfBuffer
+          : Buffer.from(generatedReceipt?.pdfBuffer || []);
+      } catch (error) {
+        const statusCode = Number(error?.statusCode || 500);
+        const message = statusCode === 500 ? (error?.message || 'Failed to generate receipt') : error?.message;
 
-    throw createHttpError(message || 'Failed to generate receipt', statusCode);
-  }
+        logError('teacher_receipt_generation_failed', {
+          requestId: req.requestId,
+          payrollId,
+          requesterId: String(req.user?._id || ''),
+          statusCode,
+          message: message || 'Unknown receipt generation error'
+        });
 
-  sendPdfResponse(res, generatedReceipt);
+        throw createHttpError(message || 'Failed to generate receipt', statusCode);
+      }
+    }
+  });
+
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Receipt-Generator': 'template-html-puppeteer-v2',
+    'X-Receipt-Version': '2026-04-07-template-design',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
 
   logInfo('teacher_receipt_download_completed', {
     requestId: req.requestId,
     payrollId,
     requesterId: String(req.user?._id || ''),
-    byteLength: generatedReceipt?.pdfBuffer?.length || 0
+		byteLength: generatedFile?.byteLength || 0
   });
 });
 
