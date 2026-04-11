@@ -63,7 +63,7 @@ const growthHighlights = [
 ];
 
 const sectionClassName =
-  'relative overflow-hidden rounded-3xl border border-red-200/70 bg-white/80 p-6 shadow-[0_30px_76px_-46px_rgba(127,29,29,0.62)] backdrop-blur-xl md:p-8';
+  'relative overflow-hidden rounded-3xl border border-red-500/30 bg-slate-900/72 p-6 shadow-[0_34px_82px_-46px_rgba(127,29,29,0.78)] backdrop-blur-xl md:p-8';
 
 const toTelHref = (phoneNumber = '') => {
   const cleaned = String(phoneNumber || '').trim().replace(/[^\d+]/g, '');
@@ -241,34 +241,34 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_15%_10%,rgba(254,226,226,0.95),rgba(255,255,255,0.86)_44%,rgba(255,241,242,0.98)_100%)] text-slate-900">
+    <div className="relative min-h-screen overflow-x-clip bg-[radial-gradient(circle_at_18%_8%,rgba(127,29,29,0.42),rgba(15,23,42,0.98)_46%,rgba(2,6,23,1)_100%)] text-red-50">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
-          className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-red-300/35 blur-3xl"
+          className="absolute -left-20 top-20 h-72 w-72 rounded-full bg-red-700/28 blur-3xl"
           animate={{ x: [0, 24, 0], y: [0, -14, 0] }}
           transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
-          className="absolute right-0 top-32 h-80 w-80 rounded-full bg-rose-300/30 blur-3xl"
+          className="absolute right-0 top-32 h-80 w-80 rounded-full bg-rose-700/24 blur-3xl"
           animate={{ x: [0, -28, 0], y: [0, 12, 0] }}
           transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
         />
         <motion.div
-          className="absolute bottom-8 left-1/3 h-64 w-64 rounded-full bg-red-200/30 blur-3xl"
+          className="absolute bottom-8 left-1/3 h-64 w-64 rounded-full bg-red-500/22 blur-3xl"
           animate={{ x: [0, 18, 0], y: [0, -16, 0] }}
           transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
         />
       </div>
 
-      <header className="sticky top-0 z-30 border-b border-red-200/70 bg-white/75 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-red-500/25 bg-slate-950/75 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl border border-red-200/70 bg-white shadow-[0_15px_26px_-18px_rgba(127,29,29,0.8)]">
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl border border-red-500/35 bg-slate-900 shadow-[0_15px_26px_-18px_rgba(127,29,29,0.9)]">
               <img src="/School_Logo.png" alt="School Logo" className="h-full w-full object-contain p-1" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.16em] text-red-700">{t.welcome}</p>
-              <h1 className="truncate text-base font-semibold text-slate-900 md:text-xl">{SCHOOL_NAME}</h1>
+              <p className="text-xs uppercase tracking-[0.16em] text-red-200">{t.welcome}</p>
+              <h1 className="truncate text-base font-semibold text-red-50 md:text-xl">{SCHOOL_NAME}</h1>
             </div>
           </div>
 
@@ -278,14 +278,14 @@ export default function HomePage() {
               <>
                 <Link
                   href={panelRoute}
-                  className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-50 md:px-4"
+                  className="rounded-xl border border-red-500/35 bg-slate-900/85 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/45 hover:bg-slate-800/90 md:px-4"
                 >
                   {t.myPanel}
                 </Link>
                 <button
                   type="button"
                   onClick={onLogout}
-                  className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-50 md:px-4"
+                  className="rounded-xl border border-red-500/35 bg-slate-900/85 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/45 hover:bg-slate-800/90 md:px-4"
                 >
                   {t.logout}
                 </button>
@@ -295,14 +295,14 @@ export default function HomePage() {
                 {allowAdminRegistration ? (
                   <Link
                     href="/register"
-                    className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-50 md:px-4"
+                    className="rounded-xl border border-red-500/35 bg-slate-900/85 px-3 py-2 text-sm font-semibold text-red-100 transition hover:border-red-400/45 hover:bg-slate-800/90 md:px-4"
                   >
                     {t.register}
                   </Link>
                 ) : null}
                 <Link
                   href="/login"
-                  className="rounded-xl bg-red-700 px-3 py-2 text-sm font-semibold text-white shadow-[0_16px_26px_-18px_rgba(185,28,28,0.95)] transition hover:bg-red-800 md:px-4"
+                  className="rounded-xl bg-red-700 px-3 py-2 text-sm font-semibold text-white shadow-[0_16px_26px_-18px_rgba(185,28,28,0.95)] transition hover:bg-red-600 md:px-4"
                 >
                   {t.login}
                 </Link>
@@ -417,40 +417,40 @@ export default function HomePage() {
 
             <div className="grid gap-4">
               <motion.div
-                className="rounded-3xl border border-white/35 bg-white/95 p-5 text-slate-900 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.9)]"
+                className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]"
                 initial={{ opacity: 0, y: 8 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.4 }}
                 transition={{ duration: 0.4 }}
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">{t.schoolIdentity}</p>
-                <div className="mt-4 grid place-items-center rounded-2xl border border-red-100 bg-white p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.schoolIdentity}</p>
+                <div className="mt-4 grid place-items-center rounded-2xl border border-red-500/30 bg-slate-950/70 p-4">
                   <img src="/School_Logo.png" alt={`${SCHOOL_NAME} Emblem`} className="h-32 w-32 object-contain md:h-40 md:w-40" />
                 </div>
-                <p className="mt-3 text-base font-semibold text-red-900 md:text-lg">{SCHOOL_NAME}</p>
-                <p className="mt-1 text-sm font-medium text-slate-600">ESTD 2018</p>
+                <p className="mt-3 text-base font-semibold text-red-50 md:text-lg">{SCHOOL_NAME}</p>
+                <p className="mt-1 text-sm font-medium text-red-100/80">ESTD 2018</p>
               </motion.div>
 
               <motion.div
-                className="rounded-3xl border border-white/35 bg-white/95 p-5 text-slate-900 shadow-[0_24px_48px_-28px_rgba(15,23,42,0.9)]"
+                className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]"
                 initial={{ opacity: 0, y: 8 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.4 }}
                 transition={{ duration: 0.45, delay: 0.05 }}
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">{t.contactDetails}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.contactDetails}</p>
                 <div className="mt-3 space-y-2.5">
                   {phoneNumbers.map((number) => (
                     <div key={number} className="flex flex-wrap items-center gap-2">
                       <a
                         href={toTelHref(number)}
-                        className="flex flex-1 items-center justify-between rounded-xl border border-red-100 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-900 transition hover:border-red-200 hover:bg-red-100/70"
+                        className="flex flex-1 items-center justify-between rounded-xl border border-red-500/35 bg-red-900/35 px-3 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
                       >
                         <span className="inline-flex items-center gap-2">
-                          <PhoneCall className="h-4 w-4 text-red-700" aria-hidden="true" />
+                          <PhoneCall className="h-4 w-4 text-red-300" aria-hidden="true" />
                           {number}
                         </span>
-                        <span className="text-[11px] uppercase tracking-[0.08em] text-red-700">{t.tapToCall}</span>
+                        <span className="text-[11px] uppercase tracking-[0.08em] text-red-200">{t.tapToCall}</span>
                       </a>
 
                       {whatsappHref ? (
@@ -470,9 +470,9 @@ export default function HomePage() {
                   {SCHOOL_INFO?.email ? (
                     <a
                       href={`mailto:${SCHOOL_INFO.email}`}
-                      className="flex items-center gap-2 rounded-xl border border-red-100 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-900 transition hover:border-red-200 hover:bg-red-100/70"
+                      className="flex items-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-3 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
                     >
-                      <Mail className="h-4 w-4 text-red-700" aria-hidden="true" />
+                      <Mail className="h-4 w-4 text-red-300" aria-hidden="true" />
                       {SCHOOL_INFO.email}
                     </a>
                   ) : null}
@@ -482,13 +482,13 @@ export default function HomePage() {
                       href={locationHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-start justify-between gap-3 rounded-xl border border-red-100 bg-red-50/70 px-3 py-2.5 text-sm font-semibold text-red-900 transition hover:border-red-200 hover:bg-red-100/70"
+                      className="flex items-start justify-between gap-3 rounded-xl border border-red-500/35 bg-red-900/35 px-3 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
                     >
                       <span className="inline-flex items-start gap-2">
-                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-700" aria-hidden="true" />
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-300" aria-hidden="true" />
                         <span>{schoolAddress}</span>
                       </span>
-                      <span className="text-[11px] uppercase tracking-[0.08em] text-red-700">{t.openInMaps}</span>
+                      <span className="text-[11px] uppercase tracking-[0.08em] text-red-200">{t.openInMaps}</span>
                     </a>
                   ) : null}
                 </div>
@@ -498,14 +498,14 @@ export default function HomePage() {
         </section>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-2xl border border-red-200/70 bg-white/85 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.7)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-600">{t.phone}</p>
+          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.phone}</p>
             <div className="mt-2 space-y-2">
               {phoneNumbers.map((number) => (
                 <div key={`strip-${number}`} className="flex flex-wrap items-center gap-2">
                   <a
                     href={toTelHref(number)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-900 transition hover:bg-red-100"
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
                   >
                     <PhoneCall className="h-4 w-4" aria-hidden="true" />
                     {number}
@@ -527,48 +527,48 @@ export default function HomePage() {
             </div>
           </article>
 
-          <article className="rounded-2xl border border-red-200/70 bg-white/85 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.7)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-600">{t.email}</p>
+          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.email}</p>
             {SCHOOL_INFO?.email ? (
               <a
                 href={`mailto:${SCHOOL_INFO.email}`}
-                className="mt-2 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-900 transition hover:bg-red-100"
+                className="mt-2 inline-flex items-center gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
               >
                 <Mail className="h-4 w-4" aria-hidden="true" />
                 {SCHOOL_INFO.email}
               </a>
             ) : (
-              <p className="mt-2 text-sm font-medium text-slate-600">Not available</p>
+              <p className="mt-2 text-sm font-medium text-red-100/80">Not available</p>
             )}
           </article>
 
-          <article className="rounded-2xl border border-red-200/70 bg-white/85 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.7)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-600">{t.location}</p>
+          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
+            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.location}</p>
             {schoolAddress ? (
               <a
                 href={locationHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 inline-flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-900 transition hover:bg-red-100"
+                className="mt-2 inline-flex items-start gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
               >
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>{schoolAddress}</span>
               </a>
             ) : (
-              <p className="mt-2 text-sm font-medium text-slate-600">Not available</p>
+              <p className="mt-2 text-sm font-medium text-red-100/80">Not available</p>
             )}
           </article>
         </section>
 
         <section className={sectionClassName}>
-          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-red-100/60 blur-2xl" />
+          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-red-500/20 blur-2xl" />
           <div className="relative">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-2xl font-semibold text-slate-900">{t.imageGallery}</h3>
-                <p className="mt-1 text-sm text-slate-600">{t.imageGalleryNote}</p>
+                <h3 className="text-2xl font-semibold text-red-50">{t.imageGallery}</h3>
+                <p className="mt-1 text-sm text-red-100/80">{t.imageGalleryNote}</p>
               </div>
-              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+              <span className="rounded-full border border-red-500/35 bg-red-900/35 px-3 py-1 text-xs font-semibold text-red-100">
                 {schoolImages.length} Photos
               </span>
             </div>
@@ -577,10 +577,10 @@ export default function HomePage() {
               {schoolImages.map((image) => (
                 <article
                   key={image.id}
-                  className="group overflow-hidden rounded-2xl border border-red-100 bg-white shadow-[0_16px_34px_-24px_rgba(15,23,42,0.78)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_44px_-22px_rgba(127,29,29,0.8)]"
+                  className="group overflow-hidden rounded-2xl border border-red-500/28 bg-slate-900/82 shadow-[0_16px_34px_-24px_rgba(2,6,23,0.9)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_44px_-22px_rgba(127,29,29,0.88)]"
                 >
                   <img src={image.src} alt={image.title} className="h-52 w-full object-cover transition duration-300 group-hover:scale-105" />
-                  <p className="px-3 py-3 text-sm font-medium text-slate-800">{image.title}</p>
+                  <p className="px-3 py-3 text-sm font-medium text-red-50">{image.title}</p>
                 </article>
               ))}
             </div>
@@ -588,20 +588,20 @@ export default function HomePage() {
         </section>
 
         <section className={sectionClassName}>
-          <div className="absolute left-0 top-0 h-36 w-36 rounded-full bg-red-100/60 blur-2xl" />
+          <div className="absolute left-0 top-0 h-36 w-36 rounded-full bg-red-500/20 blur-2xl" />
           <div className="relative">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-2xl font-semibold text-slate-900">{t.videoGallery}</h3>
-                <p className="mt-1 text-sm text-slate-600">{t.videoGalleryNote}</p>
+                <h3 className="text-2xl font-semibold text-red-50">{t.videoGallery}</h3>
+                <p className="mt-1 text-sm text-red-100/80">{t.videoGalleryNote}</p>
               </div>
-              <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700">
+              <span className="rounded-full border border-red-500/35 bg-red-900/35 px-3 py-1 text-xs font-semibold text-red-100">
                 {schoolVideos.length} Videos
               </span>
             </div>
 
             {schoolVideos.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-red-300 bg-red-50/60 px-4 py-10 text-center text-sm text-red-800">
+              <div className="rounded-xl border border-dashed border-red-500/35 bg-red-900/25 px-4 py-10 text-center text-sm text-red-100">
                 {t.noVideos}
               </div>
             ) : (
@@ -609,10 +609,10 @@ export default function HomePage() {
                 {schoolVideos.map((video) => (
                   <article
                     key={video.id}
-                    className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-[0_16px_34px_-24px_rgba(15,23,42,0.78)]"
+                    className="overflow-hidden rounded-2xl border border-red-500/28 bg-slate-900/82 shadow-[0_16px_34px_-24px_rgba(2,6,23,0.9)]"
                   >
                     <video src={video.src} controls className="h-64 w-full object-cover" />
-                    <p className="px-3 py-3 text-sm font-medium text-slate-800">{video.title}</p>
+                    <p className="px-3 py-3 text-sm font-medium text-red-50">{video.title}</p>
                   </article>
                 ))}
               </div>
@@ -621,14 +621,14 @@ export default function HomePage() {
         </section>
 
         <section className={sectionClassName}>
-          <h3 className="text-2xl font-semibold text-slate-900">{t.years}</h3>
+          <h3 className="text-2xl font-semibold text-red-50">{t.years}</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {growthHighlights.map((highlight, index) => (
               <div
                 key={index}
-                className="rounded-2xl border border-red-100 bg-gradient-to-br from-white to-red-50 p-4 shadow-[0_14px_30px_-24px_rgba(127,29,29,0.82)]"
+                className="rounded-2xl border border-red-500/28 bg-gradient-to-br from-slate-900/88 to-red-950/38 p-4 shadow-[0_14px_30px_-24px_rgba(127,29,29,0.9)]"
               >
-                <p className="flex items-start gap-3 text-sm text-slate-700 md:text-base">
+                <p className="flex items-start gap-3 text-sm text-red-100 md:text-base">
                   <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-700 text-xs font-bold text-white">
                     {index + 1}
                   </span>
@@ -642,36 +642,36 @@ export default function HomePage() {
         <section className={sectionClassName}>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-slate-900">{t.importantInfo}</h3>
-              <p className="mt-1 text-sm text-slate-600">{t.importantInfoNote}</p>
+              <h3 className="text-xl font-semibold text-red-50">{t.importantInfo}</h3>
+              <p className="mt-1 text-sm text-red-100/80">{t.importantInfoNote}</p>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-700">{t.paymentSupport}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.paymentSupport}</p>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Link href="/privacy-policy" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-100">
+            <Link href="/privacy-policy" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
               Privacy Policy
             </Link>
-            <Link href="/terms-and-conditions" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-100">
+            <Link href="/terms-and-conditions" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
               Terms & Conditions
             </Link>
-            <Link href="/refund-and-cancellation" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-100">
+            <Link href="/refund-and-cancellation" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
               Refund Policy
             </Link>
-            <Link href="/contact-us" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-100">
+            <Link href="/contact-us" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
               Contact Us
             </Link>
-            <Link href="/about-us" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-800 hover:bg-red-100">
+            <Link href="/about-us" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
               About Us
             </Link>
           </div>
 
           {Array.isArray(SCHOOL_INFO?.officeHours) && SCHOOL_INFO.officeHours.length > 0 ? (
-            <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-700">Office Hours</p>
+            <div className="mt-5 rounded-2xl border border-red-500/28 bg-red-900/25 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">Office Hours</p>
               <div className="mt-2 space-y-1">
                 {SCHOOL_INFO.officeHours.map((slot) => (
-                  <p key={slot} className="text-sm font-medium text-slate-700">
+                  <p key={slot} className="text-sm font-medium text-red-100">
                     {slot}
                   </p>
                 ))}
