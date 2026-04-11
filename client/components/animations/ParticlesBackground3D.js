@@ -2,9 +2,10 @@
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial } from '@react-three/drei';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { canRunThreeScene } from '@/lib/three-capability';
 
-function ParticleCloud({ count = 2800 }) {
+function ParticleCloud({ count = 1200 }) {
   const pointsRef = useRef(null);
 
   const positions = useMemo(() => {
@@ -37,9 +38,19 @@ function ParticleCloud({ count = 2800 }) {
 }
 
 export default function ParticlesBackground3D({ className = '' }) {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    setEnabled(canRunThreeScene());
+  }, []);
+
+  if (!enabled) {
+    return null;
+  }
+
   return (
     <div className={`pointer-events-none fixed inset-0 -z-10 opacity-80 ${className}`.trim()} aria-hidden="true">
-      <Canvas camera={{ position: [0, 0, 8], fov: 60 }} dpr={[1, 1.5]}>
+      <Canvas camera={{ position: [0, 0, 8], fov: 60 }} dpr={[1, 1.15]}>
         <ambientLight intensity={0.25} />
         <directionalLight position={[2, 2, 3]} intensity={0.55} color="#fca5a5" />
         <ParticleCloud />
