@@ -174,6 +174,9 @@ Frontend runs at `http://localhost:3000`.
 ### Frontend (`client/.env.local`)
 
 - `NEXT_PUBLIC_API_BASE_URL` (e.g. `http://localhost:5000/api`)
+- `NEXT_PUBLIC_UPI_ID` (optional; enables direct UPI app redirect button)
+- `NEXT_PUBLIC_UPI_PAYEE_NAME` (optional; defaults to school name)
+- `NEXT_PUBLIC_UPI_PAYMENT_NOTE` (optional; defaults to `School Payment`)
 
 ## Notes
 
