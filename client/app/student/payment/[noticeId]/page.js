@@ -8,6 +8,7 @@ import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
+import { buildUpiPaymentLink, HAS_UPI_CONFIGURATION } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -59,6 +60,15 @@ export default function StudentNoticePaymentPage() {
   const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
   const isRejected = paymentStatus === 'REJECTED';
   const payableAmount = Number(notice?.amount || 0);
+  const upiPaymentLink = useMemo(
+    () =>
+      buildUpiPaymentLink({
+        amount: payableAmount,
+        note: `Notice Payment${notice?.title ? ` - ${notice.title}` : ''}`,
+        transactionReference
+      }),
+    [notice?.title, payableAmount, transactionReference]
+  );
 
   const canPay = useMemo(
     () => Boolean(noticeId && student?._id && isPaymentNotice && !hasPaid && !isPendingVerification && payableAmount > 0),
@@ -230,6 +240,20 @@ export default function StudentNoticePaymentPage() {
                   <p className="mt-2 text-xs text-slate-500">
                     Scan this QR, complete payment, then upload screenshot below.
                   </p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {HAS_UPI_CONFIGURATION && upiPaymentLink ? (
+                      <a
+                        href={upiPaymentLink}
+                        className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
+                      >
+                        Pay via UPI App
+                      </a>
+                    ) : (
+                      <p className="text-xs text-amber-700">UPI redirect is not configured yet. Please use the QR code.</p>
+                    )}
+                    <p className="text-xs text-slate-500">On mobile, this opens your UPI app directly.</p>
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
