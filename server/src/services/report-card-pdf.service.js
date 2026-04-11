@@ -485,7 +485,6 @@ const buildTemplateModel = async ({ reportCardData = {} }) => {
     className: toSafeText(reportCardData?.className, '-'),
     section: toSafeText(reportCardData?.section, '-'),
     examYear: toSafeText(reportCardData?.examYear, '-'),
-    reportRollNo: formatScore(reportCardData?.assignedRollNo),
     grandTotalMaxMarks: formatScore(reportCardData?.grandTotalMaxMarks),
     grandTotalObtainedMarks: formatScore(reportCardData?.grandTotalObtainedMarks),
     netGrade: toSafeText(deriveNetGradeLabel(reportCardData), '-'),

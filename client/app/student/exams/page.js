@@ -41,7 +41,7 @@ const formatTimeLabel = (value) => {
   return parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const getUpcomingExamSlots = (exams = [], classId = '') => {
+const getExamSlots = (exams = [], classId = '') => {
   const normalizedClassId = String(classId || '').trim();
   const nowMs = Date.now();
 
@@ -85,11 +85,16 @@ const getUpcomingExamSlots = (exams = [], classId = '') => {
 
             const startDate = toValidDate(slot?.startDate);
             const endDate = toValidDate(slot?.endDate);
-            if (!startDate || !endDate || endDate.getTime() < nowMs) {
+            if (!startDate || !endDate) {
               return null;
             }
 
-            const status = nowMs >= startDate.getTime() && nowMs <= endDate.getTime() ? 'Ongoing' : 'Scheduled';
+            let status = 'Scheduled';
+            if (endDate.getTime() <= nowMs) {
+              status = 'Completed';
+            } else if (nowMs >= startDate.getTime() && nowMs <= endDate.getTime()) {
+              status = 'Ongoing';
+            }
 
             return {
               id: `${examId}-${subjectId || index}-${startDate.getTime()}`,
@@ -112,11 +117,16 @@ const getUpcomingExamSlots = (exams = [], classId = '') => {
     const fallbackStartDate = toValidDate(exam?.startDate || exam?.date || exam?.examDate);
     const fallbackEndDate = toValidDate(exam?.endDate) || fallbackStartDate;
 
-    if (!fallbackStartDate || !fallbackEndDate || fallbackEndDate.getTime() < nowMs) {
+    if (!fallbackStartDate || !fallbackEndDate) {
       return;
     }
 
-    const status = nowMs >= fallbackStartDate.getTime() && nowMs <= fallbackEndDate.getTime() ? 'Ongoing' : 'Scheduled';
+    let status = 'Scheduled';
+    if (fallbackEndDate.getTime() <= nowMs) {
+      status = 'Completed';
+    } else if (nowMs >= fallbackStartDate.getTime() && nowMs <= fallbackEndDate.getTime()) {
+      status = 'Ongoing';
+    }
 
     slots.push({
       id: `${examId || examName}-${fallbackStartDate.getTime()}`,
@@ -130,11 +140,21 @@ const getUpcomingExamSlots = (exams = [], classId = '') => {
   });
 
   return slots.sort((left, right) => {
-    const leftOrder = left.status === 'Ongoing' ? 0 : 1;
-    const rightOrder = right.status === 'Ongoing' ? 0 : 1;
+    const statusOrder = {
+      Ongoing: 0,
+      Scheduled: 1,
+      Completed: 2
+    };
+
+    const leftOrder = statusOrder[left.status] ?? 3;
+    const rightOrder = statusOrder[right.status] ?? 3;
 
     if (leftOrder !== rightOrder) {
       return leftOrder - rightOrder;
+    }
+
+    if (left.status === 'Completed' && right.status === 'Completed') {
+      return right.startDate.getTime() - left.startDate.getTime();
     }
 
     return left.startDate.getTime() - right.startDate.getTime();
@@ -144,12 +164,13 @@ const getUpcomingExamSlots = (exams = [], classId = '') => {
 const text = {
   en: {
     eyebrow: 'Student Portal',
-    title: 'Upcoming Exams',
-    description: 'See all upcoming exam slots with subject-wise timetable details.',
-    totalLabel: 'Total upcoming exam slots',
+    title: 'Exams',
+    description: 'See upcoming and completed exam slots with subject-wise timetable details.',
+    totalLabel: 'Total exam slots',
     statusLabels: {
       Ongoing: 'Ongoing',
-      Scheduled: 'Scheduled'
+      Scheduled: 'Scheduled',
+      Completed: 'Completed'
     },
     columns: [
       { key: 'examName', label: 'Exam Name' },
@@ -163,12 +184,13 @@ const text = {
   },
   bn: {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
-    title: 'আসন্ন পরীক্ষা',
-    description: 'বিষয়ভিত্তিক সময়সূচিসহ সব আসন্ন পরীক্ষার তথ্য দেখুন।',
-    totalLabel: 'মোট আসন্ন পরীক্ষা স্লট',
+    title: 'পরীক্ষাসমূহ',
+    description: 'বিষয়ভিত্তিক সময়সূচিসহ আসন্ন ও সম্পন্ন পরীক্ষার তথ্য দেখুন।',
+    totalLabel: 'মোট পরীক্ষা স্লট',
     statusLabels: {
       Ongoing: 'চলমান',
-      Scheduled: 'নির্ধারিত'
+      Scheduled: 'নির্ধারিত',
+      Completed: 'সম্পন্ন'
     },
     columns: [
       { key: 'examName', label: 'পরীক্ষার নাম' },
@@ -216,9 +238,9 @@ export default function StudentExamsPage() {
           return;
         }
 
-        const upcomingSlots = getUpcomingExamSlots(response.data || [], studentClassId);
+        const examSlots = getExamSlots(response.data || [], studentClassId);
         setRows(
-          upcomingSlots.map((slot) => ({
+          examSlots.map((slot) => ({
             id: slot.id,
             examName: slot.examName,
             subject: slot.subjectName,
@@ -247,7 +269,7 @@ export default function StudentExamsPage() {
     };
   }, [language]);
 
-  const totalUpcoming = useMemo(() => rows.length, [rows.length]);
+  const totalExams = useMemo(() => rows.length, [rows.length]);
 
   return (
     <div className="space-y-5">
@@ -259,7 +281,7 @@ export default function StudentExamsPage() {
       />
 
       <div className="rounded-xl border border-red-100 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">
-        <span className="font-semibold text-red-700">{t.totalLabel}:</span> {totalUpcoming}
+        <span className="font-semibold text-red-700">{t.totalLabel}:</span> {totalExams}
       </div>
 
       <Table columns={t.columns} rows={rows} loading={loading} />

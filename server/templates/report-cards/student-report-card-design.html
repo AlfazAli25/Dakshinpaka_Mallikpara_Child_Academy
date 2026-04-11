@@ -192,7 +192,7 @@
     }
 
     .line-row.alt {
-      grid-template-columns: max-content minmax(26mm, 1fr) max-content minmax(22mm, 1fr) max-content minmax(22mm, 1fr);
+      grid-template-columns: max-content minmax(30mm, 1fr) max-content minmax(26mm, 1fr);
     }
 
     .line-row.single {
@@ -347,7 +347,7 @@
     .summary {
       margin-top: auto;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 2mm;
     }
 
@@ -424,8 +424,6 @@
             <div class="value-line">{{className}}</div>
             <div>Section:</div>
             <div class="value-line">{{section}}</div>
-            <div>Roll No:</div>
-            <div class="value-line">{{reportRollNo}}</div>
           </div>
 
           <div class="line-row single">
@@ -470,10 +468,6 @@
               <div class="summary-card">
                 <p class="label">Grand Total Obtained Marks</p>
                 <p class="value">{{grandTotalObtainedMarks}}</p>
-              </div>
-              <div class="summary-card">
-                <p class="label">Assigned Roll Number</p>
-                <p class="value">{{reportRollNo}}</p>
               </div>
               <div class="summary-card">
                 <p class="label">Overall Grade</p>

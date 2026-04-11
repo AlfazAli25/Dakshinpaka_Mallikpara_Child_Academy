@@ -11,7 +11,7 @@ const { syncAdmitCardsForExam } = require('../services/admit-card.service');
 
 const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 25;
@@ -166,7 +166,7 @@ const buildFilterFromQuery = (query = {}) => {
     const academicYear = String(query.academicYear || '').trim();
     if (academicYear) {
       if (!ACADEMIC_YEAR_REGEX.test(academicYear)) {
-        throw createHttpError(400, 'Academic year must be in YYYY or YYYY-YYYY format');
+        throw createHttpError(400, 'Academic year must be in YYYY format');
       }
       filter.academicYear = academicYear;
     }
@@ -270,7 +270,7 @@ const resolveExamPayload = async (payload = {}, { existingExam = null, createdBy
   }
 
   if (!ACADEMIC_YEAR_REGEX.test(academicYear)) {
-    throw createHttpError(400, 'Academic year must be in YYYY or YYYY-YYYY format');
+    throw createHttpError(400, 'Academic year must be in YYYY format');
   }
 
   const incomingScheduleValues =

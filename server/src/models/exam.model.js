@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 const normalizeExamType = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -20,10 +20,7 @@ const normalizeExamType = (value) => {
 const buildAcademicYear = (value) => {
   const date = value instanceof Date ? value : new Date(value);
   const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
-  const month = safeDate.getMonth() + 1;
-  const startYear = month >= 4 ? safeDate.getFullYear() : safeDate.getFullYear() - 1;
-  const endYear = startYear + 1;
-  return `${startYear}-${endYear}`;
+  return String(safeDate.getFullYear());
 };
 
 const normalizeObjectIdArray = (items = []) => {
@@ -132,7 +129,7 @@ examSchema.pre('validate', function preValidateExam(next) {
   this.academicYear = normalizedAcademicYear || buildAcademicYear(this.startDate || this.date || this.examDate || new Date());
 
   if (!ACADEMIC_YEAR_REGEX.test(this.academicYear)) {
-    this.invalidate('academicYear', 'Academic year must be in YYYY or YYYY-YYYY format');
+    this.invalidate('academicYear', 'Academic year must be in YYYY format');
   }
 
   if (!this.startDate && this.date) {

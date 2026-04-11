@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
@@ -14,13 +14,13 @@ const text = {
   en: {
     eyebrow: 'Student Portal',
     title: 'Results',
-    description: 'Select an exam and review your subject-wise performance.',
-    examFilterLabel: 'Select Exam',
-    examFilterPlaceholder: 'Select exam',
+    description: 'Select a year and review your final-exam subject-wise performance.',
+    yearFilterLabel: 'Select Year',
+    yearFilterPlaceholder: 'Select year',
     downloadReportCard: 'Download Report Card',
     downloadingReportCard: 'Downloading...',
     checkingReportCard: 'Checking report card availability...',
-    archivedReportCardUnavailable: 'Report card download is available for current class exams only.',
+    archivedReportCardUnavailable: 'Report card download is available for current class final-exam years only.',
     reportCardNotReady: 'Report card is not ready yet.',
     reportCardDownloadFailed: 'Failed to download report card right now.',
     columns: [
@@ -33,13 +33,13 @@ const text = {
   bn: {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
     title: 'ফলাফল',
-    description: 'পরীক্ষা নির্বাচন করে বিষয়ভিত্তিক ফলাফল দেখুন।',
-    examFilterLabel: 'পরীক্ষা নির্বাচন করুন',
-    examFilterPlaceholder: 'পরীক্ষা নির্বাচন করুন',
+    description: 'বছর নির্বাচন করে ফাইনাল পরীক্ষার বিষয়ভিত্তিক ফলাফল দেখুন।',
+    yearFilterLabel: 'বছর নির্বাচন করুন',
+    yearFilterPlaceholder: 'বছর নির্বাচন করুন',
     downloadReportCard: 'রিপোর্ট কার্ড ডাউনলোড',
     downloadingReportCard: 'ডাউনলোড হচ্ছে...',
     checkingReportCard: 'রিপোর্ট কার্ড প্রস্তুতি যাচাই করা হচ্ছে...',
-    archivedReportCardUnavailable: 'রিপোর্ট কার্ড ডাউনলোড কেবল বর্তমান শ্রেণির পরীক্ষার জন্য উপলভ্য।',
+    archivedReportCardUnavailable: 'রিপোর্ট কার্ড ডাউনলোড কেবল বর্তমান শ্রেণির ফাইনাল পরীক্ষার বছরের জন্য উপলভ্য।',
     reportCardNotReady: 'রিপোর্ট কার্ড এখনও প্রস্তুত হয়নি।',
     reportCardDownloadFailed: 'এই মুহূর্তে রিপোর্ট কার্ড ডাউনলোড করা যাচ্ছে না।',
     columns: [
@@ -65,6 +65,80 @@ const toGradeLabel = (percent) => {
 };
 
 const toId = (value) => String(value?._id || value || '');
+
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
+const ACADEMIC_YEAR_RANGE_REGEX = /^(\d{4})\s*-\s*(\d{4})$/;
+
+const normalizeAcademicYear = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (ACADEMIC_YEAR_REGEX.test(normalized)) {
+    return normalized;
+  }
+
+  const rangeMatch = normalized.match(ACADEMIC_YEAR_RANGE_REGEX);
+  if (rangeMatch) {
+    return rangeMatch[1];
+  }
+
+  return normalized;
+};
+
+const toExamTimestamp = (exam = {}) => {
+  const value = exam?.endDate || exam?.startDate || exam?.examDate || exam?.date || exam?.createdAt;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 0;
+  }
+
+  return parsed.getTime();
+};
+
+const getExamSearchText = (exam = {}) =>
+  `${String(exam?.examName || '').trim()} ${String(exam?.description || '').trim()} ${String(exam?.examType || '').trim()}`.toLowerCase();
+
+const isFinalExam = (exam = {}) => {
+  const searchText = getExamSearchText(exam);
+
+  if (/\bhalf\s*[- ]?\s*yearly\b|\bhalfyearly\b|\bmid\s*[- ]?\s*yearly\b|\bmidyearly\b/.test(searchText)) {
+    return false;
+  }
+
+  const examType = String(exam?.examType || '')
+    .trim()
+    .toLowerCase();
+
+  if (examType === 'final exam' || examType === 'final') {
+    return true;
+  }
+
+  return /\bfinal exam\b|\bfinal\b|\bannual\b|\byearly\b/.test(searchText);
+};
+
+const buildReportCardExamByYear = (examList = []) => {
+  const map = new Map();
+
+  (Array.isArray(examList) ? examList : []).forEach((exam) => {
+    if (!isFinalExam(exam)) {
+      return;
+    }
+
+    const academicYear = normalizeAcademicYear(exam?.academicYear);
+    if (!ACADEMIC_YEAR_REGEX.test(academicYear)) {
+      return;
+    }
+
+    const existing = map.get(academicYear);
+    if (!existing || toExamTimestamp(exam) > toExamTimestamp(existing)) {
+      map.set(academicYear, exam);
+    }
+  });
+
+  return map;
+};
 
 const mergeExamsById = ({ primaryExams = [], secondaryExams = [] }) => {
   const examMap = new Map();
@@ -122,21 +196,6 @@ const collectStudentExamHistory = async ({ studentId, token }) => {
   return Array.from(historyExamMap.values());
 };
 
-const toExamLabel = (exam) => {
-  const examName = String(exam?.examName || exam?.description || 'Exam').trim() || 'Exam';
-  const examDateValue = exam?.startDate || exam?.examDate || exam?.date;
-  if (!examDateValue) {
-    return examName;
-  }
-
-  const parsed = new Date(examDateValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return examName;
-  }
-
-  return `${examName} (${parsed.toLocaleDateString('en-GB')})`;
-};
-
 const downloadBlob = (blob, filename) => {
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -158,7 +217,7 @@ export default function StudentResultsPage() {
   const [studentId, setStudentId] = useState('');
   const [studentClassId, setStudentClassId] = useState('');
   const [exams, setExams] = useState([]);
-  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
   const [rows, setRows] = useState([]);
   const [checkingReportCard, setCheckingReportCard] = useState(false);
   const [downloadingReportCard, setDownloadingReportCard] = useState(false);
@@ -181,7 +240,7 @@ export default function StudentResultsPage() {
             setStudentId('');
             setStudentClassId('');
             setExams([]);
-            setSelectedExamId('');
+            setSelectedYear('');
             setRows([]);
           }
           return;
@@ -204,10 +263,13 @@ export default function StudentResultsPage() {
         const sortedExams = mergedExams
           .slice()
           .sort((left, right) => {
-            const leftDate = new Date(left?.startDate || left?.examDate || left?.date || 0).getTime();
-            const rightDate = new Date(right?.startDate || right?.examDate || right?.date || 0).getTime();
+            const leftDate = toExamTimestamp(left);
+            const rightDate = toExamTimestamp(right);
             return rightDate - leftDate;
           });
+
+        const reportCardMap = buildReportCardExamByYear(sortedExams);
+        const reportCardYears = Array.from(reportCardMap.keys()).sort((left, right) => Number(right) - Number(left));
 
         if (!active) {
           return;
@@ -216,19 +278,19 @@ export default function StudentResultsPage() {
         setStudentId(currentStudentId);
         setStudentClassId(classId);
         setExams(sortedExams);
-        setSelectedExamId((prev) => {
-          if (prev && sortedExams.some((exam) => toId(exam) === prev)) {
+        setSelectedYear((prev) => {
+          if (prev && reportCardMap.has(prev)) {
             return prev;
           }
 
-          return toId(sortedExams[0]);
+          return reportCardYears[0] || '';
         });
       } catch (_error) {
         if (active) {
           setStudentId('');
           setStudentClassId('');
           setExams([]);
-          setSelectedExamId('');
+          setSelectedYear('');
           setRows([]);
         }
       } finally {
@@ -244,6 +306,23 @@ export default function StudentResultsPage() {
       active = false;
     };
   }, []);
+
+  const reportCardExamByYear = useMemo(() => buildReportCardExamByYear(exams), [exams]);
+
+  const availableYears = useMemo(
+    () => Array.from(reportCardExamByYear.keys()).sort((left, right) => Number(right) - Number(left)),
+    [reportCardExamByYear]
+  );
+
+  const selectedReportCardExam = useMemo(() => {
+    if (!selectedYear) {
+      return null;
+    }
+
+    return reportCardExamByYear.get(selectedYear) || null;
+  }, [reportCardExamByYear, selectedYear]);
+
+  const selectedExamId = toId(selectedReportCardExam);
 
   useEffect(() => {
     let active = true;
@@ -309,8 +388,7 @@ export default function StudentResultsPage() {
         return;
       }
 
-      const selectedExam = exams.find((exam) => toId(exam) === selectedExamId) || null;
-      const selectedExamClassId = toId(selectedExam?.classId);
+      const selectedExamClassId = toId(selectedReportCardExam?.classId);
 
       if (studentClassId && selectedExamClassId && selectedExamClassId !== studentClassId) {
         setReportCardStatus({
@@ -371,7 +449,7 @@ export default function StudentResultsPage() {
     return () => {
       active = false;
     };
-  }, [selectedExamId, studentId, studentClassId, exams, t.reportCardNotReady, t.archivedReportCardUnavailable]);
+  }, [selectedExamId, selectedReportCardExam, studentId, studentClassId, t.reportCardNotReady, t.archivedReportCardUnavailable]);
 
   const onDownloadReportCard = async () => {
     if (!selectedExamId) {
@@ -398,11 +476,11 @@ export default function StudentResultsPage() {
     }
   };
 
-  const examOptions = [
-    { value: '', label: t.examFilterPlaceholder },
-    ...exams.map((exam) => ({
-      value: toId(exam),
-      label: toExamLabel(exam)
+  const yearOptions = [
+    { value: '', label: t.yearFilterPlaceholder },
+    ...availableYears.map((year) => ({
+      value: year,
+      label: year
     }))
   ];
 
@@ -419,11 +497,11 @@ export default function StudentResultsPage() {
 
       <div className="max-w-lg">
         <Select
-          label={t.examFilterLabel}
-          value={selectedExamId}
-          onChange={(event) => setSelectedExamId(event.target.value)}
-          options={examOptions}
-          disabled={loadingSetup || exams.length === 0}
+          label={t.yearFilterLabel}
+          value={selectedYear}
+          onChange={(event) => setSelectedYear(event.target.value)}
+          options={yearOptions}
+          disabled={loadingSetup || availableYears.length === 0}
           className="h-11"
         />
       </div>
@@ -434,7 +512,7 @@ export default function StudentResultsPage() {
             type="button"
             onClick={onDownloadReportCard}
             disabled={
-              !selectedExamId ||
+              !selectedYear ||
               checkingReportCard ||
               downloadingReportCard ||
               !reportCardStatus.isDownloadReady

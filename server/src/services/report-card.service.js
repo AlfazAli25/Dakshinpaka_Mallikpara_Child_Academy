@@ -6,7 +6,7 @@ const Subject = require('../models/subject.model');
 const Marks = require('../models/marks.model');
 const { calculateGrade } = require('../utils/gradeCalculator');
 
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -319,7 +319,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
 
   const normalizedAcademicYear = toText(academicYear);
   if (normalizedAcademicYear && !ACADEMIC_YEAR_REGEX.test(normalizedAcademicYear)) {
-    throw createHttpError(400, 'Academic year must be in YYYY or YYYY-YYYY format');
+    throw createHttpError(400, 'Academic year must be in YYYY format');
   }
 
   const normalizedSelectedExamId = toId(selectedExamId);

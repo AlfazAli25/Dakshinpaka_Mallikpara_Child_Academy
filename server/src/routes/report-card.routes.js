@@ -6,7 +6,7 @@ const controller = require('../controllers/report-card.controller');
 
 const router = express.Router();
 
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 router.get(
   '/exam/:examId/student/me/status',
@@ -35,7 +35,7 @@ router.get(
     query('academicYear')
       .optional({ checkFalsy: true })
       .matches(ACADEMIC_YEAR_REGEX)
-      .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
+      .withMessage('Academic year must be in YYYY format'),
     query('section').optional().isString().withMessage('Invalid section selected')
   ],
   validate,

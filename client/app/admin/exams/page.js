@@ -13,7 +13,7 @@ import { useToast } from '@/lib/toast-context';
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 const DEFAULT_PAGINATION = {
   page: 1,
@@ -686,7 +686,7 @@ export default function AdminExamsPage() {
     }
 
     if (!ACADEMIC_YEAR_REGEX.test(form.academicYear.trim())) {
-      return 'Academic year must be in YYYY or YYYY-YYYY format';
+      return 'Academic year must be in YYYY format';
     }
 
     const admitCardFeeAmount = Number(form.admitCardFeeAmount);
@@ -964,7 +964,7 @@ export default function AdminExamsPage() {
             onChange={onChangeForm('academicYear')}
             required
             className="h-11"
-            placeholder="2026-2027"
+            placeholder="2026"
           />
 
           <Input

@@ -9,7 +9,7 @@ const router = express.Router();
 
 const EXAM_TYPES = ['Unit Test', 'Final Exam'];
 const EXAM_STATUS = ['Scheduled', 'Ongoing', 'Completed'];
-const ACADEMIC_YEAR_REGEX = /^\d{4}(?:-\d{4})?$/;
+const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 const validateDateRange = body().custom((value, { req }) => {
   const startInput = req.body.startDate;
@@ -72,7 +72,7 @@ router.post(
     body('subjects.*').isMongoId().withMessage('Invalid subject selected'),
     body('academicYear')
       .matches(ACADEMIC_YEAR_REGEX)
-      .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
+      .withMessage('Academic year must be in YYYY format'),
     body('admitCardFeeAmount').optional().isFloat({ min: 0 }).withMessage('Admit card fee amount must be 0 or more'),
     body('startDate').notEmpty().withMessage('Start date is required'),
     validateDateRange,
@@ -121,7 +121,7 @@ router.put(
     body('academicYear')
       .optional()
       .matches(ACADEMIC_YEAR_REGEX)
-      .withMessage('Academic year must be in YYYY or YYYY-YYYY format'),
+      .withMessage('Academic year must be in YYYY format'),
     body('admitCardFeeAmount').optional().isFloat({ min: 0 }).withMessage('Admit card fee amount must be 0 or more'),
     validateDateRange,
     body('status').optional().isIn(EXAM_STATUS).withMessage('Invalid exam status selected'),
