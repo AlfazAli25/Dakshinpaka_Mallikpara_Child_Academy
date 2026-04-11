@@ -10,6 +10,7 @@ import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 const columns = [
   { key: 'examName', label: 'Exam Name' },
   { key: 'className', label: 'Class' },
+  { key: 'section', label: 'Section' },
   { key: 'subjects', label: 'Subjects' },
   { key: 'academicYear', label: 'Academic Year' },
   { key: 'date', label: 'Date' },
@@ -116,6 +117,7 @@ export default function TeacherExamsPage() {
               id: item._id,
               examName: item.examName || item.description || '-',
               className: formatClassLabel(item.classId),
+              section: item?.classId?.section || '-',
               subjects:
                 (item.subjects || [])
                   .map((subject) => subject?.name || subject?.code)

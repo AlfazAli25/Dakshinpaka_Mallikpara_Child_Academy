@@ -7,7 +7,6 @@ import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { del, get, postForm } from '@/lib/api';
-import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -23,6 +22,7 @@ const columns = [
   { key: 'rollNo', label: 'Roll No' },
   { key: 'name', label: 'Name' },
   { key: 'className', label: 'Class' },
+  { key: 'section', label: 'Section' },
   { key: 'guardianContact', label: 'Guardian Contact' },
   { key: 'actions', label: 'Actions' }
 ];
@@ -248,7 +248,8 @@ export default function AdminStudentsPage() {
         admissionNo: item.admissionNo || '-',
         rollNo: item.rollNo || '-',
         name: item.userId?.name || '-',
-        className: formatClassLabel(item.classId),
+        className: item.classId?.name || '-',
+        section: item.classId?.section || '-',
         guardianContact: item.guardianContact || '-',
         isLinkedRecord: Boolean(item.isLinkedRecord)
       }));
@@ -308,7 +309,7 @@ export default function AdminStudentsPage() {
     });
     const options = (response.data || []).map((item) => ({
       value: item._id,
-      label: item.section ? `${item.name} (${item.section})` : item.name
+      label: item.name || 'Class'
     }));
     setClassOptions(options);
   }, []);

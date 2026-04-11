@@ -59,6 +59,7 @@ const mapMarksToRows = (items) =>
       studentName: item?.studentId?.userId?.name || '-',
       rollNumber: toRollNumberLabel(item?.studentId),
       className: formatClassLabel(item?.classId),
+      classSection: String(item?.classId?.section || '').trim() || '-',
       subjectName: item?.subjectId?.name || item?.subjectId?.code || '-',
       examName: String(item?.examId?.examName || item?.examId?.description || '-').trim() || '-',
       marks: `${item?.marksObtained ?? 0}/${item?.maxMarks ?? 0}`,
@@ -364,6 +365,7 @@ export default function AdminMarksPage() {
         row.studentName,
         row.rollNumber,
         row.className,
+        row.classSection,
         row.subjectName,
         row.examName,
         row.grade,
@@ -378,13 +380,14 @@ export default function AdminMarksPage() {
     const grouped = new Map();
 
     filteredRows.forEach((row) => {
-      const key = `${row.studentId || row.studentName}::${row.rollNumber}::${row.className}`;
+      const key = `${row.studentId || row.studentName}::${row.rollNumber}::${row.className}::${row.classSection}`;
       const current = grouped.get(key) || {
         key,
         studentId: row.studentId,
         studentName: row.studentName,
         rollNumber: row.rollNumber,
         className: row.className,
+        classSection: row.classSection,
         items: []
       };
 
@@ -689,6 +692,7 @@ export default function AdminMarksPage() {
                 <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Class</th>
+                <th className="px-4 py-3 font-semibold text-red-50">Section</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Subject</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Exam</th>
                 <th className="px-4 py-3 font-semibold text-red-50">Marks</th>
@@ -705,14 +709,14 @@ export default function AdminMarksPage() {
                     key={`marks-skeleton-${rowIndex}`}
                     className={`border-t border-slate-100 ${rowIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
                   >
-                    <td className="px-4 py-4" colSpan={10}>
+                    <td className="px-4 py-4" colSpan={11}>
                       <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
                     </td>
                   </tr>
                 ))
               ) : groupedRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={10}>
+                  <td className="px-4 py-6 text-center text-slate-500" colSpan={11}>
                     No records found.
                   </td>
                 </tr>
@@ -733,6 +737,9 @@ export default function AdminMarksPage() {
                           </td>
                           <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
                             {group.className}
+                          </td>
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                            {group.classSection}
                           </td>
                         </>
                       ) : null}

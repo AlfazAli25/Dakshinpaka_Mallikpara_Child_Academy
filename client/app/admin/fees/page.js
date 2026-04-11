@@ -8,7 +8,6 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import Button from '@/components/ui/button';
 import { get, getBlob, post } from '@/lib/api';
-import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -16,6 +15,7 @@ const verificationColumns = [
   { key: 'studentAdmissionNo', label: 'Student ID' },
   { key: 'studentName', label: 'Student' },
   { key: 'className', label: 'Class' },
+  { key: 'section', label: 'Section' },
   { key: 'amount', label: 'Amount' },
   { key: 'submittedAt', label: 'Submitted At' },
   { key: 'status', label: 'Status' }
@@ -458,7 +458,8 @@ export default function AdminFeesPage() {
             id: item._id,
             studentAdmissionNo: item.studentId?.admissionNo || '-',
             studentName: item.studentId?.userId?.name || '-',
-            className: formatClassLabel(item.studentId?.classId),
+            className: item.studentId?.classId?.name || '-',
+            section: item.studentId?.classId?.section || '-',
             amount: `INR ${item.amount || 0}`,
             submittedAt: new Date(item.createdAt).toLocaleString('en-GB'),
             status: 'Pending'

@@ -222,6 +222,7 @@ const scheduleRowsEqual = (first = [], second = []) => {
 const columns = [
   { key: 'examName', label: 'Exam Name' },
   { key: 'className', label: 'Class' },
+  { key: 'section', label: 'Section' },
   { key: 'subjects', label: 'Subject Schedule' },
   { key: 'examWindow', label: 'Exam Window' },
   { key: 'academicYear', label: 'Academic Year' },
@@ -356,7 +357,8 @@ export default function AdminExamsPage() {
         return {
           id: toId(item),
           examName: item.examName || '-',
-          className: formatClassLabel(item.classId),
+          className: item.classId?.name || '-',
+          section: item.classId?.section || '-',
           subjects:
             scheduleRows.length === 0 ? (
               '-'

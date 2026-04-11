@@ -207,7 +207,7 @@ export default function StudentProfilePage() {
     setClassOptions(
       (response.data || []).map((item) => ({
         value: String(item._id),
-        label: item.section ? `${item.name} (${item.section})` : item.name
+        label: item.name || 'Class'
       }))
     );
   };

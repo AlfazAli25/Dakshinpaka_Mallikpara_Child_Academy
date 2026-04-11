@@ -96,7 +96,7 @@ export default function TeacherTimetablePage() {
                               <div key={item._id} className="rounded-lg border border-slate-200 bg-white p-2">
                                 <p className="text-xs font-semibold text-slate-900">{item?.subjectId?.name || 'Subject'}</p>
                                 <p className="text-xs text-slate-700">
-                                  {item?.classId?.name || 'Class'} {item?.section ? `(${item.section})` : ''}
+                                  Class: {item?.classId?.name || 'Class'} | Section: {item?.section || '-'}
                                 </p>
                                 <p className="text-[11px] text-slate-600">{item?.startTime} - {item?.endTime}</p>
                                 {item?.roomNumber ? (

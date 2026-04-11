@@ -16,6 +16,7 @@ const columns = [
   { key: 'admissionNo', label: 'Admission No' },
   { key: 'rollNo', label: 'Roll No' },
   { key: 'classLabel', label: 'Class' },
+  { key: 'section', label: 'Section' },
   { key: 'isFeePaid', label: 'Admit Fee Paid' },
   { key: 'isStudentEligible', label: 'Class Eligible' },
   { key: 'status', label: 'Download Status' },
@@ -137,9 +138,12 @@ export default function AdminExamAdmitCardsPage() {
         timeoutMs: 300000
       });
 
-      const classLabel = formatClassLabel(rows[0]?.classId || rows[0]?.studentId?.classId).replace(/[^A-Za-z0-9_-]/g, '_');
+      const classInfo = rows[0]?.classId || rows[0]?.studentId?.classId || null;
+      const classLabel = formatClassLabel(classInfo).replace(/[^A-Za-z0-9_-]/g, '_');
+      const sectionLabel = String(classInfo?.section || '').replace(/[^A-Za-z0-9_-]/g, '_');
       const examLabel = String(examTitle || 'Exam').replace(/[^A-Za-z0-9_-]/g, '_');
-      downloadBlob(blob, `Admit_Cards_${classLabel || 'Class'}_${examLabel || 'Exam'}.zip`);
+      const classToken = sectionLabel ? `${classLabel || 'Class'}_${sectionLabel}` : classLabel || 'Class';
+      downloadBlob(blob, `Admit_Cards_${classToken}_${examLabel || 'Exam'}.zip`);
     } catch (error) {
       toast.error(error?.message || 'Failed to download class admit cards');
     } finally {
@@ -172,7 +176,8 @@ export default function AdminExamAdmitCardsPage() {
     () =>
       rows.map((item) => {
         const admitCardId = toId(item);
-        const classLabel = formatClassLabel(item?.classId || item?.studentId?.classId);
+        const classInfo = item?.classId || item?.studentId?.classId || null;
+        const classLabel = formatClassLabel(classInfo);
         const isBusy = processingCardId === admitCardId;
 
         return {
@@ -181,6 +186,7 @@ export default function AdminExamAdmitCardsPage() {
           admissionNo: item?.studentId?.admissionNo || '-',
           rollNo: item?.studentId?.rollNo || '-',
           classLabel,
+          section: classInfo?.section || '-',
           isFeePaid: toBooleanBadge(Boolean(item?.isFeePaid)),
           isStudentEligible: toBooleanBadge(Boolean(item?.isStudentEligible)),
           status: item?.isDownloadEnabled ? 'AVAILABLE' : 'WAITING_ELIGIBILITY',
