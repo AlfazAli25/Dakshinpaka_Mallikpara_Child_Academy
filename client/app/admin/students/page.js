@@ -32,7 +32,8 @@ const getInitialStudentForm = () => ({
   email: '',
   password: '',
   confirmPassword: '',
-  classId: '',
+  className: '',
+  section: '',
   rollNo: '',
   gender: '',
   dob: '',
@@ -58,6 +59,8 @@ const requiredLabel = (label) => (
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 const normalizeStudentEmail = (value) => String(value || '').trim().toLowerCase();
+const normalizeClassToken = (value) => String(value || '').trim().toLowerCase();
+const normalizeSectionToken = (value) => String(value || '').trim().toUpperCase();
 
 const loadImageFromObjectUrl = (objectUrl) =>
   new Promise((resolve, reject) => {
@@ -168,7 +171,7 @@ export default function AdminStudentsPage() {
   const [cropOffsetX, setCropOffsetX] = useState(0);
   const [cropOffsetY, setCropOffsetY] = useState(0);
   const [applyingCrop, setApplyingCrop] = useState(false);
-  const [classOptions, setClassOptions] = useState([]);
+  const [classRecords, setClassRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [deletingId, setDeletingId] = useState('');
@@ -219,6 +222,99 @@ export default function AdminStudentsPage() {
     setMessage('');
     setError('');
   }, []);
+
+  const classNameOptions = useMemo(() => {
+    const uniqueClassNames = new Map();
+
+    (Array.isArray(classRecords) ? classRecords : []).forEach((item) => {
+      const className = String(item?.name || '').trim();
+      if (!className) {
+        return;
+      }
+
+      const token = normalizeClassToken(className);
+      if (!token || uniqueClassNames.has(token)) {
+        return;
+      }
+
+      uniqueClassNames.set(token, {
+        value: className,
+        label: className
+      });
+    });
+
+    return Array.from(uniqueClassNames.values()).sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      })
+    );
+  }, [classRecords]);
+
+  const selectedClassRecords = useMemo(() => {
+    const selectedClassToken = normalizeClassToken(form.className);
+    if (!selectedClassToken) {
+      return [];
+    }
+
+    return (Array.isArray(classRecords) ? classRecords : []).filter(
+      (item) => normalizeClassToken(item?.name) === selectedClassToken
+    );
+  }, [classRecords, form.className]);
+
+  const sectionOptions = useMemo(() => {
+    const uniqueSections = new Map();
+
+    selectedClassRecords.forEach((item) => {
+      const sectionValue = String(item?.section || '').trim();
+      if (!sectionValue) {
+        return;
+      }
+
+      const token = normalizeSectionToken(sectionValue);
+      if (!token || uniqueSections.has(token)) {
+        return;
+      }
+
+      uniqueSections.set(token, {
+        value: sectionValue,
+        label: sectionValue
+      });
+    });
+
+    return Array.from(uniqueSections.values()).sort((left, right) =>
+      String(left.label).localeCompare(String(right.label), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      })
+    );
+  }, [selectedClassRecords]);
+
+  useEffect(() => {
+    if (!form.className) {
+      if (form.section) {
+        setForm((prev) => ({ ...prev, section: '' }));
+      }
+      return;
+    }
+
+    if (sectionOptions.length === 0) {
+      if (form.section) {
+        setForm((prev) => ({ ...prev, section: '' }));
+      }
+      return;
+    }
+
+    if (sectionOptions.length === 1 && !form.section) {
+      setForm((prev) => ({ ...prev, section: sectionOptions[0].value }));
+      return;
+    }
+
+    const sectionExists = sectionOptions.some((item) => item.value === form.section);
+    if (!sectionExists && form.section) {
+      setForm((prev) => ({ ...prev, section: '' }));
+    }
+  }, [form.className, form.section, sectionOptions]);
 
   const loadStudents = useCallback(async ({ forceRefresh = false, searchTerm = '' } = {}) => {
     const requestId = latestStudentsRequestIdRef.current + 1;
@@ -307,11 +403,7 @@ export default function AdminStudentsPage() {
       retryCount: 1,
       retryDelayMs: 200
     });
-    const options = (response.data || []).map((item) => ({
-      value: item._id,
-      label: item.name || 'Class'
-    }));
-    setClassOptions(options);
+    setClassRecords(Array.isArray(response.data) ? response.data : []);
   }, []);
 
   const onConfirmDeleteStudent = async () => {
@@ -393,6 +485,15 @@ export default function AdminStudentsPage() {
 
   const onChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const onClassNameChange = (event) => {
+    const nextClassName = String(event.target.value || '');
+    setForm((prev) => ({
+      ...prev,
+      className: nextClassName,
+      section: ''
+    }));
   };
 
   const cropBounds = useMemo(() => {
@@ -510,6 +611,8 @@ export default function AdminStudentsPage() {
 
     const normalizedName = String(form.name || '').trim();
     const normalizedGuardianContact = String(form.guardianContact || '').trim();
+    const normalizedClassName = String(form.className || '').trim();
+    const normalizedSection = String(form.section || '').trim();
 
     if (String(form.password || '') !== String(form.confirmPassword || '')) {
       setError('Password and confirm password must match.');
@@ -556,6 +659,40 @@ export default function AdminStudentsPage() {
       return;
     }
 
+    let selectedClassId = '';
+    if (normalizedClassName) {
+      const matchingClassRecords = (Array.isArray(classRecords) ? classRecords : []).filter(
+        (item) => normalizeClassToken(item?.name) === normalizeClassToken(normalizedClassName)
+      );
+
+      if (matchingClassRecords.length === 0) {
+        setError('Selected class is not available. Please reload and try again.');
+        setMessage('');
+        return;
+      }
+
+      const classHasSections = matchingClassRecords.some((item) => String(item?.section || '').trim());
+      if (classHasSections && !normalizedSection) {
+        setError('Please select a section for the selected class.');
+        setMessage('');
+        return;
+      }
+
+      const selectedClassRecord = classHasSections
+        ? matchingClassRecords.find(
+            (item) => normalizeSectionToken(item?.section) === normalizeSectionToken(normalizedSection)
+          )
+        : matchingClassRecords[0];
+
+      if (!selectedClassRecord?._id) {
+        setError('Selected class and section combination is invalid.');
+        setMessage('');
+        return;
+      }
+
+      selectedClassId = String(selectedClassRecord._id);
+    }
+
     setLoading(true);
     setMessage('');
     setError('');
@@ -569,8 +706,8 @@ export default function AdminStudentsPage() {
       }
 
       formData.append('password', form.password);
-      if (String(form.classId || '').trim()) {
-        formData.append('classId', String(form.classId || '').trim());
+      if (selectedClassId) {
+        formData.append('classId', selectedClassId);
       }
 
       if (hasRollNo) {
@@ -612,7 +749,8 @@ export default function AdminStudentsPage() {
       );
       setForm((previousForm) => ({
         ...getInitialStudentForm(),
-        classId: previousForm.classId,
+        className: previousForm.className,
+        section: previousForm.section,
         attendance: previousForm.attendance
       }));
 
@@ -643,10 +781,31 @@ export default function AdminStudentsPage() {
           <Input label="Email (optional)" type="email" value={form.email} onChange={onChange('email')} className="h-11" />
           <Select
             label="Class"
-            value={form.classId}
-            onChange={onChange('classId')}
+            value={form.className}
+            onChange={onClassNameChange}
             className="h-11"
-            options={[{ value: '', label: classOptions.length > 0 ? 'Select Class' : 'No classes found' }, ...classOptions]}
+            options={[
+              { value: '', label: classNameOptions.length > 0 ? 'Select Class' : 'No classes found' },
+              ...classNameOptions
+            ]}
+          />
+          <Select
+            label="Section"
+            value={form.section}
+            onChange={onChange('section')}
+            className="h-11"
+            disabled={!form.className || sectionOptions.length === 0}
+            options={[
+              {
+                value: '',
+                label: !form.className
+                  ? 'Select Class First'
+                  : sectionOptions.length > 0
+                    ? 'Select Section'
+                    : 'No Section Required'
+              },
+              ...sectionOptions
+            ]}
           />
           <Input
             label="Roll No"
