@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/async.middleware');
 const { runMonthlySync, isMonthlyBoundaryInConfiguredTimezone } = require('../services/monthly-sync.service');
+const { enqueueMonthlySyncJob } = require('../services/system-jobs.service');
 
 const parseBoolean = (value) => {
   if (typeof value === 'boolean') {
@@ -12,6 +13,7 @@ const parseBoolean = (value) => {
 
 const runMonthlySyncFromCron = asyncHandler(async (req, res) => {
   const force = parseBoolean(req.query?.force);
+  const runAsync = parseBoolean(req.query?.async);
 
   if (!force && !isMonthlyBoundaryInConfiguredTimezone(new Date())) {
     return res.json({
@@ -21,6 +23,19 @@ const runMonthlySyncFromCron = asyncHandler(async (req, res) => {
         skipped: true,
         reason: 'vercel-cron-non-boundary-window'
       }
+    });
+  }
+
+  if (runAsync) {
+    const queueResult = await enqueueMonthlySyncJob({
+      reason: 'vercel-cron-monthly-boundary',
+      force
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: 'Monthly sync queued',
+      data: queueResult
     });
   }
 
@@ -38,6 +53,21 @@ const runMonthlySyncFromCron = asyncHandler(async (req, res) => {
 
 const runMonthlySyncFromAdmin = asyncHandler(async (req, res) => {
   const force = parseBoolean(req.body?.force);
+  const runAsync = parseBoolean(req.body?.async);
+
+  if (runAsync) {
+    const queueResult = await enqueueMonthlySyncJob({
+      reason: 'admin-manual-trigger',
+      force
+    });
+
+    return res.status(202).json({
+      success: true,
+      message: 'Monthly sync queued',
+      data: queueResult
+    });
+  }
+
   const result = await runMonthlySync({
     reason: 'admin-manual-trigger',
     force

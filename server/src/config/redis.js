@@ -55,6 +55,7 @@ const getRedisClient = async () => {
 const isRedisEnabled = () => redisEnabled;
 
 module.exports = {
+	getRedisUrl,
   getRedisClient,
   getRedisConnectionOptions,
   isRedisEnabled

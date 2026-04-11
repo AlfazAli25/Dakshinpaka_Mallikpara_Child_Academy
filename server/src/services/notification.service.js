@@ -57,15 +57,19 @@ const purgeNotificationsPastRetention = async ({ recipientRole, teacherId } = {}
 const listAdminNotifications = async () => {
   await purgeNotificationsPastRetention({ recipientRole: 'admin' });
   return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'admin' }))
+    .select('recipientRole notificationType studentId studentName teacherId teacherName adminId paymentId title message targetPath metadata submittedAt status readAt createdAt updatedAt')
     .sort({ status: 1, submittedAt: -1 })
-    .limit(30);
+    .limit(30)
+    .lean();
 };
 
 const listTeacherNotifications = async ({ teacherId }) => {
   await purgeNotificationsPastRetention({ recipientRole: 'teacher', teacherId });
   return Notification.find(buildVisibleNotificationsQuery({ recipientRole: 'teacher', teacherId }))
+    .select('recipientRole notificationType studentId studentName teacherId teacherName adminId paymentId title message targetPath metadata submittedAt status readAt createdAt updatedAt')
     .sort({ status: 1, submittedAt: -1 })
-    .limit(30);
+    .limit(30)
+    .lean();
 };
 
 const markAdminNotificationRead = async (notificationId) =>
@@ -87,7 +91,7 @@ const respondTeacherSalaryConfirmation = async ({ notificationId, teacherId, dec
     _id: notificationId,
     recipientRole: 'teacher',
     teacherId
-  });
+  }).select('recipientRole notificationType teacherId teacherName adminId metadata status readAt submittedAt');
 
   if (!notification) {
     return null;

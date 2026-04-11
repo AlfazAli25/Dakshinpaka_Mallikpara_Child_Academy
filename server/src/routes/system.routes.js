@@ -33,7 +33,10 @@ const requireCronSecret = (req, res, next) => {
 router.get(
   '/monthly-sync/run',
   requireCronSecret,
-  [query('force').optional().isIn(['true', 'false', '1', '0', 'yes', 'no']).withMessage('force must be boolean-like')],
+  [
+    query('force').optional().isIn(['true', 'false', '1', '0', 'yes', 'no']).withMessage('force must be boolean-like'),
+    query('async').optional().isIn(['true', 'false', '1', '0', 'yes', 'no']).withMessage('async must be boolean-like')
+  ],
   validate,
   controller.runMonthlySyncFromCron
 );
@@ -42,7 +45,10 @@ router.post(
   '/monthly-sync/run',
   protect,
   requireRole(['admin']),
-  [body('force').optional().isBoolean().withMessage('force must be true or false')],
+  [
+    body('force').optional().isBoolean().withMessage('force must be true or false'),
+    body('async').optional().isBoolean().withMessage('async must be true or false')
+  ],
   validate,
   controller.runMonthlySyncFromAdmin
 );

@@ -46,8 +46,8 @@ const createHttpError = (statusCode, message) => {
 };
 
 const parsePagination = (query = {}) => {
-  const rawPage = Number(query.page || DEFAULT_PAGE);
-  const rawLimit = Number(query.limit || DEFAULT_LIMIT);
+  const rawPage = Number(query.page ?? query._page ?? DEFAULT_PAGE);
+  const rawLimit = Number(query.limit ?? query._limit ?? DEFAULT_LIMIT);
 
   const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : DEFAULT_PAGE;
   const limit = Number.isFinite(rawLimit) && rawLimit > 0

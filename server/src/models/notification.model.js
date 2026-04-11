@@ -22,6 +22,8 @@ const notificationSchema = new mongoose.Schema(
 );
 
 notificationSchema.index({ recipientRole: 1, status: 1, createdAt: -1 });
+notificationSchema.index({ recipientRole: 1, status: 1, submittedAt: -1 });
+notificationSchema.index({ recipientRole: 1, teacherId: 1, status: 1, submittedAt: -1 });
 notificationSchema.index(
   { readAt: 1 },
   {
