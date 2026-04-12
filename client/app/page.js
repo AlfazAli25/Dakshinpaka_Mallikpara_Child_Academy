@@ -349,44 +349,6 @@ export default function HomePage() {
                     ) : null}
                   </>
                 )}
-
-                {primaryPhoneNumber ? (
-                  <a
-                    href={toTelHref(primaryPhoneNumber)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-white/50 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
-                  >
-                    <PhoneCall className="h-4 w-4" aria-hidden="true" />
-                    {t.callNow}
-                  </a>
-                ) : null}
-
-                {whatsappHref ? (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-200/70 bg-emerald-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
-                  >
-                    <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                    {t.chatOnWhatsApp}
-                  </a>
-                ) : null}
-              </div>
-
-              <div className="mt-8 rounded-2xl border border-white/30 bg-white/10 p-4 backdrop-blur sm:p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-100">{t.quickAccess}</p>
-                <p className="mt-1 text-sm text-red-100/90">{t.quickNote}</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <Link href="/admin/dashboard" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-center text-sm font-semibold hover:bg-white/20">
-                    {t.adminPanel}
-                  </Link>
-                  <Link href="/teacher/dashboard" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-center text-sm font-semibold hover:bg-white/20">
-                    {t.teacherPanel}
-                  </Link>
-                  <Link href="/student/dashboard" className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-center text-sm font-semibold hover:bg-white/20">
-                    {t.studentPanel}
-                  </Link>
-                </div>
               </div>
             </div>
 
@@ -403,32 +365,29 @@ export default function HomePage() {
               <div className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.contactDetails}</p>
                 <div className="mt-3 space-y-2.5">
-                  {phoneNumbers.map((number) => (
-                    <div key={number} className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    {primaryPhoneNumber ? (
                       <a
-                        href={toTelHref(number)}
-                        className="flex flex-1 items-center justify-between rounded-xl border border-red-500/35 bg-red-900/35 px-3 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
+                        href={toTelHref(primaryPhoneNumber)}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
                       >
-                        <span className="inline-flex items-center gap-2">
-                          <PhoneCall className="h-4 w-4 text-red-300" aria-hidden="true" />
-                          {number}
-                        </span>
-                        <span className="text-[11px] uppercase tracking-[0.08em] text-red-200">{t.tapToCall}</span>
+                        <PhoneCall className="h-4 w-4" aria-hidden="true" />
+                        {t.callNow}
                       </a>
+                    ) : null}
 
-                      {whatsappHref ? (
-                        <a
-                          href={whatsappHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                        >
-                          <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                          <span className="text-[11px] uppercase tracking-[0.08em]">{t.tapToChat}</span>
-                        </a>
-                      ) : null}
-                    </div>
-                  ))}
+                    {whatsappHref ? (
+                      <a
+                        href={whatsappHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200/50 bg-emerald-600/90 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500/90 hover:border-emerald-200/70"
+                      >
+                        <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                        {t.chatOnWhatsApp}
+                      </a>
+                    ) : null}
+                  </div>
 
                   {SCHOOL_INFO?.email ? (
                     <a
