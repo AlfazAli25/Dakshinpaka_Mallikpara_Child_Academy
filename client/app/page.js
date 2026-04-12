@@ -321,35 +321,7 @@ export default function HomePage() {
                 <span className="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-red-50">{t.holistic}</span>
               </div>
 
-              <div className="mt-7 flex flex-wrap gap-3">
-                {currentUser ? (
-                  <Link
-                    href={panelRoute}
-                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-50"
-                  >
-                    {t.myPanel}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-                ) : (
-                  <>
-                    <Link
-                      href="/login"
-                      className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-red-800 transition hover:bg-red-50"
-                    >
-                      {t.login}
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </Link>
-                    {allowAdminRegistration ? (
-                      <Link
-                        href="/register"
-                        className="inline-flex items-center gap-2 rounded-xl border border-white/50 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
-                      >
-                        {t.register}
-                      </Link>
-                    ) : null}
-                  </>
-                )}
-              </div>
+
             </div>
 
             <div className="grid gap-4">
