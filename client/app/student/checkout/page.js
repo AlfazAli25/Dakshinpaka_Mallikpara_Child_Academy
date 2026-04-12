@@ -7,12 +7,7 @@ import Table from '@/components/Table';
 import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
-import {
-  buildUpiPaymentLink,
-  buildUpiPaymentLinkFromQr,
-  HAS_UPI_CONFIGURATION,
-  loadUpiLinkFromStaticQr
-} from '@/lib/upi-payment';
+// UPI deep link logic removed for redesign
 import { UPI_ID } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
@@ -66,7 +61,7 @@ export default function StudentCheckoutPage() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
+  // const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
 
   // DEBUG: Log UPI config at runtime
   useEffect(() => {
@@ -173,50 +168,11 @@ export default function StudentCheckoutPage() {
   const enteredAmount = Number(paymentAmount || payableAmount);
   const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= effectivePendingAmount;
   const upiPayAmount = isEnteredAmountValid ? enteredAmount : payableAmount;
-  const configuredUpiPaymentLink = useMemo(
-    () =>
-      buildUpiPaymentLink({
-        amount: upiPayAmount,
-        note: 'School Fee Payment',
-        transactionReference
-      }),
-    [upiPayAmount, transactionReference]
-  );
+  // const configuredUpiPaymentLink = useMemo(() => null, []);
 
-  useEffect(() => {
-    let active = true;
+  // UPI deep link effect removed
 
-    if (HAS_UPI_CONFIGURATION || configuredUpiPaymentLink) {
-      return () => {
-        active = false;
-      };
-    }
-
-    loadUpiLinkFromStaticQr().then((decodedLink) => {
-      if (!active || !decodedLink) {
-        return;
-      }
-
-      setQrFallbackUpiLink(decodedLink);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [configuredUpiPaymentLink]);
-
-  const upiPaymentLink = useMemo(() => {
-    if (configuredUpiPaymentLink) {
-      return configuredUpiPaymentLink;
-    }
-
-    return buildUpiPaymentLinkFromQr({
-      qrLink: qrFallbackUpiLink,
-      amount: upiPayAmount,
-      note: 'School Fee Payment',
-      transactionReference
-    });
-  }, [configuredUpiPaymentLink, qrFallbackUpiLink, upiPayAmount, transactionReference]);
+  // const upiPaymentLink = null;
 
   const feeRowForSubmission = rows[0] || null;
 
@@ -333,17 +289,7 @@ export default function StudentCheckoutPage() {
               <p className="mt-2 text-xs text-slate-500">Scan this QR to pay online, then upload screenshot and submit.</p>
 
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                {upiPaymentLink ? (
-                  <a
-                    href={upiPaymentLink}
-                    className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
-                  >
-                    Pay via UPI App
-                  </a>
-                ) : (
-                  <p className="text-xs text-amber-700">UPI redirect is not configured yet. Please use the QR code.</p>
-                )}
-                <p className="text-xs text-slate-500">On mobile, this opens your UPI app directly.</p>
+                {/* UPI deep link button removed for redesign */}
               </div>
             </div>
 
