@@ -8,7 +8,6 @@ import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 // UPI deep link logic removed for redesign
-import { UPI_ID } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -63,11 +62,7 @@ export default function StudentCheckoutPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   // const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
 
-  // DEBUG: Log UPI config at runtime
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[DEBUG] UPI_ID:', UPI_ID, 'HAS_UPI_CONFIGURATION:', HAS_UPI_CONFIGURATION);
-  }, []);
+  // UPI config debug log removed (UPI logic deprecated)
 
   useEffect(() => {
     if (error) {
