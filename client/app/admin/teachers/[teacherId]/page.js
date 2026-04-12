@@ -8,6 +8,7 @@ import Table from '@/components/Table';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get, post, put } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
+import { cleanEmail } from '@/lib/clean-email';
 import { getToken } from '@/lib/session';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
@@ -44,7 +45,7 @@ const formatDateValue = (value) => {
 
 const getTeacherFormFromProfile = (teacher) => ({
   name: teacher?.userId?.name || '',
-  email: teacher?.userId?.email || '',
+  email: cleanEmail(teacher?.userId?.email),
   contactNumber: teacher?.contactNumber || '',
   qualifications: teacher?.qualifications || '',
   monthlySalary:
@@ -377,7 +378,7 @@ export default function TeacherProfilePage() {
   const teacher = profile.teacher;
   const teacherDetailItems = [
     { label: 'Name', value: teacher?.userId?.name || '-' },
-    { label: 'Email', value: teacher?.userId?.email || '-' },
+    { label: 'Email', value: cleanEmail(teacher?.userId?.email, '-') },
     { label: 'Teacher ID', value: teacher?.teacherId || '-' },
     { label: 'Contact Number', value: teacher?.contactNumber || '-' },
     { label: 'Qualifications', value: teacher?.qualifications || '-' },

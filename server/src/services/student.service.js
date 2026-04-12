@@ -24,21 +24,7 @@ const STUDENT_LIST_SELECT = 'userId admissionNo rollNo profileImageUrl classId g
 
 const withSession = (query, session) => (session ? query.session(session) : query);
 const DEFAULT_STUDENT_PROFILE_IMAGE_URL = '/default-student-avatar.svg';
-const STUDENT_FALLBACK_EMAIL_DOMAIN = 'student.local';
 
-const generateFallbackStudentEmail = async () => {
-	for (let attempt = 0; attempt < 10; attempt += 1) {
-		const candidate = `student.${new mongoose.Types.ObjectId().toString()}@${STUDENT_FALLBACK_EMAIL_DOMAIN}`;
-		const existing = await User.findOne({ email: candidate }).select('_id').lean();
-		if (!existing) {
-			return candidate;
-		}
-	}
-
-	const error = new Error('Unable to generate a unique student email. Please try again.');
-	error.statusCode = 500;
-	throw error;
-};
 
 const runWithOptionalTransaction = async (handler) => {
 	const session = await mongoose.startSession();
@@ -348,15 +334,18 @@ const create = async (payload) => {
 		}
 	}
 
-	const emailForLogin = hasProvidedEmail ? normalizedEmail : await generateFallbackStudentEmail();
+	const emailForLogin = hasProvidedEmail ? normalizedEmail : null;
 
 	const passwordHash = await bcrypt.hash(password, 10);
-	const user = await User.create({
+	const userPayload = {
 		name: String(name).trim(),
-		email: emailForLogin,
 		passwordHash,
 		role: 'student'
-	});
+	};
+	if (emailForLogin) {
+		userPayload.email = emailForLogin;
+	}
+	const user = await User.create(userPayload);
 
 	try {
 		const generatedAdmissionNo = await generateStudentAdmissionNo();

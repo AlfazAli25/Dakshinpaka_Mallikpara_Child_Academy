@@ -10,6 +10,7 @@ import Select from '@/components/Select';
 import DetailsGrid from '@/components/DetailsGrid';
 import { get, getBlob, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
+import { cleanEmail } from '@/lib/clean-email';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
 
@@ -83,7 +84,7 @@ const genderOptions = [
 
 const getStudentFormFromProfile = (student) => ({
   name: student?.userId?.name || '',
-  email: student?.userId?.email || '',
+  email: cleanEmail(student?.userId?.email),
   admissionNo: student?.admissionNo || '',
   rollNo: student?.rollNo === 0 || student?.rollNo ? String(student.rollNo) : '',
   className: student?.classId?.name || '',
@@ -547,7 +548,7 @@ export default function StudentProfilePage() {
     { label: 'Gender', value: student?.gender || '-' },
     { label: 'Date of Birth', value: student?.dob ? new Date(student.dob).toLocaleDateString('en-GB') : '-' },
     { label: 'Guardian Contact', value: student?.guardianContact || '-' },
-    { label: 'Email', value: student?.userId?.email || '-' },
+    { label: 'Email', value: cleanEmail(student?.userId?.email, '-') },
     { label: 'Student ID', value: student?.admissionNo || '-' },
     { label: 'Roll No', value: student?.rollNo || '-' },
     { label: 'Address', value: student?.address || '-' },
