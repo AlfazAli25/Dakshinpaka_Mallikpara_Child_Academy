@@ -202,9 +202,11 @@ export default function TeacherMarksPage() {
   const [subjects, setSubjects] = useState([]);
   const [exams, setExams] = useState([]);
 
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedClassName, setSelectedClassName] = useState('');
+  const [selectedClassSection, setSelectedClassSection] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
-  const [selectedExamId, setSelectedExamId] = useState('');
   const [maxMarksInput, setMaxMarksInput] = useState('');
 
   const [rows, setRows] = useState([]);
@@ -262,15 +264,59 @@ export default function TeacherMarksPage() {
     };
   }, [toast]);
 
-  const classOptions = useMemo(
+  const examOptions = useMemo(
+    () => [
+      { value: '', label: 'Select exam' },
+      ...exams.map((exam) => {
+        const name = String(exam?.examName || 'Exam').trim();
+        const year = exam?.academicYear ? ` (${exam.academicYear})` : '';
+        const className = String(exam?.classId?.name || '').trim();
+        const section = String(exam?.classId?.section || '').trim();
+        const classLabel = className ? (section ? `${className}(${section})` : className) : '';
+        const label = classLabel ? `${name} — ${classLabel}${year}` : `${name}${year}`;
+        return { value: toId(exam), label };
+      })
+    ],
+    [exams]
+  );
+
+  const uniqueClassNames = useMemo(() => {
+    if (selectedExamId) {
+      const exam = exams.find((e) => toId(e) === selectedExamId);
+      const examClassId = toId(exam?.classId);
+      if (examClassId) {
+        const matchedClass = classes.find((c) => toId(c) === examClassId);
+        if (matchedClass?.name) return [matchedClass.name];
+      }
+    }
+    return Array.from(new Set(classes.map((c) => c.name))).sort();
+  }, [classes, exams, selectedExamId]);
+
+  const classNameFilterOptions = useMemo(
     () => [
       { value: '', label: 'Select class' },
-      ...classes.map((item) => ({
-        value: toId(item),
-        label: formatClassLabel(item)
+      ...uniqueClassNames.map((name) => ({ value: name, label: name }))
+    ],
+    [uniqueClassNames]
+  );
+
+  const availableSections = useMemo(() => {
+    if (!selectedClassName) return [];
+    return classes
+      .filter((c) => c.name === selectedClassName)
+      .map((c) => c.section || '')
+      .sort();
+  }, [classes, selectedClassName]);
+
+  const classSectionFilterOptions = useMemo(
+    () => [
+      { value: '', label: selectedClassName ? 'Select section' : 'Select class first' },
+      ...availableSections.map((section) => ({
+        value: section,
+        label: section || '(No Section)'
       }))
     ],
-    [classes]
+    [availableSections, selectedClassName]
   );
 
   const subjectsForSelectedClass = useMemo(
@@ -280,35 +326,13 @@ export default function TeacherMarksPage() {
 
   const subjectOptions = useMemo(
     () => [
-      { value: '', label: 'Select subject' },
+      { value: '', label: selectedClassId ? 'Select subject' : 'Select class first' },
       ...subjectsForSelectedClass.map((item) => ({
         value: toId(item),
         label: String(item?.name || '-').trim() || '-'
       }))
     ],
-    [subjectsForSelectedClass]
-  );
-
-  const examsForSelection = useMemo(
-    () =>
-      exams.filter(
-        (exam) =>
-          toId(exam?.classId) === selectedClassId &&
-          examIncludesSubject(exam, selectedSubjectId) &&
-          isExamConductedForSubject(exam, selectedSubjectId)
-      ),
-    [exams, selectedClassId, selectedSubjectId]
-  );
-
-  const examOptions = useMemo(
-    () => [
-      { value: '', label: 'Select exam' },
-      ...examsForSelection.map((exam) => ({
-        value: toId(exam),
-        label: toExamLabel(exam, selectedSubjectId)
-      }))
-    ],
-    [examsForSelection, selectedSubjectId]
+    [subjectsForSelectedClass, selectedClassId]
   );
 
   useEffect(() => {
@@ -371,23 +395,74 @@ export default function TeacherMarksPage() {
     };
   }, [selectedClassId, selectedSubjectId, selectedExamId, toast]);
 
-  const onChangeClass = (event) => {
-    setSelectedClassId(event.target.value);
+  const onChangeExam = (event) => {
+    const nextExamId = event.target.value;
+    setSelectedExamId(nextExamId);
+    
+    if (nextExamId) {
+      const exam = exams.find((e) => toId(e) === nextExamId);
+      const examClassId = toId(exam?.classId);
+      const matchedClass = examClassId ? classes.find((c) => toId(c) === examClassId) : null;
+      if (matchedClass) {
+        setSelectedClassName(matchedClass.name);
+        setSelectedClassSection(matchedClass.section || '');
+        setSelectedClassId(toId(matchedClass));
+      } else {
+        setSelectedClassName('');
+        setSelectedClassSection('');
+        setSelectedClassId('');
+      }
+    } else {
+      setSelectedClassName('');
+      setSelectedClassSection('');
+      setSelectedClassId('');
+    }
+    
     setSelectedSubjectId('');
-    setSelectedExamId('');
+    setMaxMarksInput('');
+    setRows([]);
+  };
+
+  const onChangeClassName = (event) => {
+    const nextClassName = event.target.value;
+    setSelectedClassName(nextClassName);
+    setSelectedClassSection('');
+    
+    const sectionsForName = classes
+      .filter((c) => c.name === nextClassName)
+      .map((c) => c.section || '')
+      .sort();
+      
+    if (!nextClassName) {
+      setSelectedClassId('');
+    } else if (sectionsForName.length === 1) {
+      const matched = classes.find(
+        (c) => c.name === nextClassName && (c.section || '') === sectionsForName[0]
+      );
+      setSelectedClassId(matched ? toId(matched) : '');
+    } else {
+      setSelectedClassId('');
+    }
+    
+    setSelectedSubjectId('');
+    setMaxMarksInput('');
+    setRows([]);
+  };
+
+  const onChangeClassSection = (event) => {
+    const nextSection = event.target.value;
+    setSelectedClassSection(nextSection);
+    const matched = classes.find(
+      (c) => c.name === selectedClassName && (c.section || '') === nextSection
+    );
+    setSelectedClassId(matched ? toId(matched) : '');
+    setSelectedSubjectId('');
     setMaxMarksInput('');
     setRows([]);
   };
 
   const onChangeSubject = (event) => {
     setSelectedSubjectId(event.target.value);
-    setSelectedExamId('');
-    setMaxMarksInput('');
-    setRows([]);
-  };
-
-  const onChangeExam = (event) => {
-    setSelectedExamId(event.target.value);
     setMaxMarksInput('');
     setRows([]);
   };
@@ -556,11 +631,27 @@ export default function TeacherMarksPage() {
 
       <div className="grid gap-3 md:grid-cols-3">
         <Select
-          label="Class"
-          options={classOptions}
-          value={selectedClassId}
-          onChange={onChangeClass}
+          label="Exam"
+          options={examOptions}
+          value={selectedExamId}
+          onChange={onChangeExam}
           disabled={loadingFilters}
+        />
+
+        <Select
+          label="Class"
+          options={classNameFilterOptions}
+          value={selectedClassName}
+          onChange={onChangeClassName}
+          disabled={loadingFilters}
+        />
+
+        <Select
+          label="Section"
+          options={classSectionFilterOptions}
+          value={selectedClassSection}
+          onChange={onChangeClassSection}
+          disabled={loadingFilters || !selectedClassName}
         />
 
         <Select
@@ -569,14 +660,6 @@ export default function TeacherMarksPage() {
           value={selectedSubjectId}
           onChange={onChangeSubject}
           disabled={loadingFilters || !selectedClassId}
-        />
-
-        <Select
-          label="Exam"
-          options={examOptions}
-          value={selectedExamId}
-          onChange={onChangeExam}
-          disabled={loadingFilters || !selectedClassId || !selectedSubjectId}
         />
 
         <Input
