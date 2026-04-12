@@ -8,6 +8,10 @@ export const formatClassLabel = (classItem, fallback = '-') => {
     return fallback;
   }
 
+  if (name && section) {
+    return `${name}(${section})`;
+  }
+
   return name || fallback;
 };
 
