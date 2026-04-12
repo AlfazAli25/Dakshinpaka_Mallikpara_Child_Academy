@@ -63,6 +63,8 @@ export default function AdminClassesPage() {
   const [subjectRows, setSubjectRows] = useState([]);
   const [enrichingRows, setEnrichingRows] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState('');
+  const [selectedClassName, setSelectedClassName] = useState('');
+  const [selectedClassSection, setSelectedClassSection] = useState('');
   const [classForm, setClassForm] = useState(getInitialClassForm());
   const [editClassId, setEditClassId] = useState('');
   const [editClassForm, setEditClassForm] = useState(getInitialClassForm());
@@ -206,6 +208,22 @@ export default function AdminClassesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const uniqueClassNames = useMemo(
+    () => Array.from(new Set(classesData.map((c) => c.name))).sort(),
+    [classesData]
+  );
+
+  const availableSections = useMemo(
+    () => {
+      if (!selectedClassName) return [];
+      return classesData
+        .filter((c) => c.name === selectedClassName)
+        .map((c) => c.section || '')
+        .sort();
+    },
+    [classesData, selectedClassName]
+  );
 
   const selectedClassSubjects = useMemo(
     () => subjectRows.filter((item) => item.classId === selectedClassId),
@@ -359,8 +377,19 @@ export default function AdminClassesPage() {
 
   const onCreateSubject = async (event) => {
     event.preventDefault();
+    
+    if (!selectedClassName) {
+      toast.error('Please select a class name first.');
+      return;
+    }
+
+    if (!selectedClassSection && availableSections.length > 0) {
+      toast.error('Please select a section.');
+      return;
+    }
+
     if (!selectedClassId) {
-      toast.error('Please select a class and section before adding subjects.');
+      toast.error('Please select both class and section before adding subjects.');
       return;
     }
 
@@ -573,44 +602,72 @@ export default function AdminClassesPage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class & Section</h3>
-        <p className="mb-4 text-sm text-slate-600">Each subject belongs to a specific class and section combination. Select both class and section below to add subjects.</p>
+        <p className="mb-4 text-sm text-slate-600">Select class name first, then select section. Both are required to add subjects.</p>
 
         {classOptions.length === 0 ? (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found. Add a class with section first to manage subjects.</p>
         ) : (
           <>
             <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Selected Class & Section</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Currently Selected</p>
               <p className="mt-1 text-sm font-medium text-blue-700">
-                {selectedClassId ? (
-                  (() => {
-                    const selectedClass = classesData.find((c) => String(c._id) === selectedClassId);
-                    return selectedClass ? (
+                {selectedClassName ? (
+                  <>
+                    Class: <span className="font-bold">{selectedClassName}</span>
+                    {selectedClassSection && (
                       <>
-                        Class: <span className="font-bold">{selectedClass.name}</span>
-                        {selectedClass.section && (
-                          <>
-                            {' '} | Section: <span className="font-bold">{selectedClass.section}</span>
-                          </>
-                        )}
+                        {' '} | Section: <span className="font-bold">{selectedClassSection}</span>
                       </>
-                    ) : 'None selected';
-                  })()
-                ) : 'None selected'}
+                    )}
+                    {!selectedClassSection && ' | Section: Not selected'}
+                  </>
+                ) : 'Class: Not selected | Section: Not selected'}
               </p>
             </div>
 
-            <Select
-              label="Select Class & Section *"
-              value={selectedClassId}
-              onChange={(event) => {
-                setSelectedClassId(event.target.value);
-                setEditSubjectId('');
-              }}
-              options={classOptions}
-              className="h-11"
-              required
-            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <Select
+                label="Select Class Name *"
+                value={selectedClassName}
+                onChange={(event) => {
+                  const newClassName = event.target.value;
+                  setSelectedClassName(newClassName);
+                  setSelectedClassSection('');
+                  setSelectedClassId('');
+                  setEditSubjectId('');
+                }}
+                options={[
+                  { value: '', label: 'Choose a class' },
+                  ...uniqueClassNames.map((name) => ({ value: name, label: name }))
+                ]}
+                className="h-11"
+                required
+              />
+
+              <Select
+                label="Select Section *"
+                value={selectedClassSection}
+                onChange={(event) => {
+                  const newSection = event.target.value;
+                  setSelectedClassSection(newSection);
+                  const matchedClass = classesData.find(
+                    (c) => c.name === selectedClassName && (c.section || '') === newSection
+                  );
+                  setSelectedClassId(matchedClass ? String(matchedClass._id) : '');
+                  setEditSubjectId('');
+                }}
+                options={[
+                  { value: '', label: selectedClassName ? 'Choose a section' : 'Select class first' },
+                  ...availableSections.map((section) => ({
+                    value: section,
+                    label: section || '(No Section)'
+                  }))
+                ]}
+                className="h-11"
+                disabled={!selectedClassName}
+                required
+              />
+            </div>
 
             <form onSubmit={onCreateSubject} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-[2fr_1fr_auto]">
               <Input
@@ -638,7 +695,11 @@ export default function AdminClassesPage() {
             </form>
 
             <div className="mt-4 space-y-2">
-              {selectedClassSubjects.length === 0 ? (
+              {!selectedClassName ? (
+                <p className="text-sm text-slate-500">Please select a class name first.</p>
+              ) : !selectedClassSection && availableSections.length > 0 ? (
+                <p className="text-sm text-slate-500">Please select a section.</p>
+              ) : selectedClassSubjects.length === 0 ? (
                 <p className="text-sm text-slate-500">No subjects found for the selected class and section yet.</p>
               ) : (
                 selectedClassSubjects.map((subject) => (
