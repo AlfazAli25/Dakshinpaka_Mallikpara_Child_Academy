@@ -360,7 +360,13 @@ export default function AdminClassesPage() {
   const onCreateSubject = async (event) => {
     event.preventDefault();
     if (!selectedClassId) {
-      toast.error('Create at least one class before adding subjects.');
+      toast.error('Please select a class and section before adding subjects.');
+      return;
+    }
+
+    const selectedClass = classesData.find((c) => String(c._id) === selectedClassId);
+    if (!selectedClass) {
+      toast.error('Selected class not found. Please refresh and try again.');
       return;
     }
 
@@ -383,7 +389,10 @@ export default function AdminClassesPage() {
         getToken()
       );
       setSubjectForm(getInitialSubjectForm());
-      toast.success('Subject added successfully.');
+      const classLabel = selectedClass.section 
+        ? `${selectedClass.name} (${selectedClass.section})`
+        : selectedClass.name;
+      toast.success(`Subject added successfully to ${classLabel}.`);
       await loadData();
     } catch (apiError) {
       toast.error(apiError.message);
@@ -563,15 +572,36 @@ export default function AdminClassesPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class</h3>
-        <p className="mb-4 text-sm text-slate-600">Each subject belongs to exactly one class. Duplicate subjects inside the same class are blocked.</p>
+        <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class & Section</h3>
+        <p className="mb-4 text-sm text-slate-600">Each subject belongs to a specific class and section combination. Select both class and section below to add subjects.</p>
 
         {classOptions.length === 0 ? (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found. Add a class first to manage subjects.</p>
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found. Add a class with section first to manage subjects.</p>
         ) : (
           <>
+            <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Selected Class & Section</p>
+              <p className="mt-1 text-sm font-medium text-blue-700">
+                {selectedClassId ? (
+                  (() => {
+                    const selectedClass = classesData.find((c) => String(c._id) === selectedClassId);
+                    return selectedClass ? (
+                      <>
+                        Class: <span className="font-bold">{selectedClass.name}</span>
+                        {selectedClass.section && (
+                          <>
+                            {' '} | Section: <span className="font-bold">{selectedClass.section}</span>
+                          </>
+                        )}
+                      </>
+                    ) : 'None selected';
+                  })()
+                ) : 'None selected'}
+              </p>
+            </div>
+
             <Select
-              label="Select Class"
+              label="Select Class & Section *"
               value={selectedClassId}
               onChange={(event) => {
                 setSelectedClassId(event.target.value);
@@ -579,6 +609,7 @@ export default function AdminClassesPage() {
               }}
               options={classOptions}
               className="h-11"
+              required
             />
 
             <form onSubmit={onCreateSubject} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-[2fr_1fr_auto]">
@@ -608,7 +639,7 @@ export default function AdminClassesPage() {
 
             <div className="mt-4 space-y-2">
               {selectedClassSubjects.length === 0 ? (
-                <p className="text-sm text-slate-500">No subjects found for this class yet.</p>
+                <p className="text-sm text-slate-500">No subjects found for the selected class and section yet.</p>
               ) : (
                 selectedClassSubjects.map((subject) => (
                   <div key={subject.id} className="rounded-lg border border-slate-200 bg-white p-3">
