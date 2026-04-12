@@ -224,6 +224,13 @@ export default function LoginPage() {
               {t.heroText}
             </p>
           </div>
+          <div className="flex flex-1 items-center justify-center p-8 overflow-hidden">
+            <img 
+              src="/School_Logo.png" 
+              alt="School Logo" 
+              className="h-full max-h-[320px] w-auto object-contain drop-shadow-[0_10px_25px_rgba(0,0,0,0.3)]"
+            />
+          </div>
           <div className="rounded-2xl bg-white/10 p-5 text-sm text-red-100">
             <p className="font-medium text-white">{SCHOOL_NAME}</p>
             <p className="mt-2">{t.panelText}</p>
