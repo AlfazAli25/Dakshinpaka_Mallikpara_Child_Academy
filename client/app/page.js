@@ -391,68 +391,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.phone}</p>
-            <div className="mt-2 space-y-2">
-              {phoneNumbers.map((number) => (
-                <div key={`strip-${number}`} className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={toTelHref(number)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
-                  >
-                    <PhoneCall className="h-4 w-4" aria-hidden="true" />
-                    {number}
-                  </a>
 
-                  {whatsappHref ? (
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
-                    >
-                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                      {t.whatsapp}
-                    </a>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.email}</p>
-            {SCHOOL_INFO?.email ? (
-              <a
-                href={`mailto:${SCHOOL_INFO.email}`}
-                className="mt-2 inline-flex items-center gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
-              >
-                <Mail className="h-4 w-4" aria-hidden="true" />
-                {SCHOOL_INFO.email}
-              </a>
-            ) : (
-              <p className="mt-2 text-sm font-medium text-red-100/80">Not available</p>
-            )}
-          </article>
-
-          <article className="rounded-2xl border border-red-500/30 bg-slate-900/72 p-4 shadow-[0_18px_42px_-30px_rgba(127,29,29,0.8)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.location}</p>
-            {schoolAddress ? (
-              <a
-                href={locationHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-start gap-2 rounded-lg border border-red-500/35 bg-red-900/35 px-3 py-1.5 text-sm font-semibold text-red-50 transition hover:bg-red-800/40"
-              >
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <span>{schoolAddress}</span>
-              </a>
-            ) : (
-              <p className="mt-2 text-sm font-medium text-red-100/80">Not available</p>
-            )}
-          </article>
-        </section>
 
         <section className={sectionClassName}>
           <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-red-500/20 blur-2xl" />
