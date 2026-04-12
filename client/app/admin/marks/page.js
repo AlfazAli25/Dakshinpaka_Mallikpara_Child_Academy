@@ -90,6 +90,7 @@ export default function AdminMarksPage() {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [searchText, setSearchText] = useState('');
 
+  const [reportCardClassName, setReportCardClassName] = useState('');
   const [reportCardClassId, setReportCardClassId] = useState('');
   const [reportCardSection, setReportCardSection] = useState('');
   const [downloadingReportCardsZip, setDownloadingReportCardsZip] = useState(false);
@@ -317,6 +318,30 @@ export default function AdminMarksPage() {
     [selectedClassId, studentOptionsRaw]
   );
 
+  const uniqueClassNames = useMemo(
+    () => Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort(),
+    [classOptionsRaw]
+  );
+
+  const availableReportCardSections = useMemo(
+    () => {
+      if (!reportCardClassName) return [];
+      return classOptionsRaw
+        .filter((c) => c.name === reportCardClassName)
+        .map((c) => c.section || '')
+        .sort();
+    },
+    [classOptionsRaw, reportCardClassName]
+  );
+
+  const reportCardClassNameOptions = useMemo(
+    () => [
+      { value: '', label: 'Select class name' },
+      ...uniqueClassNames.map((name) => ({ value: name, label: name }))
+    ],
+    [uniqueClassNames]
+  );
+
   const reportCardClassOptions = useMemo(
     () => [
       { value: '', label: 'Select class' },
@@ -329,30 +354,14 @@ export default function AdminMarksPage() {
   );
 
   const reportCardSectionOptions = useMemo(() => {
-    const options = [{ value: '', label: 'Select section' }];
-
-    if (reportCardClassId) {
-      const selectedClass = classOptionsRaw.find((item) => toId(item) === reportCardClassId) || null;
-      const selectedSection = String(selectedClass?.section || '').trim();
-      if (selectedSection) {
-        options.push({ value: selectedSection, label: selectedSection });
-      }
-      return options;
-    }
-
-    const sections = Array.from(
-      new Set(
-        classOptionsRaw
-          .map((item) => String(item?.section || '').trim())
-          .filter(Boolean)
-      )
-    ).sort((left, right) => left.localeCompare(right));
-
     return [
-      ...options,
-      ...sections.map((section) => ({ value: section, label: section }))
+      { value: '', label: reportCardClassName ? 'Select section' : 'Select class first' },
+      ...availableReportCardSections.map((section) => ({
+        value: section,
+        label: section || '(No Section)'
+      }))
     ];
-  }, [classOptionsRaw, reportCardClassId]);
+  }, [availableReportCardSections, reportCardClassName]);
 
   const filteredRows = useMemo(() => {
     const query = String(searchText || '').trim().toLowerCase();
@@ -451,11 +460,19 @@ export default function AdminMarksPage() {
   };
 
   const onReportCardClassChange = (event) => {
-    const nextClassId = event.target.value;
-    setReportCardClassId(nextClassId);
+    const nextClassName = event.target.value;
+    setReportCardClassName(nextClassName);
+    setReportCardSection('');
+    setReportCardClassId('');
+  };
 
-    const selectedClass = classOptionsRaw.find((item) => toId(item) === nextClassId) || null;
-    setReportCardSection(String(selectedClass?.section || '').trim());
+  const onReportCardSectionChange = (event) => {
+    const nextSection = event.target.value;
+    setReportCardSection(nextSection);
+    const matchedClass = classOptionsRaw.find(
+      (c) => c.name === reportCardClassName && (c.section || '') === nextSection
+    );
+    setReportCardClassId(matchedClass ? toId(matchedClass) : '');
   };
 
   const onDownloadReportCardsZip = async () => {
@@ -646,24 +663,41 @@ export default function AdminMarksPage() {
       <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">Download Class Report Cards (ZIP)</h3>
         <p className="mt-1 text-sm text-slate-600 dark:text-red-100/80">
-          Select class and section to download all student report cards in one ZIP file after Final Exam completion.
+          Select class name and section to download all student report cards in one ZIP file after Final Exam completion.
         </p>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-3 mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">Currently Selected</p>
+          <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
+            {reportCardClassName ? (
+              <>
+                Class: <span className="font-bold">{reportCardClassName}</span>
+                {reportCardSection && (
+                  <>
+                    {' '} | Section: <span className="font-bold">{reportCardSection}</span>
+                  </>
+                )}
+                {!reportCardSection && ' | Section: Not selected'}
+              </>
+            ) : 'Class: Not selected | Section: Not selected'}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Select
-            label="Class"
-            options={reportCardClassOptions}
-            value={reportCardClassId}
+            label="Class Name *"
+            options={reportCardClassNameOptions}
+            value={reportCardClassName}
             onChange={onReportCardClassChange}
             disabled={loadingSetup || downloadingReportCardsZip}
           />
 
           <Select
-            label="Section"
+            label="Section *"
             options={reportCardSectionOptions}
             value={reportCardSection}
-            onChange={(event) => setReportCardSection(event.target.value)}
-            disabled={loadingSetup || downloadingReportCardsZip}
+            onChange={onReportCardSectionChange}
+            disabled={loadingSetup || downloadingReportCardsZip || !reportCardClassName}
           />
 
           <div className="flex items-end">
