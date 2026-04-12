@@ -7,8 +7,39 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ChevronRight, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ThemeToggle from '@/components/ui/theme-toggle';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useLanguage } from '@/lib/language-context';
 import { get, post } from '@/lib/api';
 import { clearSession, getToken, getUser } from '@/lib/session';
+
+const shellText = {
+  en: {
+    home: 'Home',
+    profile: 'Profile',
+    workspace: 'Workspace',
+    alerts: 'Alerts',
+    paymentAlerts: 'Payment Alerts',
+    noNotifications: 'No notifications.',
+    logout: 'Logout',
+    account: 'Account',
+    adminPanel: 'Admin Panel',
+    teacherPanel: 'Teacher Panel',
+    studentPanel: 'Student Panel'
+  },
+  bn: {
+    home: 'হোম',
+    profile: 'প্রোফাইল',
+    workspace: 'ওয়ার্কস্পেস',
+    alerts: 'অ্যালার্টস',
+    paymentAlerts: 'পেমেন্ট অ্যালার্টস',
+    noNotifications: 'কোনো অ্যালার্ট নেই।',
+    logout: 'লগআউট',
+    account: 'অ্যাকাউন্ট',
+    adminPanel: 'অ্যাডমিন প্যানেল',
+    teacherPanel: 'শিক্ষক প্যানেল',
+    studentPanel: 'শিক্ষার্থী প্যানেল'
+  }
+};
 
 const DESKTOP_SIDEBAR_STATE_KEY = 'app-shell-desktop-sidebar-open';
 const ParticlesBackground3D = dynamic(() => import('@/components/animations/ParticlesBackground3D'), {
@@ -31,6 +62,9 @@ const formatRole = (role = '') => {
 export default function AppShell({ title, links, children, sidebarExtra = null }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { language } = useLanguage();
+  const t = shellText[language] || shellText.en;
+  
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(() => {
     if (typeof window === 'undefined') {
@@ -70,8 +104,24 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
     // If the segment is a Next.js dynamic route placeholder like [studentId], strip the brackets.
     const cleaned = lastSegment.replace(/^\[|\]$/g, '');
-    return toTitleCase(cleaned);
-  }, [pathname]);
+    const mappedLabel = toTitleCase(cleaned);
+    
+    // Attempt to map to Bengali text if applicable
+    const token = mappedLabel.toLowerCase();
+    if (token === 'dashboard') return language === 'bn' ? 'ড্যাশবোর্ড' : 'Dashboard';
+    if (token === 'students') return language === 'bn' ? 'শিক্ষার্থী' : 'Students';
+    if (token === 'teachers') return language === 'bn' ? 'শিক্ষক' : 'Teachers';
+    if (token === 'classes') return language === 'bn' ? 'ক্লাস' : 'Classes';
+    if (token === 'notices') return language === 'bn' ? 'নোটিশ' : 'Notices';
+    if (token === 'timetable') return language === 'bn' ? 'সময়সূচী' : 'Timetable';
+    if (token === 'exams') return language === 'bn' ? 'পরীক্ষা' : 'Exams';
+    if (token === 'marks') return language === 'bn' ? 'নম্বর' : 'Marks';
+    if (token === 'fees') return language === 'bn' ? 'ফি' : 'Fees';
+    if (token === 'results') return language === 'bn' ? 'ফলাফল' : 'Results';
+    if (token === 'attendance') return language === 'bn' ? 'উপস্থিতি' : 'Attendance';
+    
+    return mappedLabel;
+  }, [pathname, language]);
 
   const toggleSidebar = () => {
     if (typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) {
@@ -274,18 +324,21 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
             </Link>
 
             <div className="min-w-0">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100/90">{title}</p>
+              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100/90">
+                {title === 'Admin Panel' ? t.adminPanel : title === 'Teacher Panel' ? t.teacherPanel : title === 'Student Panel' ? t.studentPanel : title}
+              </p>
               <p className="truncate text-sm font-semibold text-white/95 md:text-base">
                 {activePageLabel}
                 <span className="mx-1.5 inline-flex text-red-200/90">
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </span>
-                Workspace
+                {t.workspace}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            <LanguageToggle />
             <ThemeToggle />
 
             {user?.role === 'admin' ? (
@@ -299,7 +352,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                   className="relative inline-flex h-10 items-center gap-2 rounded-xl border border-white/35 bg-white/10 px-3 text-sm font-semibold text-white hover:bg-white/20"
                 >
                   <Bell className="h-4 w-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">Alerts</span>
+                  <span className="hidden sm:inline">{t.alerts}</span>
                   {unreadCount > 0 ? (
                     <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-white px-1.5 text-[11px] font-bold text-red-700">
                       {unreadCount}
@@ -313,7 +366,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                     className="fixed inset-x-3 top-[4.7rem] z-50 flex max-h-[72vh] flex-col rounded-2xl border border-red-100 bg-white/95 p-2 shadow-xl backdrop-blur sm:absolute sm:right-0 sm:top-12 sm:inset-x-auto sm:w-96 sm:max-h-[24rem] dark:border-red-400/20 dark:bg-slate-900/95"
                   >
                     <div className="flex items-center justify-between px-2 py-1">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-200">Payment Alerts</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-red-700 dark:text-red-200">{t.paymentAlerts}</p>
                       <button
                         type="button"
                         onClick={() => setNotifOpen(false)}
@@ -328,7 +381,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
                     <div className="min-h-0 flex-1 overflow-auto">
                       {notifications.length === 0 ? (
-                        <p className="px-2 py-3 text-sm text-slate-500 dark:text-red-100/80">No notifications.</p>
+                        <p className="px-2 py-3 text-sm text-slate-500 dark:text-red-100/80">{t.noNotifications}</p>
                       ) : (
                         notifications.map((item) => (
                           <button
@@ -359,7 +412,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                 <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/90">{formatRole(user.role)}</p>
-                  <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || 'Account'}</p>
+                  <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || t.account}</p>
                 </div>
               </div>
             ) : null}
@@ -371,7 +424,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                 className="inline-flex h-10 items-center gap-1 rounded-xl border border-white/35 bg-white px-3 text-sm font-semibold text-red-800 hover:bg-red-50"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Logout</span>
+                <span className="hidden sm:inline">{t.logout}</span>
               </button>
             ) : null}
           </div>
