@@ -144,6 +144,7 @@ const text = {
     developedBy: 'Developed with ❤️ by Alfaz Ali',
     systemCreator: 'System Creator',
     developerBio: 'Full Stack Developer passionate about building modern web applications.',
+    developerCta: 'Need a custom website or web app? Contact me 24/7 to discuss your project!',
     viewPortfolio: 'View Portfolio',
     contactDeveloper: 'Contact Developer',
     instagram: 'Instagram',
@@ -193,6 +194,7 @@ const text = {
     developedBy: 'Alfaz Ali দ্বারা ❤️ দিয়ে তৈরি',
     systemCreator: 'সিস্টেম নির্মাতা',
     developerBio: 'আধুনিক ওয়েব অ্যাপ্লিকেশন তৈরিতে আগ্রহী একজন ফুল-স্ট্যাক ডেভেলপার।',
+    developerCta: 'আপনার কি কোনো কাস্টম ওয়েবসাইট প্রয়োজন? আপনার প্রজেক্ট নিয়ে আলোচনা করতে 24/7 আমার সাথে যোগাযোগ করুন!',
     viewPortfolio: 'পোর্টফোলিও দেখুন',
     contactDeveloper: 'যোগাযোগ করুন',
     instagram: 'ইন্সটাগ্রাম',
@@ -553,6 +555,13 @@ export default function HomePage() {
             <p className="text-sm text-red-50 sm:text-base">
               {t.developerBio}
             </p>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-red-950/50 border border-red-500/20 px-3 py-2 text-xs sm:text-sm text-red-200">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+              </span>
+              <span>{t.developerCta}</span>
+            </div>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <a
                 href="https://portfolio-iota-henna-28.vercel.app/"
