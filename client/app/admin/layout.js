@@ -1,6 +1,6 @@
  'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { getAuthContext } from '@/lib/user-records';
