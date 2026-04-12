@@ -3,8 +3,21 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { ArrowRight, Mail, MapPin, MessageCircle, PhoneCall, Sparkles } from 'lucide-react';
 import LanguageToggle from '@/components/LanguageToggle';
+
+const FadeInSection = ({ children, className = '', delay = 0 }) => (
+  <motion.section
+    initial={{ opacity: 0, y: 40 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, margin: '-40px' }}
+    transition={{ duration: 0.7, delay, ease: 'easeOut' }}
+    className={className}
+  >
+    {children}
+  </motion.section>
+);
 import { useLanguage } from '@/lib/language-context';
 import { get } from '@/lib/api';
 import { clearSession, getUser } from '@/lib/session';
@@ -300,7 +313,7 @@ export default function HomePage() {
       </header>
 
       <main className="relative mx-auto w-full max-w-7xl space-y-8 px-4 pb-12 pt-8 md:px-6 md:pb-16 md:pt-10">
-        <section className="relative overflow-hidden rounded-[2rem] border border-red-200/70 bg-gradient-to-br from-red-700 via-red-600 to-red-900 text-red-50 shadow-[0_38px_90px_-44px_rgba(127,29,29,0.96)]">
+        <FadeInSection delay={0.1} className="relative overflow-hidden rounded-[2rem] border border-red-200/70 bg-gradient-to-br from-red-700 via-red-600 to-red-900 text-red-50 shadow-[0_38px_90px_-44px_rgba(127,29,29,0.96)]">
           <div className="absolute -left-20 top-14 h-44 w-44 rounded-3xl bg-red-300/35" />
           <div className="absolute right-6 top-8 h-28 w-28 rounded-full border-8 border-red-300/35" />
           <div className="absolute -bottom-16 right-12 h-56 w-56 rounded-full bg-red-950/25 blur-2xl" />
@@ -389,11 +402,11 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </section>
+        </FadeInSection>
 
 
 
-        <section className={sectionClassName}>
+        <FadeInSection className={sectionClassName}>
           <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-red-500/20 blur-2xl" />
           <div className="relative">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -418,9 +431,9 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-        </section>
+        </FadeInSection>
 
-        <section className={sectionClassName}>
+        <FadeInSection className={sectionClassName}>
           <div className="absolute left-0 top-0 h-36 w-36 rounded-full bg-red-500/20 blur-2xl" />
           <div className="relative">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -451,9 +464,9 @@ export default function HomePage() {
               </div>
             )}
           </div>
-        </section>
+        </FadeInSection>
 
-        <section className={sectionClassName}>
+        <FadeInSection className={sectionClassName}>
           <h3 className="text-2xl font-semibold text-red-50">{t.years}</h3>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {growthHighlights.map((highlight, index) => (
@@ -470,9 +483,9 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </section>
+        </FadeInSection>
 
-        <section className={sectionClassName}>
+        <FadeInSection className={sectionClassName}>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h3 className="text-xl font-semibold text-red-50">{t.importantInfo}</h3>
@@ -511,7 +524,7 @@ export default function HomePage() {
               </div>
             </div>
           ) : null}
-        </section>
+        </FadeInSection>
       </main>
     </div>
   );
