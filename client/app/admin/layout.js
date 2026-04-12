@@ -14,8 +14,7 @@ const links = [
   { href: '/admin/timetable', label: 'Timetable' },
   { href: '/admin/exams', label: 'Exams' },
   { href: '/admin/marks', label: 'Marks' },
-  { href: '/admin/fees', label: 'Fees' },
-  { href: '/admin/admit-card-fees', label: 'Admit Card Fees' }
+  { href: '/admin/fees', label: 'Fees' }
 ];
 
 export default function AdminLayout({ children }) {
