@@ -346,7 +346,7 @@ const calculateClassReportCards = async ({ classId, academicYear, section, selec
   }
 
   const allClassExams = await Exam.find(examFilter)
-    .select('_id examName description examType status classId subjects schedule subjectId startDate endDate examDate date createdAt')
+    .select('_id examName description examType academicYear status classId subjects schedule subjectId startDate endDate examDate date createdAt')
     .lean();
 
   const selectedExam = normalizedSelectedExamId
