@@ -245,10 +245,32 @@ export default function AdminMarksPage() {
     };
   }, [pagination.page, pagination.limit, selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId]);
 
-  const uniqueClassNamesForFilter = useMemo(
-    () => Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort(),
-    [classOptionsRaw]
+  // Exam is the first filter — show ALL exams with no upstream dependency.
+  const examOptions = useMemo(
+    () => [
+      { value: '', label: 'All exams' },
+      ...examOptionsRaw.map((item) => ({
+        value: toId(item),
+        label: formatExamLabel(item)
+      }))
+    ],
+    [examOptionsRaw]
   );
+
+  // When exam is selected, narrow class names to only those that have that exam.
+  const uniqueClassNamesForFilter = useMemo(() => {
+    if (selectedExamId) {
+      const selectedExam = examOptionsRaw.find((e) => toId(e) === selectedExamId);
+      const examClassId = toId(selectedExam?.classId);
+      if (examClassId) {
+        const matchedClass = classOptionsRaw.find((c) => toId(c) === examClassId);
+        if (matchedClass?.name) {
+          return [matchedClass.name];
+        }
+      }
+    }
+    return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
+  }, [classOptionsRaw, examOptionsRaw, selectedExamId]);
 
   const classNameFilterOptions = useMemo(
     () => [
@@ -277,13 +299,11 @@ export default function AdminMarksPage() {
     [availableSectionsForFilter, selectedClassName]
   );
 
+  // Subject options — filtered by selected class.
   const filteredSubjectRaw = useMemo(
     () =>
       subjectOptionsRaw.filter((item) => {
-        if (!selectedClassId) {
-          return true;
-        }
-
+        if (!selectedClassId) return true;
         return toId(item?.classId) === selectedClassId;
       }),
     [selectedClassId, subjectOptionsRaw]
@@ -291,44 +311,16 @@ export default function AdminMarksPage() {
 
   const subjectOptions = useMemo(
     () => [
-      { value: '', label: 'All subjects' },
+      { value: '', label: selectedClassId ? 'All subjects' : 'Select class first' },
       ...filteredSubjectRaw.map((item) => ({
         value: toId(item),
         label: String(item?.name || '-').trim() || '-'
       }))
     ],
-    [filteredSubjectRaw]
+    [filteredSubjectRaw, selectedClassId]
   );
 
-  const filteredExamRaw = useMemo(
-    () =>
-      examOptionsRaw.filter((item) => {
-        const examClassId = toId(item?.classId);
-        const examSubjectId = toId(item?.subjectId);
-
-        if (selectedClassId && examClassId !== selectedClassId) {
-          return false;
-        }
-
-        if (selectedSubjectId && examSubjectId !== selectedSubjectId) {
-          return false;
-        }
-
-        return true;
-      }),
-    [examOptionsRaw, selectedClassId, selectedSubjectId]
-  );
-
-  const examOptions = useMemo(
-    () => [
-      { value: '', label: 'All exams' },
-      ...filteredExamRaw.map((item) => ({
-        value: toId(item),
-        label: formatExamLabel(item)
-      }))
-    ],
-    [filteredExamRaw]
-  );
+  // (examOptions is defined above — exam is the first filter)
 
   const studentOptions = useMemo(
     () => [
@@ -457,11 +449,39 @@ export default function AdminMarksPage() {
       });
   }, [filteredRows]);
 
+  // Exam is first — resets everything downstream.
+  const onExamChange = (event) => {
+    const nextExamId = event.target.value;
+    setSelectedExamId(nextExamId);
+    // When exam changes, auto-select class name if that exam belongs to a single class.
+    if (nextExamId) {
+      const selectedExam = examOptionsRaw.find((e) => toId(e) === nextExamId);
+      const examClassId = toId(selectedExam?.classId);
+      const matchedClass = examClassId ? classOptionsRaw.find((c) => toId(c) === examClassId) : null;
+      if (matchedClass) {
+        setSelectedClassName(matchedClass.name);
+        setSelectedClassSection(matchedClass.section || '');
+        setSelectedClassId(toId(matchedClass));
+      } else {
+        setSelectedClassName('');
+        setSelectedClassSection('');
+        setSelectedClassId('');
+      }
+    } else {
+      setSelectedClassName('');
+      setSelectedClassSection('');
+      setSelectedClassId('');
+    }
+    setSelectedSubjectId('');
+    setSelectedStudentId('');
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  // Class name — exam is upstream so we do NOT clear exam.
   const onClassNameFilterChange = (event) => {
     const nextClassName = event.target.value;
     setSelectedClassName(nextClassName);
     setSelectedClassSection('');
-    // If the class name has only one section, auto-resolve classId; else clear it
     const sectionsForName = classOptionsRaw
       .filter((c) => c.name === nextClassName)
       .map((c) => c.section || '')
@@ -477,11 +497,11 @@ export default function AdminMarksPage() {
       setSelectedClassId('');
     }
     setSelectedSubjectId('');
-    setSelectedExamId('');
     setSelectedStudentId('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
+  // Section — exam and class name are upstream so we do NOT clear them.
   const onClassSectionFilterChange = (event) => {
     const nextSection = event.target.value;
     setSelectedClassSection(nextSection);
@@ -490,19 +510,14 @@ export default function AdminMarksPage() {
     );
     setSelectedClassId(matched ? toId(matched) : '');
     setSelectedSubjectId('');
-    setSelectedExamId('');
     setSelectedStudentId('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
+  // Subject — exam, class, section are upstream.
   const onSubjectChange = (event) => {
     setSelectedSubjectId(event.target.value);
-    setSelectedExamId('');
-    setPagination((prev) => ({ ...prev, page: 1 }));
-  };
-
-  const onExamChange = (event) => {
-    setSelectedExamId(event.target.value);
+    setSelectedStudentId('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -670,21 +685,29 @@ export default function AdminMarksPage() {
         <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">Currently Selected</p>
           <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
-            {selectedClassName ? (
+            {selectedExamId ? (
               <>
-                Class: <span className="font-bold">{selectedClassName}</span>
-                {selectedClassSection && (
-                  <>
-                    {' '} | Section: <span className="font-bold">{selectedClassSection}</span>
-                  </>
+                Exam: <span className="font-bold">{examOptions.find((o) => o.value === selectedExamId)?.label || selectedExamId}</span>
+                {selectedClassName && (
+                  <> | Class: <span className="font-bold">{selectedClassName}</span></>
                 )}
-                {!selectedClassSection && ' | Section: Not selected'}
+                {selectedClassSection && (
+                  <> | Section: <span className="font-bold">{selectedClassSection}</span></>
+                )}
               </>
-            ) : 'Class: Not selected | Section: Not selected'}
+            ) : 'Exam: Not selected'}
           </p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <Select
+            label="Exam Filter"
+            options={examOptions}
+            value={selectedExamId}
+            onChange={onExamChange}
+            disabled={loadingSetup}
+          />
+
           <Select
             label="Class Name Filter"
             options={classNameFilterOptions}
@@ -706,15 +729,7 @@ export default function AdminMarksPage() {
             options={subjectOptions}
             value={selectedSubjectId}
             onChange={onSubjectChange}
-            disabled={loadingSetup}
-          />
-
-          <Select
-            label="Exam Filter"
-            options={examOptions}
-            value={selectedExamId}
-            onChange={onExamChange}
-            disabled={loadingSetup}
+            disabled={loadingSetup || !selectedClassId}
           />
 
           <Select
