@@ -525,6 +525,47 @@ export default function HomePage() {
             </div>
           ) : null}
         </FadeInSection>
+
+        <FadeInSection className={sectionClassName}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-red-50">About the Developer</h3>
+              <p className="mt-1 text-sm text-red-100/80">Developed with ❤️ by Alfaz Ali</p>
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">System Creator</p>
+          </div>
+          
+          <div className="mt-4 rounded-2xl border border-red-500/28 bg-slate-900/40 p-5">
+            <p className="text-sm text-red-50 sm:text-base">
+              Full Stack Developer passionate about building modern web applications.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <a
+                href="https://portfolio-iota-henna-28.vercel.app/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 shadow-[0_12px_22px_-12px_rgba(185,28,28,0.9)]"
+              >
+                View Portfolio
+              </a>
+              <a
+                href="https://www.instagram.com/_alfazali_/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
+              >
+                Instagram
+              </a>
+              <a
+                href="tel:8509658357"
+                className="inline-flex items-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
+              >
+                <PhoneCall className="h-4 w-4" aria-hidden="true" />
+                Contact Developer
+              </a>
+            </div>
+          </div>
+        </FadeInSection>
       </main>
     </div>
   );
