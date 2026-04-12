@@ -169,10 +169,21 @@ export default function AdmitCardFeesPage() {
   // ── Exam options ──────────────────────────────────────────────────────────
   const examOptions = useMemo(() => [
     { value: '', label: loadingExams ? 'Loading exams...' : 'Select Exam' },
-    ...exams.map((e) => ({
-      value: toId(e._id),
-      label: `${String(e.examName || 'Exam')}${e.academicYear ? ` (${e.academicYear})` : ''}`
-    }))
+    ...exams.map((e) => {
+      const examName = String(e.examName || 'Exam');
+      const className = String(e.classId?.name || '').trim();
+      const section = String(e.classId?.section || '').trim();
+      const classLabel = className
+        ? section
+          ? `${className}(${section})`
+          : className
+        : '';
+      const yearLabel = e.academicYear ? ` (${e.academicYear})` : '';
+      const label = classLabel
+        ? `${examName} — ${classLabel}${yearLabel}`
+        : `${examName}${yearLabel}`;
+      return { value: toId(e._id), label };
+    })
   ], [exams, loadingExams]);
 
   const classOptions = useMemo(() => [
@@ -185,7 +196,13 @@ export default function AdmitCardFeesPage() {
 
   const selectedExamLabel = useMemo(() => {
     const exam = exams.find((e) => toId(e._id) === selectedExamId);
-    return exam ? `${exam.examName || 'Exam'}${exam.academicYear ? ` (${exam.academicYear})` : ''}` : '';
+    if (!exam) return '';
+    const examName = exam.examName || 'Exam';
+    const className = String(exam.classId?.name || '').trim();
+    const section = String(exam.classId?.section || '').trim();
+    const classLabel = className ? (section ? `${className}(${section})` : className) : '';
+    const yearLabel = exam.academicYear ? ` (${exam.academicYear})` : '';
+    return classLabel ? `${examName} — ${classLabel}${yearLabel}` : `${examName}${yearLabel}`;
   }, [exams, selectedExamId]);
 
   const isBusy = togglingId !== '';
