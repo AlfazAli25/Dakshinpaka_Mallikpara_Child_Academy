@@ -84,6 +84,8 @@ export default function AdminMarksPage() {
   const [examOptionsRaw, setExamOptionsRaw] = useState([]);
   const [studentOptionsRaw, setStudentOptionsRaw] = useState([]);
 
+  const [selectedClassName, setSelectedClassName] = useState('');
+  const [selectedClassSection, setSelectedClassSection] = useState('');
   const [selectedClassId, setSelectedClassId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedExamId, setSelectedExamId] = useState('');
@@ -243,15 +245,36 @@ export default function AdminMarksPage() {
     };
   }, [pagination.page, pagination.limit, selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId]);
 
-  const classOptions = useMemo(
+  const uniqueClassNamesForFilter = useMemo(
+    () => Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort(),
+    [classOptionsRaw]
+  );
+
+  const classNameFilterOptions = useMemo(
     () => [
       { value: '', label: 'All classes' },
-      ...classOptionsRaw.map((item) => ({
-        value: toId(item),
-        label: formatClassLabel(item)
+      ...uniqueClassNamesForFilter.map((name) => ({ value: name, label: name }))
+    ],
+    [uniqueClassNamesForFilter]
+  );
+
+  const availableSectionsForFilter = useMemo(() => {
+    if (!selectedClassName) return [];
+    return classOptionsRaw
+      .filter((c) => c.name === selectedClassName)
+      .map((c) => c.section || '')
+      .sort();
+  }, [classOptionsRaw, selectedClassName]);
+
+  const classSectionFilterOptions = useMemo(
+    () => [
+      { value: '', label: selectedClassName ? 'All sections' : 'Select class first' },
+      ...availableSectionsForFilter.map((section) => ({
+        value: section,
+        label: section || '(No Section)'
       }))
     ],
-    [classOptionsRaw]
+    [availableSectionsForFilter, selectedClassName]
   );
 
   const filteredSubjectRaw = useMemo(
@@ -434,9 +457,38 @@ export default function AdminMarksPage() {
       });
   }, [filteredRows]);
 
-  const onClassChange = (event) => {
-    const nextClassId = event.target.value;
-    setSelectedClassId(nextClassId);
+  const onClassNameFilterChange = (event) => {
+    const nextClassName = event.target.value;
+    setSelectedClassName(nextClassName);
+    setSelectedClassSection('');
+    // If the class name has only one section, auto-resolve classId; else clear it
+    const sectionsForName = classOptionsRaw
+      .filter((c) => c.name === nextClassName)
+      .map((c) => c.section || '')
+      .sort();
+    if (!nextClassName) {
+      setSelectedClassId('');
+    } else if (sectionsForName.length === 1) {
+      const matched = classOptionsRaw.find(
+        (c) => c.name === nextClassName && (c.section || '') === sectionsForName[0]
+      );
+      setSelectedClassId(matched ? toId(matched) : '');
+    } else {
+      setSelectedClassId('');
+    }
+    setSelectedSubjectId('');
+    setSelectedExamId('');
+    setSelectedStudentId('');
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+
+  const onClassSectionFilterChange = (event) => {
+    const nextSection = event.target.value;
+    setSelectedClassSection(nextSection);
+    const matched = classOptionsRaw.find(
+      (c) => c.name === selectedClassName && (c.section || '') === nextSection
+    );
+    setSelectedClassId(matched ? toId(matched) : '');
     setSelectedSubjectId('');
     setSelectedExamId('');
     setSelectedStudentId('');
@@ -615,13 +667,38 @@ export default function AdminMarksPage() {
       </section>
 
       <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">Currently Selected</p>
+          <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
+            {selectedClassName ? (
+              <>
+                Class: <span className="font-bold">{selectedClassName}</span>
+                {selectedClassSection && (
+                  <>
+                    {' '} | Section: <span className="font-bold">{selectedClassSection}</span>
+                  </>
+                )}
+                {!selectedClassSection && ' | Section: Not selected'}
+              </>
+            ) : 'Class: Not selected | Section: Not selected'}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Select
-            label="Class Filter"
-            options={classOptions}
-            value={selectedClassId}
-            onChange={onClassChange}
+            label="Class Name Filter"
+            options={classNameFilterOptions}
+            value={selectedClassName}
+            onChange={onClassNameFilterChange}
             disabled={loadingSetup}
+          />
+
+          <Select
+            label="Section Filter"
+            options={classSectionFilterOptions}
+            value={selectedClassSection}
+            onChange={onClassSectionFilterChange}
+            disabled={loadingSetup || !selectedClassName}
           />
 
           <Select
