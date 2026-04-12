@@ -139,49 +139,63 @@ const text = {
       'Policy and support pages for static QR fee submission, payment-proof upload, and transparent verification.',
     paymentSupport: 'Static QR Payment Support',
     noVideos:
-      'No local videos found in public folder yet. Add .mp4 or .webm files and they will appear here.'
+      'No local videos found in public folder yet. Add .mp4 or .webm files and they will appear here.',
+    aboutDeveloper: 'About the Developer',
+    developedBy: 'Developed with ❤️ by Alfaz Ali',
+    systemCreator: 'System Creator',
+    developerBio: 'Full Stack Developer passionate about building modern web applications.',
+    viewPortfolio: 'View Portfolio',
+    contactDeveloper: 'Contact Developer',
+    instagram: 'Instagram',
   },
   bn: {
-    welcome: '???????',
-    register: '?????????',
-    login: '????',
-    logout: 'Logout',
-    schoolOverview: '????? ???????',
-    heroTitle: '???? ? ????????? ????????????? ??????? ???????',
+    welcome: 'স্বাগতম',
+    register: 'রেজিস্টার',
+    login: 'লগইন',
+    logout: 'লগআউট',
+    schoolOverview: 'কিন্ডারগার্টেনের ওভারভিউ',
+    heroTitle: 'একটি কিন্ডারগার্টেন যেখানে প্রতিটি শিশুর বিশেষ যত্ন নেওয়া হয়',
     heroDescription:
-      'We are a neighborhood kindergarten focused on early learning, child care, values, and close parent-teacher communication, with simple digital support for daily school activities.',
-    quality: '???????? ??????',
-    digital: '??????? ?????????',
-    holistic: '??????? ??????',
-    schoolIdentity: 'Official School Identity',
-    contactDetails: 'School Contact Information',
-    phone: 'Phone',
-    email: 'Email',
-    location: 'Location',
-    tapToCall: 'Tap to Call',
-    tapToChat: 'Tap to Chat',
-    openInMaps: 'Open in Maps',
-    callNow: 'Call School Office',
-    chatOnWhatsApp: 'Chat on WhatsApp',
-    whatsapp: 'WhatsApp',
-    imageGallery: '????? ??? ????????',
-    imageGalleryNote: 'Moments from activities, celebrations, and classroom life.',
-    videoGallery: '????? ????? ????????',
-    videoGalleryNote: 'A quick look at school events and student participation.',
-    years: '????? ?? ??? ?????? ??????',
-    join: '?????? ????? ??????? ??? ???',
-    quickAccess: '????? ??????',
-    quickNote: '?????? ?? ???? ???? ????? ????? ???????? ???? ???????',
-    adminPanel: '???????? ???????',
-    teacherPanel: '?????? ???????',
-    studentPanel: '????????? ???????',
-    myPanel: '???? ???????? ???',
-    importantInfo: 'Important Information',
+      'আমরা একটি স্থানীয় কিন্ডারগার্টেন যারা শিশুদের প্রারম্ভিক শিক্ষা, যত্ন, মূল্যবোধ এবং অভিভাবক-শিক্ষকের ঘনিষ্ঠ যোগাযোগের উপর জোর দিই। পাশাপাশি প্রাত্যহিক কার্যকলাপে সহজ ডিজিটাল সহায়তার ব্যবস্থা রয়েছে।',
+    quality: 'মৌলিক শিক্ষা',
+    digital: 'সহজ ডিজিটাল পরিষেবা',
+    holistic: 'যত্ন, খেলাধুলা এবং মূল্যবোধ',
+    schoolIdentity: 'প্রাতিষ্ঠানিক পরিচিতি',
+    contactDetails: 'যোগাযোগের তথ্য',
+    phone: 'ফোন',
+    email: 'ইমেইল',
+    location: 'ঠিকানা',
+    tapToCall: 'কল করতে ট্যাপ করুন',
+    tapToChat: 'চ্যাট করতে ট্যাপ করুন',
+    openInMaps: 'ম্যাপে খুলুন',
+    callNow: 'অফিসে কল করুন',
+    chatOnWhatsApp: 'হোয়াটসঅ্যাপে জানান',
+    whatsapp: 'হোয়াটসঅ্যাপ',
+    imageGallery: 'ছবির গ্যালারি',
+    imageGalleryNote: 'আমাদের বিভিন্ন অনুষ্ঠান ও ক্লাসরুমের মুহূর্ত।',
+    videoGallery: 'ভিডিও গ্যালারি',
+    videoGalleryNote: 'আমাদের বিভিন্ন অনুষ্ঠান ও শিশুদের প্রতিভা।',
+    years: 'আমাদের কিন্ডারগার্টেন যাত্রা',
+    join: 'আমাদের সাথে যুক্ত হোন',
+    quickAccess: 'সহজ অ্যাক্সেস',
+    quickNote: 'লগইন করার পর এখান থেকে দ্রুত প্যানেলে যেতে পারবেন।',
+    adminPanel: 'অ্যাডমিন প্যানেল',
+    teacherPanel: 'শিক্ষক প্যানেল',
+    studentPanel: 'শিক্ষার্থী প্যানেল',
+    myPanel: 'আমার প্যানেল',
+    importantInfo: 'গুরুত্বপূর্ণ তথ্যাবলী',
     importantInfoNote:
-      'Policy and support pages for static QR fee submission, payment-proof upload, and transparent verification.',
-    paymentSupport: 'Static QR Payment Support',
+      'স্ট্যাটিক কিউআর এর মাধ্যমে ফি দেওয়া, পেমেন্ট এর প্রমাণ দেওয়া এবং স্বচ্ছতা যাচাই করার সাপোর্ট পেজ।',
+    paymentSupport: 'কিউআর পেমেন্ট সুবিধা',
     noVideos:
-      'No local videos found in public folder yet. Add .mp4 or .webm files and they will appear here.'
+      'পাবলিক ফোল্ডারে এখনো কোনো ভিডিও নেই। .mp4 বা .webm ফাইল যোগ করলে এখানে দেখা যাবে।',
+    aboutDeveloper: 'ডেভেলপার সম্পর্কে',
+    developedBy: 'Alfaz Ali দ্বারা ❤️ দিয়ে তৈরি',
+    systemCreator: 'সিস্টেম নির্মাতা',
+    developerBio: 'আধুনিক ওয়েব অ্যাপ্লিকেশন তৈরিতে আগ্রহী একজন ফুল-স্ট্যাক ডেভেলপার।',
+    viewPortfolio: 'পোর্টফোলিও দেখুন',
+    contactDeveloper: 'যোগাযোগ করুন',
+    instagram: 'ইন্সটাগ্রাম',
   }
 };
 
@@ -529,15 +543,15 @@ export default function HomePage() {
         <FadeInSection className={sectionClassName}>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-red-50">About the Developer</h3>
-              <p className="mt-1 text-sm text-red-100/80">Developed with ❤️ by Alfaz Ali</p>
+              <h3 className="text-xl font-semibold text-red-50">{t.aboutDeveloper}</h3>
+              <p className="mt-1 text-sm text-red-100/80">{t.developedBy}</p>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">System Creator</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-red-200">{t.systemCreator}</p>
           </div>
           
           <div className="mt-4 rounded-2xl border border-red-500/28 bg-slate-900/40 p-5">
             <p className="text-sm text-red-50 sm:text-base">
-              Full Stack Developer passionate about building modern web applications.
+              {t.developerBio}
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <a
@@ -546,7 +560,7 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 shadow-[0_12px_22px_-12px_rgba(185,28,28,0.9)]"
               >
-                View Portfolio
+                {t.viewPortfolio}
               </a>
               <a
                 href="https://www.instagram.com/_alfazali_/"
@@ -554,14 +568,14 @@ export default function HomePage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
               >
-                Instagram
+                {t.instagram}
               </a>
               <a
                 href="tel:8509658357"
                 className="inline-flex items-center gap-2 rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-2.5 text-sm font-semibold text-red-50 transition hover:border-red-400/45 hover:bg-red-800/40"
               >
                 <PhoneCall className="h-4 w-4" aria-hidden="true" />
-                Contact Developer
+                {t.contactDeveloper}
               </a>
             </div>
           </div>
