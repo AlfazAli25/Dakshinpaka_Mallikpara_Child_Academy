@@ -12,13 +12,135 @@ import DetailsGrid from '@/components/DetailsGrid';
 import PortalTopSection from '@/components/dashboard/PortalTopSection';
 import Button from '@/components/ui/button';
 import { get, getBlob, post } from '@/lib/api';
-import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
+import { formatClassLabelList, formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
 
 const DashboardHero3D = dynamic(() => import('@/components/dashboard/DashboardHero3D'), {
   ssr: false
 });
+
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    title: 'Teacher Dashboard',
+    description: "Review today's classes, attendance work, and exam tasks at a glance.",
+    welcome: 'Welcome back',
+    subheading: 'Track classes, salary updates, notices, and confirmations from one premium workspace.',
+    importantNotices: 'Important Notices',
+    brandSubtitle: 'Guide students confidently with school updates, class insights, and exam readiness tools.',
+    stats: {
+      upcomingExam: 'Upcoming Exam',
+      noUpcoming: 'No Upcoming Exam',
+      ongoing: 'Ongoing',
+      assignedClasses: 'Assigned Classes',
+      assignedSubjects: 'Assigned Subjects'
+    },
+    detailsTitle: 'Teacher Details',
+    fields: {
+      name: 'Name',
+      email: 'Email',
+      teacherId: 'Teacher ID',
+      contactNumber: 'Contact Number',
+      monthlySalary: 'Monthly Salary',
+      totalDueSalary: 'Total Due Salary',
+      qualifications: 'Qualifications',
+      joiningDate: 'Joining Date',
+      assignedClasses: 'Assigned Classes',
+      assignedSubjects: 'Assigned Subjects'
+    },
+    classesSubtitle: 'Open Class Student List',
+    payment: {
+      title: 'Payment Confirmation Required',
+      description: 'Please confirm whether you received these salary payments.',
+      requested: 'Requested:',
+      yes: 'Yes',
+      no: 'No',
+      processing: 'Processing...',
+      successYes: 'Salary payment confirmed successfully.',
+      successNo: 'Payment mismatch reported to admin.'
+    },
+    notices: {
+      title: 'Latest Notices',
+      empty: 'No teacher notices right now.',
+      important: 'Important'
+    },
+    salary: {
+      title: 'Salary History',
+      month: 'Month',
+      amount: 'Amount',
+      status: 'Status',
+      paidOn: 'Paid On',
+      method: 'Method',
+      receiptsTitle: 'Salary Receipt Downloads',
+      receiptsDesc: 'Receipts are available for paid salary records only.',
+      action: 'Receipt',
+      download: 'Download Receipt',
+      downloading: 'Downloading...',
+      noReceipts: 'No downloadable receipts found.'
+    }
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    title: 'টিচার ড্যাশবোর্ড',
+    description: 'আজকের ক্লাস, উপস্থিতি এবং পরীক্ষার কাজগুলি এক নজরে দেখুন।',
+    welcome: 'স্বাগতম ফিরে আসার জন্য',
+    subheading: 'একটি প্রিমিয়াম ওয়ার্কস্পেস থেকে ক্লাস, বেতন আপডেট, নোটিশ এবং কনফার্মেশন নজরে রাখুন।',
+    importantNotices: 'গুরুত্বপূর্ণ নোটিশ',
+    brandSubtitle: 'স্কুল আপডেট, ক্লাস ইনসাইট এবং পরীক্ষার প্রস্তুতির সাহায্যে শিক্ষার্থীদের আত্মবিশ্বাসের সাথে গাইড করুন।',
+    stats: {
+      upcomingExam: 'আসন্ন পরীক্ষা',
+      noUpcoming: 'কোনো আসন্ন পরীক্ষা নেই',
+      ongoing: 'চলমান',
+      assignedClasses: 'নির্ধারিত ক্লাস',
+      assignedSubjects: 'নির্ধারিত বিষয়'
+    },
+    detailsTitle: 'শিক্ষকের তথ্য',
+    fields: {
+      name: 'নাম',
+      email: 'ইমেইল',
+      teacherId: 'শিক্ষক আইডি',
+      contactNumber: 'যোগাযোগ নম্বর',
+      monthlySalary: 'মাসিক বেতন',
+      totalDueSalary: 'মোট বকেয়া বেতন',
+      qualifications: 'শিক্ষাগত যোগ্যতা',
+      joiningDate: 'যোগদানের তারিখ',
+      assignedClasses: 'নির্ধারিত ক্লাস',
+      assignedSubjects: 'নির্ধারিত বিষয়'
+    },
+    classesSubtitle: 'ওপেন ক্লাস স্টুডেন্ট লিস্ট',
+    payment: {
+      title: 'পেমেন্ট কনফার্মেশন প্রয়োজন',
+      description: 'দয়া করে নিশ্চিত করুন আপনি এই বেতনের টাকা পেয়েছেন কি না।',
+      requested: 'অনুরোধ করা হয়েছে:',
+      yes: 'হ্যাঁ',
+      no: 'না',
+      processing: 'প্রসেসিং হচ্ছে...',
+      successYes: 'বেতন পরিশোধ সফলভাবে নিশ্চিত করা হয়েছে।',
+      successNo: 'পেমেন্ট অমিল হওয়ার বিষয়টি অ্যাডমিনকে জানানো হয়েছে।'
+    },
+    notices: {
+      title: 'সাম্প্রতিক নোটিশ',
+      empty: 'এখন কোনো নোটিশ নেই।',
+      important: 'গুরুত্বপূর্ণ'
+    },
+    salary: {
+      title: 'বেতন ইতিহাস',
+      month: 'মাস',
+      amount: 'পরিমাণ',
+      status: 'অবস্থা',
+      paidOn: 'পরিশোধের তারিখ',
+      method: 'পদ্ধতি',
+      receiptsTitle: 'স্যালারি রিসিপ্ট ডাউনলোড',
+      receiptsDesc: 'পরিশোধিত বেতনের জন্য কেবল রিসিপ্ট ডাউনলোড করা সম্ভব।',
+      action: 'রিসিপ্ট',
+      download: 'রিসিপ্ট ডাউনলোড করুন',
+      downloading: 'ডাউনলোড হচ্ছে...',
+      noReceipts: 'কোনো ডাউনলোডযোগ্য রিসিপ্ট পাওয়া যায়নি।'
+    }
+  }
+};
 
 const formatInr = (value) => {
   const numeric = Number(value);
@@ -91,16 +213,17 @@ const getExamWindow = (exam) => {
   };
 };
 
-const getDefaultStats = () => ([
-  { id: 'upcomingExam', title: 'Upcoming Exam', value: 'No Upcoming Exam' },
-  { id: 'assignedClasses', title: 'Assigned Classes', value: '0' },
-  { id: 'assignedSubjects', title: 'Assigned Subjects', value: '0' }
-]);
-
 export default function TeacherDashboardPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+  
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(getDefaultStats());
+  const [stats, setStats] = useState([
+    { id: 'upcomingExam', title: 'Upcoming Exam', value: t.stats.noUpcoming },
+    { id: 'assignedClasses', title: 'Assigned Classes', value: '0' },
+    { id: 'assignedSubjects', title: 'Assigned Subjects', value: '0' }
+  ]);
   const [salaryRows, setSalaryRows] = useState([]);
   const [downloadingSalaryReceiptId, setDownloadingSalaryReceiptId] = useState('');
   const [salaryReceiptError, setSalaryReceiptError] = useState('');
@@ -253,20 +376,24 @@ export default function TeacherDashboardPage() {
           .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
 
         const upcomingExamValue = ongoingExam
-          ? 'Ongoing'
-          : nextScheduledExam?.name || 'No Upcoming Exam';
+          ? t.stats.ongoing
+          : nextScheduledExam?.name || t.stats.noUpcoming;
 
         setStats([
-          { id: 'upcomingExam', title: 'Upcoming Exam', value: upcomingExamValue },
-          { id: 'assignedClasses', title: 'Assigned Classes', value: String(teacher.classIds?.length || 0) },
-          { id: 'assignedSubjects', title: 'Assigned Subjects', value: String(teacher.subjects?.length || 0) }
+          { id: 'upcomingExam', title: t.stats.upcomingExam, value: upcomingExamValue },
+          { id: 'assignedClasses', title: t.stats.assignedClasses, value: String(teacher.classIds?.length || 0) },
+          { id: 'assignedSubjects', title: t.stats.assignedSubjects, value: String(teacher.subjects?.length || 0) }
         ]);
       } catch (_error) {
         setTeacherProfile(null);
         setSalaryRows([]);
         setTeacherNotices([]);
         setPaymentNotifications([]);
-        setStats(getDefaultStats());
+        setStats([
+          { id: 'upcomingExam', title: t.stats.upcomingExam, value: t.stats.noUpcoming },
+          { id: 'assignedClasses', title: t.stats.assignedClasses, value: '0' },
+          { id: 'assignedSubjects', title: t.stats.assignedSubjects, value: '0' }
+        ]);
       } finally {
         setLoading(false);
       }
@@ -292,8 +419,8 @@ export default function TeacherDashboardPage() {
       toast.success(
         response.message ||
           (decision === 'YES'
-            ? 'Salary payment confirmed successfully.'
-            : 'Payment mismatch reported to admin.')
+            ? t.payment.successYes
+            : t.payment.successNo)
       );
       setRefreshKey((prev) => prev + 1);
     } catch (apiError) {
@@ -342,7 +469,7 @@ export default function TeacherDashboardPage() {
                 disabled={downloadingSalaryReceiptId === payrollId}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {downloadingSalaryReceiptId === payrollId ? 'Downloading...' : 'Download Receipt'}
+                {downloadingSalaryReceiptId === payrollId ? t.salary.downloading : t.salary.download}
               </button>
             )
           };
@@ -359,9 +486,9 @@ export default function TeacherDashboardPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title="Teacher Dashboard"
-        description="Review today's classes, attendance work, and exam tasks at a glance."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <section className="relative overflow-hidden rounded-3xl border border-red-100/70 bg-gradient-to-br from-white via-red-50/60 to-red-100/70 p-3 shadow-[0_30px_64px_-42px_rgba(153,27,27,0.7)] dark:border-red-400/20 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/35 md:p-4">
@@ -369,15 +496,15 @@ export default function TeacherDashboardPage() {
         <div className="relative z-10">
           <PortalTopSection
             role="Teacher"
-            heading={teacherProfile?.userId?.name ? `Welcome back, ${teacherProfile.userId.name}` : 'Teacher Dashboard'}
-            subheading="Track classes, salary updates, notices, and confirmations from one premium workspace."
-            metricLabel="Important Notices"
+            heading={teacherProfile?.userId?.name ? `${t.welcome}, ${teacherProfile.userId.name}` : t.title}
+            subheading={t.subheading}
+            metricLabel={t.importantNotices}
             metricValue={String(importantTeacherNoticeCount)}
           />
         </div>
       </section>
 
-      <SchoolBrandPanel subtitle="Guide students confidently with school updates, class insights, and exam readiness tools." />
+      <SchoolBrandPanel subtitle={t.brandSubtitle} />
 
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((item) => {
@@ -403,7 +530,7 @@ export default function TeacherDashboardPage() {
 
       <div ref={teacherDetailsRef}>
         {loading ? (
-          <InfoCard title="Teacher Details">
+          <InfoCard title={t.detailsTitle}>
             <div className="space-y-2">
               <div className="h-4 w-2/3 animate-pulse rounded bg-slate-200" />
               <div className="h-4 w-1/2 animate-pulse rounded bg-slate-200" />
@@ -413,26 +540,26 @@ export default function TeacherDashboardPage() {
             </div>
           </InfoCard>
         ) : teacherProfile ? (
-          <InfoCard title="Teacher Details">
+          <InfoCard title={t.detailsTitle}>
             <DetailsGrid
               items={[
-                { label: 'Name', value: teacherProfile.userId?.name || '-' },
-                { label: 'Email', value: teacherProfile.userId?.email || '-' },
-                { label: 'Teacher ID', value: teacherProfile.teacherId || '-' },
-                { label: 'Contact Number', value: teacherProfile.contactNumber || '-' },
-                { label: 'Monthly Salary', value: formatInr(teacherProfile.monthlySalary) },
-                { label: 'Total Due Salary', value: formatInr(teacherProfile.pendingSalary) },
-                { label: 'Qualifications', value: teacherProfile.qualifications || '-' },
+                { label: t.fields.name, value: teacherProfile.userId?.name || '-' },
+                { label: t.fields.email, value: teacherProfile.userId?.email || '-' },
+                { label: t.fields.teacherId, value: teacherProfile.teacherId || '-' },
+                { label: t.fields.contactNumber, value: teacherProfile.contactNumber || '-' },
+                { label: t.fields.monthlySalary, value: formatInr(teacherProfile.monthlySalary) },
+                { label: t.fields.totalDueSalary, value: formatInr(teacherProfile.pendingSalary) },
+                { label: t.fields.qualifications, value: teacherProfile.qualifications || '-' },
                 {
-                  label: 'Joining Date',
+                  label: t.fields.joiningDate,
                   value: teacherProfile.joiningDate ? new Date(teacherProfile.joiningDate).toLocaleDateString('en-GB') : '-'
                 },
                 {
-                  label: 'Assigned Classes',
+                  label: t.fields.assignedClasses,
                   value: formatClassLabelList(teacherProfile.classIds || [])
                 },
                 {
-                  label: 'Assigned Subjects',
+                  label: t.fields.assignedSubjects,
                   value: (teacherProfile.subjects || []).map((item) => item?.code).filter(Boolean).join(', ') || '-'
                 }
               ]}
@@ -440,7 +567,7 @@ export default function TeacherDashboardPage() {
 
             {(teacherProfile.classIds || []).length > 0 && (
               <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Open Class Student List</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t.classesSubtitle}</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(teacherProfile.classIds || []).map((classItem) => {
                     const classId = String(classItem?._id || classItem || '');
@@ -467,13 +594,13 @@ export default function TeacherDashboardPage() {
 
       {!loading && pendingSalaryConfirmations.length > 0 && (
         <div className="rounded-3xl border border-amber-200 bg-amber-50/85 p-5 shadow-[0_24px_52px_-36px_rgba(146,64,14,0.72)] dark:border-amber-500/35 dark:bg-amber-900/20">
-          <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">Payment Confirmation Required</h3>
-          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/85">Please confirm whether you received these salary payments.</p>
+          <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-200">{t.payment.title}</h3>
+          <p className="mt-1 text-sm text-amber-800 dark:text-amber-200/85">{t.payment.description}</p>
           <div className="mt-3 space-y-2">
             {pendingSalaryConfirmations.map((item) => (
               <div key={item._id} className="rounded-xl border border-amber-200 bg-white/90 px-3 py-2 dark:border-amber-500/35 dark:bg-slate-900/75">
                 <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{item.message}</p>
-                <p className="text-xs text-slate-500 dark:text-red-100/70">Requested: {new Date(item.submittedAt).toLocaleString('en-GB')}</p>
+                <p className="text-xs text-slate-500 dark:text-red-100/70">{t.payment.requested} {new Date(item.submittedAt).toLocaleString('en-GB')}</p>
                 <div className="mt-2 flex gap-2">
                   <Button
                     type="button"
@@ -482,7 +609,7 @@ export default function TeacherDashboardPage() {
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700"
                   >
-                    {respondingNotificationId === item._id ? 'Processing...' : 'Yes'}
+                    {respondingNotificationId === item._id ? t.payment.processing : t.payment.yes}
                   </Button>
                   <Button
                     type="button"
@@ -491,7 +618,7 @@ export default function TeacherDashboardPage() {
                     size="sm"
                     variant="danger"
                   >
-                    {respondingNotificationId === item._id ? 'Processing...' : 'No'}
+                    {respondingNotificationId === item._id ? t.payment.processing : t.payment.no}
                   </Button>
                 </div>
               </div>
@@ -500,7 +627,7 @@ export default function TeacherDashboardPage() {
         </div>
       )}
 
-      <InfoCard title="Latest Notices">
+      <InfoCard title={t.notices.title}>
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, index) => (
@@ -508,7 +635,7 @@ export default function TeacherDashboardPage() {
             ))}
           </div>
         ) : teacherNotices.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-red-100/80">No teacher notices right now.</p>
+          <p className="text-sm text-slate-500 dark:text-red-100/80">{t.notices.empty}</p>
         ) : (
           <div className="space-y-2">
             {teacherNotices.map((notice, index) => {
@@ -527,7 +654,7 @@ export default function TeacherDashboardPage() {
                     <p className="text-xs text-slate-500 dark:text-red-100/70">{formatDateTimeValue(notice?.createdAt)}</p>
                   </div>
                   <p className="mt-1 text-sm text-slate-700 dark:text-red-100/85">{notice?.description || '-'}</p>
-                  {isImportant ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">Important</p> : null}
+                  {isImportant ? <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">{t.notices.important}</p> : null}
                 </div>
               );
             })}
@@ -536,14 +663,14 @@ export default function TeacherDashboardPage() {
       </InfoCard>
 
       <div>
-        <h3 className="mb-2 text-base font-semibold text-slate-900">Salary History</h3>
+        <h3 className="mb-2 text-base font-semibold text-slate-900">{t.salary.title}</h3>
         <Table
           columns={[
-            { key: 'month', label: 'Month' },
-            { key: 'amount', label: 'Amount' },
-            { key: 'status', label: 'Status' },
-            { key: 'paidOn', label: 'Paid On' },
-            { key: 'paymentMethod', label: 'Method' }
+            { key: 'month', label: t.salary.month },
+            { key: 'amount', label: t.salary.amount },
+            { key: 'status', label: t.salary.status },
+            { key: 'paidOn', label: t.salary.paidOn },
+            { key: 'paymentMethod', label: t.salary.method }
           ]}
           rows={salaryTableRows}
           loading={loading}
@@ -552,14 +679,14 @@ export default function TeacherDashboardPage() {
         />
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-          <h4 className="text-sm font-semibold text-slate-900">Salary Receipt Downloads</h4>
-          <p className="mb-2 text-xs text-slate-600">Receipts are available for paid salary records only.</p>
+          <h4 className="text-sm font-semibold text-slate-900">{t.salary.receiptsTitle}</h4>
+          <p className="mb-2 text-xs text-slate-600">{t.salary.receiptsDesc}</p>
           <Table
             columns={[
-              { key: 'month', label: 'Month' },
-              { key: 'amount', label: 'Amount' },
-              { key: 'paidOn', label: 'Paid On' },
-              { key: 'action', label: 'Receipt' }
+              { key: 'month', label: t.salary.month },
+              { key: 'amount', label: t.salary.amount },
+              { key: 'paidOn', label: t.salary.paidOn },
+              { key: 'action', label: t.salary.action }
             ]}
             rows={salaryReceiptRows}
             loading={loading}
@@ -567,7 +694,7 @@ export default function TeacherDashboardPage() {
             maxHeightClass="max-h-[240px]"
           />
           {!loading && salaryReceiptRows.length === 0 ? (
-            <p className="mt-2 text-xs font-medium text-slate-500">No downloadable receipts found.</p>
+             <p className="mt-2 text-xs font-medium text-slate-500">{t.salary.noReceipts}</p>
           ) : null}
         </div>
 

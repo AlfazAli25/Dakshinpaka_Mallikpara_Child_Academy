@@ -67,11 +67,18 @@ const schoolVideos = [
   }
 ];
 
-const growthHighlights = [
+const growthHighlightsEn = [
   'We are a kindergarten school with a close-knit learning environment.',
   'Our focus is early childhood learning through play, stories, and basic skills.',
   'Class groups help teachers give personal attention to every child.',
   'Parents and teachers stay connected regularly to support each student.'
+];
+
+const growthHighlightsBn = [
+  'আমরা একটি নিবিড় শিক্ষার পরিবেশ সহ একটি কিন্ডারগার্টেন স্কুল।',
+  'আমাদের লক্ষ্য খেলাধুলা, গল্প এবং মৌলিক দক্ষতার মাধ্যমে প্রারম্ভিক শিক্ষা।',
+  'ছোট ক্লাস গ্রুপ শিক্ষকদের প্রতিটি শিশুর প্রতি ব্যক্তিগত মনোযোগ দিতে সাহায্য করে।',
+  'প্রতিটি শিক্ষার্থীকে সহায়তা করার জন্য অভিভাবক এবং শিক্ষকরা নিয়মিত যোগাযোগ রাখেন।'
 ];
 
 const sectionClassName =
@@ -148,6 +155,29 @@ const text = {
     viewPortfolio: 'View Portfolio',
     contactDeveloper: 'Contact Developer',
     instagram: 'Instagram',
+    estd: 'ESTD',
+    photos: 'Photos',
+    videos: 'Videos',
+    officeHours: 'Office Hours',
+    whatsappMessage: 'Hello {SCHOOL_NAME}, I want to know more about admission and school activities.',
+    policyLinks: {
+      privacy: 'Privacy Policy',
+      terms: 'Terms & Conditions',
+      refund: 'Refund Policy',
+      contact: 'Contact Us',
+      about: 'About Us'
+    },
+    images: {
+      img1: 'Independence Day Group Celebration',
+      img2: 'Students Activity Gathering',
+      img3: 'Classroom Cultural Program',
+      img4: 'Teacher and Students Showcase',
+      img5: 'Morning Exercise Session',
+      img6: 'Primary Section Group Photo'
+    },
+    videosMeta: {
+      vid1: 'School Activities Highlights'
+    }
   },
   bn: {
     welcome: 'স্বাগতম',
@@ -198,6 +228,29 @@ const text = {
     viewPortfolio: 'পোর্টফোলিও দেখুন',
     contactDeveloper: 'যোগাযোগ করুন',
     instagram: 'ইন্সটাগ্রাম',
+    estd: 'স্থাপিত',
+    photos: 'ছবি',
+    videos: 'ভিডিও',
+    officeHours: 'অফিস সময়',
+    whatsappMessage: 'হ্যালো {SCHOOL_NAME}, আমি ভর্তি এবং স্কুলের কার্যক্রম সম্পর্কে আরও জানতে চাই।',
+    policyLinks: {
+      privacy: 'প্রাইভেসি পলিসি',
+      terms: 'শর্তাবলী',
+      refund: 'রিফান্ড পলিসি',
+      contact: 'যোগাযোগ',
+      about: 'আমাদের সম্পর্কে'
+    },
+    images: {
+      img1: 'স্বাধীনতা দিবস উদযাপন',
+      img2: 'শিক্ষার্থীদের কার্যক্রম',
+      img3: 'ক্লাসরুম সাংস্কৃতিক অনুষ্ঠান',
+      img4: 'শিক্ষক ও শিক্ষার্থীদের প্রদর্শন',
+      img5: 'সকাল বেলার ব্যায়াম',
+      img6: 'প্রাথমিক শাখার গ্রুপ ফটো'
+    },
+    videosMeta: {
+      vid1: 'স্কুলের কার্যক্রমের হাইলাইট'
+    }
   }
 };
 
@@ -257,10 +310,53 @@ export default function HomePage() {
     () =>
       toWhatsAppHref(
         HOMEPAGE_WHATSAPP_NUMBER,
-        `Hello ${SCHOOL_NAME}, I want to know more about admission and school activities.`
+        t.whatsappMessage.replace('{SCHOOL_NAME}', SCHOOL_NAME)
       ),
-    []
+    [t.whatsappMessage]
   );
+
+  const localizedImages = useMemo(() => [
+    {
+      id: 1,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.47.50.jpeg',
+      title: t.images.img1
+    },
+    {
+      id: 2,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.47.56.jpeg',
+      title: t.images.img2
+    },
+    {
+      id: 3,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.47.58.jpeg',
+      title: t.images.img3
+    },
+    {
+      id: 4,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.48.00.jpeg',
+      title: t.images.img4
+    },
+    {
+      id: 5,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.48.02.jpeg',
+      title: t.images.img5
+    },
+    {
+      id: 6,
+      src: '/WhatsApp%20Image%202026-03-23%20at%2009.48.19.jpeg',
+      title: t.images.img6
+    }
+  ], [t.images]);
+
+  const localizedVideos = useMemo(() => [
+    {
+      id: 1,
+      src: '/WhatsApp%20Video%202026-03-23%20at%2009.53.09.mp4',
+      title: t.videosMeta.vid1
+    }
+  ], [t.videosMeta]);
+
+  const growthHighlights = language === 'bn' ? growthHighlightsBn : growthHighlightsEn;
 
   const onLogout = () => {
     clearSession();
@@ -360,7 +456,7 @@ export default function HomePage() {
                   <img src="/School_Logo.png" alt={`${SCHOOL_NAME} Emblem`} className="h-32 w-32 object-contain md:h-40 md:w-40" />
                 </div>
                 <p className="mt-3 text-base font-semibold text-red-50 md:text-lg">{SCHOOL_NAME}</p>
-                <p className="mt-1 text-sm font-medium text-red-100/80">ESTD 2018</p>
+                <p className="mt-1 text-sm font-medium text-red-100/80">{t.estd} 2018</p>
               </div>
 
               <div className="rounded-3xl border border-red-400/30 bg-slate-900/88 p-5 text-red-50 shadow-[0_24px_48px_-28px_rgba(2,6,23,0.95)]">
@@ -431,12 +527,12 @@ export default function HomePage() {
                 <p className="mt-1 text-sm text-red-100/80">{t.imageGalleryNote}</p>
               </div>
               <span className="rounded-full border border-red-500/35 bg-red-900/35 px-3 py-1 text-xs font-semibold text-red-100">
-                {schoolImages.length} Photos
+                {localizedImages.length} {t.photos}
               </span>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              {schoolImages.map((image) => (
+              {localizedImages.map((image) => (
                 <article
                   key={image.id}
                   className="group overflow-hidden rounded-2xl border border-red-500/28 bg-slate-900/82 shadow-[0_16px_34px_-24px_rgba(2,6,23,0.9)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_44px_-22px_rgba(127,29,29,0.88)]"
@@ -458,17 +554,17 @@ export default function HomePage() {
                 <p className="mt-1 text-sm text-red-100/80">{t.videoGalleryNote}</p>
               </div>
               <span className="rounded-full border border-red-500/35 bg-red-900/35 px-3 py-1 text-xs font-semibold text-red-100">
-                {schoolVideos.length} Videos
+                {localizedVideos.length} {t.videos}
               </span>
             </div>
 
-            {schoolVideos.length === 0 ? (
+            {localizedVideos.length === 0 ? (
               <div className="rounded-xl border border-dashed border-red-500/35 bg-red-900/25 px-4 py-10 text-center text-sm text-red-100">
                 {t.noVideos}
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
-                {schoolVideos.map((video) => (
+                {localizedVideos.map((video) => (
                   <article
                     key={video.id}
                     className="overflow-hidden rounded-2xl border border-red-500/28 bg-slate-900/82 shadow-[0_16px_34px_-24px_rgba(2,6,23,0.9)]"
@@ -512,25 +608,25 @@ export default function HomePage() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Link href="/privacy-policy" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
-              Privacy Policy
+              {t.policyLinks.privacy}
             </Link>
             <Link href="/terms-and-conditions" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
-              Terms & Conditions
+              {t.policyLinks.terms}
             </Link>
             <Link href="/refund-and-cancellation" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
-              Refund Policy
+              {t.policyLinks.refund}
             </Link>
             <Link href="/contact-us" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
-              Contact Us
+              {t.policyLinks.contact}
             </Link>
             <Link href="/about-us" className="rounded-xl border border-red-500/35 bg-red-900/35 px-4 py-3 text-center text-sm font-semibold text-red-100 hover:bg-red-800/45">
-              About Us
+              {t.policyLinks.about}
             </Link>
           </div>
 
           {Array.isArray(SCHOOL_INFO?.officeHours) && SCHOOL_INFO.officeHours.length > 0 ? (
             <div className="mt-5 rounded-2xl border border-red-500/28 bg-red-900/25 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">Office Hours</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.11em] text-red-200">{t.officeHours}</p>
               <div className="mt-2 space-y-1">
                 {SCHOOL_INFO.officeHours.map((slot) => (
                   <p key={slot} className="text-sm font-medium text-red-100">

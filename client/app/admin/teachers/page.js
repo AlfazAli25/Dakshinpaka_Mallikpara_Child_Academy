@@ -8,21 +8,151 @@ import { del, get, post } from '@/lib/api';
 import { formatClassLabel, formatClassLabelList } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
+
+const text = {
+  en: {
+    eyebrow: 'Administration',
+    title: 'Teachers',
+    description: 'Register teachers with class-wise subject assignment and open any row for full profile and salary records.',
+    registerTitle: 'Register Teacher',
+    labels: {
+      name: 'Name',
+      email: 'Email',
+      contactNumber: 'Contact Number',
+      password: 'Password',
+      confirmPassword: 'Confirm Password',
+      qualifications: 'Qualifications',
+      monthlySalary: 'Monthly Salary',
+      pendingSalary: 'Pending Salary'
+    },
+    placeholders: {
+      contactHints: 'Digits only',
+      qualHints: 'e.g. B.Ed, M.Sc',
+      salaryZero: '0',
+      enterId: 'Enter Teacher ID'
+    },
+    classes: {
+      title: 'Classes',
+      empty: 'No classes found. You can register now and assign classes later.',
+      defaultLabel: 'Class'
+    },
+    subjects: {
+      title: 'Subjects',
+      selectClassFirst: 'Select at least one class first to view subjects.',
+      empty: 'No available subjects under selected classes. They may already be assigned to other teachers.',
+      assignedHint: 'Subjects tagged as "Already assigned" are reserved and cannot be selected.',
+      alreadyAssigned: 'Already assigned'
+    },
+    buttons: {
+      create: 'Create Teacher',
+      creating: 'Creating...',
+      remove: 'Remove',
+      cancel: 'Cancel',
+      delete: 'Delete Teacher',
+      deleting: 'Deleting...'
+    },
+    alerts: {
+      passMismatch: 'Password and confirm password must match.',
+      invalidEmail: 'Please enter a valid email address.',
+      invalidContact: 'Contact number must contain only digits (7 to 15 digits).',
+      qualReq: 'Qualifications are required.',
+      salaryPositive: 'Monthly salary must be greater than zero.',
+      salaryNonNegative: 'Pending salary must be 0 or greater.',
+      createSuccess: 'Teacher account created successfully',
+      deleteCancel: 'Deletion cancelled. Teacher ID did not match.',
+      deleteSuccess: 'Teacher deleted successfully.'
+    },
+    delete: {
+      title: 'Confirm Teacher Deletion',
+      textPrefix: 'Type Teacher ID',
+      textMid: 'to permanently delete'
+    },
+    columns: {
+      teacherId: 'Teacher ID',
+      name: 'Name',
+      contact: 'Contact',
+      classes: 'Classes',
+      subjects: 'Subject Codes',
+      email: 'Email',
+      actions: 'Actions'
+    }
+  },
+  bn: {
+    eyebrow: 'প্রশাসন',
+    title: 'শিক্ষকবৃন্দ',
+    description: 'ক্লাস ভিত্তিক বিষয় অ্যাসাইনমেন্ট সহ শিক্ষকদের নিবন্ধন করুন এবং সম্পূর্ণ প্রোফাইল এবং বেতন রেকর্ডের জন্য যেকোনো সারি খুলুন।',
+    registerTitle: 'শিক্ষক নিবন্ধন করুন',
+    labels: {
+      name: 'নাম',
+      email: 'ইমেল',
+      contactNumber: 'যোগাযোগ নম্বর',
+      password: 'পাসওয়ার্ড',
+      confirmPassword: 'পাসওয়ার্ড নিশ্চিত করুন',
+      qualifications: 'যোগ্যতা',
+      monthlySalary: 'মাসিক বেতন',
+      pendingSalary: 'বকেয়া বেতন'
+    },
+    placeholders: {
+      contactHints: 'শুধুমাত্র সংখ্যা',
+      qualHints: 'যেমন: বি.এড, এম.এসসি',
+      salaryZero: '০',
+      enterId: 'শিক্ষক আইডি লিখুন'
+    },
+    classes: {
+      title: 'ক্লাসসমূহ',
+      empty: 'কোনো ক্লাস পাওয়া যায়নি। আপনি এখন নিবন্ধন করতে পারেন এবং পরে ক্লাস অ্যাসাইন করতে পারেন।',
+      defaultLabel: 'ক্লাস'
+    },
+    subjects: {
+      title: 'বিষয়সমূহ',
+      selectClassFirst: 'বিষয়গুলো দেখতে প্রথমে অন্তত একটি ক্লাস নির্বাচন করুন।',
+      empty: 'নির্বাচিত ক্লাসের অধীনে কোনো বিষয় উপলব্ধ নেই। সেগুলো ইতিমধ্যে অন্য শিক্ষকদের অ্যাসাইন করা হতে পারে।',
+      assignedHint: '"ইতিমধ্যে অ্যাসাইন করা" হিসেবে চিহ্নিত বিষয়গুলো সংরক্ষিত এবং নির্বাচন করা যাবে না।',
+      alreadyAssigned: 'ইতিমধ্যে অ্যাসাইন করা'
+    },
+    buttons: {
+      create: 'শিক্ষক তৈরি করুন',
+      creating: 'তৈরি হচ্ছে...',
+      remove: 'সরান',
+      cancel: 'বাতিল',
+      delete: 'শিক্ষক মুছে ফেলুন',
+      deleting: 'মুছে ফেলা হচ্ছে...'
+    },
+    alerts: {
+      passMismatch: 'পাসওয়ার্ড এবং নিশ্চিত পাসওয়ার্ড মিলছে না।',
+      invalidEmail: 'অনুগ্রহ করে একটি সঠিক ইমেল ঠিকানা লিখুন।',
+      invalidContact: 'যোগাযোগ নম্বরে শুধুমাত্র সংখ্যা থাকতে হবে (৭ থেকে ১৫ টি সংখ্যা)।',
+      qualReq: 'যোগ্যতা প্রয়োজন।',
+      salaryPositive: 'মাসিক বেতন শূন্যের চেয়ে বেশি হতে হবে।',
+      salaryNonNegative: 'বকেয়া বেতন ০ বা তার বেশি হতে হবে।',
+      createSuccess: 'শিক্ষক অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে',
+      deleteCancel: 'মুছে ফেলা বাতিল হয়েছে। শিক্ষক আইডি মেলেনি।',
+      deleteSuccess: 'শিক্ষক সফলভাবে মুছে ফেলা হয়েছে।'
+    },
+    delete: {
+      title: 'শিক্ষক মুছে ফেলার নিশ্চিতকরণ',
+      textPrefix: 'শিক্ষক আইডি',
+      textMid: 'স্থায়ীভাবে মুছতে টাইপ করুন'
+    },
+    columns: {
+      teacherId: 'শিক্ষক আইডি',
+      name: 'নাম',
+      contact: 'যোগাযোগ',
+      classes: 'ক্লাসসমূহ',
+      subjects: 'বিষয় কোড',
+      email: 'ইমেল',
+      actions: 'অ্যাকশন'
+    }
+  }
+};
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CONTACT_REGEX = /^\d{7,15}$/;
 
-const columns = [
-  { key: 'teacherId', label: 'Teacher ID' },
-  { key: 'name', label: 'Name' },
-  { key: 'contactNumber', label: 'Contact' },
-  { key: 'classes', label: 'Classes' },
-  { key: 'subjectCodes', label: 'Subject Codes' },
-  { key: 'email', label: 'Email' },
-  { key: 'actions', label: 'Actions' }
-];
+// columns moved inside components for localization
 
 const getInitialTeacherForm = () => ({
   name: '',
@@ -44,6 +174,19 @@ const requiredLabel = (label) => (
 );
 
 export default function AdminTeachersPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
+  const columns = useMemo(() => [
+    { key: 'teacherId', label: t.columns.teacherId },
+    { key: 'name', label: t.columns.name },
+    { key: 'contactNumber', label: t.columns.contact },
+    { key: 'classes', label: t.columns.classes },
+    { key: 'subjectCodes', label: t.columns.subjects },
+    { key: 'email', label: t.columns.email },
+    { key: 'actions', label: t.columns.actions }
+  ], [t]);
+
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(getInitialTeacherForm());
@@ -73,10 +216,10 @@ export default function AdminTeachersPage() {
   const classNameMap = useMemo(
     () =>
       classOptions.reduce((acc, item) => {
-        acc[item.id] = formatClassLabel(item, 'Class');
+        acc[item.id] = formatClassLabel(item, t.classes.defaultLabel);
         return acc;
       }, {}),
-    [classOptions]
+    [classOptions, t.classes.defaultLabel]
   );
 
   const assignedSubjectIdSet = useMemo(() => new Set(assignedSubjectIds), [assignedSubjectIds]);
@@ -94,11 +237,11 @@ export default function AdminTeachersPage() {
       form.classIds
         .map((classId) => ({
           classId,
-          className: classNameMap[classId] || 'Class',
+          className: classNameMap[classId] || t.classes.defaultLabel,
           subjects: availableSubjects.filter((subject) => subject.classId === classId)
         }))
         .filter((item) => item.subjects.length > 0),
-    [availableSubjects, classNameMap, form.classIds]
+    [availableSubjects, classNameMap, form.classIds, t.classes.defaultLabel]
   );
 
   const loadTeachers = useCallback(async () => {
@@ -141,7 +284,7 @@ export default function AdminTeachersPage() {
                 }}
                 className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Remove
+                {t.buttons.remove}
               </button>
             )
           };
@@ -164,7 +307,7 @@ export default function AdminTeachersPage() {
 
     const classes = (classResponse.data || []).map((item) => ({
       id: String(item._id),
-      name: item.name || 'Class',
+      name: item.name || t.classes.defaultLabel,
       section: item.section || ''
     }));
 
@@ -227,32 +370,32 @@ export default function AdminTeachersPage() {
     }
 
     if (String(form.password || '') !== String(form.confirmPassword || '')) {
-      setError('Password and confirm password must match.');
+      setError(t.alerts.passMismatch);
       setMessage('');
       return;
     }
 
     if (!EMAIL_REGEX.test(String(form.email || '').trim())) {
-      setError('Please enter a valid email address.');
+      setError(t.alerts.invalidEmail);
       setMessage('');
       return;
     }
 
     if (!CONTACT_REGEX.test(String(form.contactNumber || '').trim())) {
-      setError('Contact number must contain only digits (7 to 15 digits).');
+      setError(t.alerts.invalidContact);
       setMessage('');
       return;
     }
 
     if (!String(form.qualifications || '').trim()) {
-      setError('Qualifications are required.');
+      setError(t.alerts.qualReq);
       setMessage('');
       return;
     }
 
     const monthlySalaryValue = Number(form.monthlySalary);
     if (!Number.isFinite(monthlySalaryValue) || monthlySalaryValue <= 0) {
-      setError('Monthly salary must be greater than zero.');
+      setError(t.alerts.salaryPositive);
       setMessage('');
       return;
     }
@@ -262,7 +405,7 @@ export default function AdminTeachersPage() {
         ? 0
         : Number(form.pendingSalary);
     if (!Number.isFinite(pendingSalaryValue) || pendingSalaryValue < 0) {
-      setError('Pending salary must be 0 or greater.');
+      setError(t.alerts.salaryNonNegative);
       setMessage('');
       return;
     }
@@ -287,7 +430,7 @@ export default function AdminTeachersPage() {
         },
         getToken()
       );
-      setMessage('Teacher account created successfully');
+      setMessage(t.alerts.createSuccess);
       setForm(getInitialTeacherForm());
       await loadTeachers();
     } catch (apiError) {
@@ -311,7 +454,7 @@ export default function AdminTeachersPage() {
 
     const expectedTeacherId = deleteTarget.teacherId || deleteTarget.id;
     if (!typedTeacherId || typedTeacherId.trim() !== expectedTeacherId) {
-      setError('Deletion cancelled. Teacher ID did not match.');
+      setError(t.alerts.deleteCancel);
       return;
     }
 
@@ -320,7 +463,7 @@ export default function AdminTeachersPage() {
     setError('');
     try {
       await del(`/teachers/${deleteTarget.id}`, getToken());
-      setMessage('Teacher deleted successfully.');
+      setMessage(t.alerts.deleteSuccess);
       setDeleteTarget(null);
       setTypedTeacherId('');
       await loadTeachers();
@@ -334,25 +477,25 @@ export default function AdminTeachersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administration"
-        title="Teachers"
-        description="Register teachers with class-wise subject assignment and open any row for full profile and salary records."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
       <form onSubmit={onCreate} className="card-hover animate-fade-up rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-        <h3 className="mb-1 text-lg font-semibold text-slate-900">Register Teacher</h3>
+        <h3 className="mb-1 text-lg font-semibold text-slate-900">{t.registerTitle}</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Input label={requiredLabel('Name')} value={form.name} onChange={onChange('name')} required className="h-11" />
-          <Input label={requiredLabel('Email')} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />
+          <Input label={requiredLabel(t.labels.name)} value={form.name} onChange={onChange('name')} required className="h-11" />
+          <Input label={requiredLabel(t.labels.email)} type="email" value={form.email} onChange={onChange('email')} required className="h-11" />
           <Input
-            label={requiredLabel('Contact Number')}
+            label={requiredLabel(t.labels.contactNumber)}
             value={form.contactNumber}
             onChange={onChange('contactNumber')}
             required
             className="h-11"
-            placeholder="Digits only"
+            placeholder={t.placeholders.contactHints}
           />
           <Input
-            label={requiredLabel('Password')}
+            label={requiredLabel(t.labels.password)}
             type="password"
             value={form.password}
             onChange={onChange('password')}
@@ -360,7 +503,7 @@ export default function AdminTeachersPage() {
             className="h-11"
           />
           <Input
-            label={requiredLabel('Confirm Password')}
+            label={requiredLabel(t.labels.confirmPassword)}
             type="password"
             value={form.confirmPassword}
             onChange={onChange('confirmPassword')}
@@ -368,15 +511,15 @@ export default function AdminTeachersPage() {
             className="h-11"
           />
           <Input
-            label={requiredLabel('Qualifications')}
+            label={requiredLabel(t.labels.qualifications)}
             value={form.qualifications}
             onChange={onChange('qualifications')}
             required
             className="h-11"
-            placeholder="e.g. B.Ed, M.Sc"
+            placeholder={t.placeholders.qualHints}
           />
           <Input
-            label={requiredLabel('Monthly Salary')}
+            label={requiredLabel(t.labels.monthlySalary)}
             type="number"
             value={form.monthlySalary}
             onChange={onChange('monthlySalary')}
@@ -384,19 +527,19 @@ export default function AdminTeachersPage() {
             className="h-11"
           />
           <Input
-            label="Pending Salary"
+            label={t.labels.pendingSalary}
             type="number"
             value={form.pendingSalary}
             onChange={onChange('pendingSalary')}
             className="h-11"
-            placeholder="0"
+            placeholder={t.placeholders.salaryZero}
           />
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-800">Classes</p>
+          <p className="text-sm font-medium text-slate-800">{t.classes.title}</p>
           {classOptions.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No classes found. You can register now and assign classes later.</p>
+            <p className="mt-1 text-xs text-amber-700">{t.classes.empty}</p>
           ) : (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {classOptions.map((classOption) => (
@@ -407,7 +550,7 @@ export default function AdminTeachersPage() {
                     onChange={() => onToggleClass(classOption.id)}
                     className="h-4 w-4"
                   />
-                  <span>{formatClassLabel(classOption, 'Class')}</span>
+                  <span>{formatClassLabel(classOption, t.classes.defaultLabel)}</span>
                 </label>
               ))}
             </div>
@@ -415,14 +558,14 @@ export default function AdminTeachersPage() {
         </div>
 
         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-sm font-medium text-slate-800">Subjects</p>
+          <p className="text-sm font-medium text-slate-800">{t.subjects.title}</p>
           {form.classIds.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">Select at least one class first to view subjects.</p>
+            <p className="mt-1 text-xs text-amber-700">{t.subjects.selectClassFirst}</p>
           ) : availableSubjects.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-700">No available subjects under selected classes. They may already be assigned to other teachers.</p>
+            <p className="mt-1 text-xs text-amber-700">{t.subjects.empty}</p>
           ) : (
             <div className="mt-2 space-y-3">
-              <p className="text-xs text-slate-500">Subjects tagged as "Already assigned" are reserved and cannot be selected.</p>
+              <p className="text-xs text-slate-500">{t.subjects.assignedHint}</p>
               {availableSubjectsByClass.map((group) => (
                 <div key={group.classId}>
                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{group.className}</p>
@@ -443,7 +586,7 @@ export default function AdminTeachersPage() {
                           </span>
                           {assignedSubjectIdSet.has(subject.id) && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
-                              Already assigned
+                              {t.subjects.alreadyAssigned}
                             </span>
                           )}
                         </span>
@@ -461,7 +604,7 @@ export default function AdminTeachersPage() {
           disabled={loading}
           className="mt-2 h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? 'Creating...' : 'Create Teacher'}
+          {loading ? t.buttons.creating : t.buttons.create}
         </button>
       </form>
       <Table
@@ -477,9 +620,9 @@ export default function AdminTeachersPage() {
       {deleteTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Confirm Teacher Deletion</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t.delete.title}</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Type Teacher ID <span className="font-semibold text-slate-900">{deleteTarget.teacherId || deleteTarget.id}</span> to permanently delete{' '}
+              {t.delete.textPrefix} <span className="font-semibold text-slate-900">{deleteTarget.teacherId || deleteTarget.id}</span> {t.delete.textMid}{' '}
               <span className="font-semibold text-slate-900">{deleteTarget.name}</span>.
             </p>
 
@@ -487,7 +630,7 @@ export default function AdminTeachersPage() {
               type="text"
               value={typedTeacherId}
               onChange={(event) => setTypedTeacherId(event.target.value)}
-              placeholder="Enter Teacher ID"
+              placeholder={t.placeholders.enterId}
               className="mt-3 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
             />
 
@@ -500,7 +643,7 @@ export default function AdminTeachersPage() {
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               >
-                Cancel
+                {t.buttons.cancel}
               </button>
               <button
                 type="button"
@@ -511,7 +654,7 @@ export default function AdminTeachersPage() {
                 }
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deletingId === deleteTarget.id ? 'Deleting...' : 'Delete Teacher'}
+                {deletingId === deleteTarget.id ? t.buttons.deleting : t.buttons.delete}
               </button>
             </div>
           </div>

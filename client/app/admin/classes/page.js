@@ -9,13 +9,184 @@ import { del, get, post, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
 
-const classColumns = [
-  { key: 'name', label: 'Class' },
-  { key: 'section', label: 'Section' },
-  { key: 'subjectCount', label: 'Subjects' },
-  { key: 'teacherPerSubject', label: 'Teachers By Subject' }
-];
+const text = {
+  en: {
+    eyebrow: 'Administration',
+    title: 'Classes & Subjects',
+    description: 'Create classes and manage subjects under each class from one place.',
+    addClass: {
+      title: 'Add Class',
+      subtitle: 'Create classes first. Same class name is allowed across different sections.',
+      name: 'Class Name *',
+      section: 'Section',
+      placeholder: 'A / B',
+      button: 'Add Class',
+      loading: 'Adding...'
+    },
+    manageClasses: {
+      title: 'Edit Or Delete Classes',
+      subtitle: 'Update class names/sections or delete classes that are no longer needed.',
+      empty: 'No classes found yet.',
+      subjects: 'subjects',
+      studentsHint: 'Click any class row to view all students registered in that class.',
+      enriching: 'Refreshing subject and teacher insights...'
+    },
+    manageSubjects: {
+      title: 'Manage Subjects By Class & Section',
+      subtitle: 'Select class name first, then select section. Both are required to add subjects.',
+      empty: 'No classes found. Add a class with section first to manage subjects.',
+      selected: 'Currently Selected',
+      classLabel: 'Class',
+      sectionLabel: 'Section',
+      notSelected: 'Not selected',
+      chooseClass: 'Choose a class',
+      chooseSection: 'Choose a section',
+      selectClassFirst: 'Select class first',
+      noSection: '(No Section)',
+      addSubject: 'Add Subject',
+      adding: 'Adding...',
+      name: 'Subject Name *',
+      code: 'Subject Code',
+      mathPlaceholder: 'Mathematics',
+      mathCodePlaceholder: 'MATH',
+      noSubjects: 'No subjects found for the selected class and section yet.'
+    },
+    delete: {
+      confirmClass: 'Confirm Class Deletion',
+      textPrefix: 'Type class label',
+      textMid: 'to permanently delete this class.',
+      enterClass: 'Enter class label',
+      cancel: 'Cancel',
+      delete: 'Delete',
+      deleting: 'Deleting...',
+      confirmSubject: 'Subject deleted successfully.'
+    },
+    edit: {
+      save: 'Save',
+      saving: 'Saving...',
+      edit: 'Edit'
+    },
+    columns: {
+      name: 'Class',
+      section: 'Section',
+      subjects: 'Subjects',
+      teachers: 'Teachers By Subject'
+    },
+    teacherStatus: {
+      notAssigned: 'Not Assigned'
+    },
+    alerts: {
+      delayedInsights: 'Some class insights are delayed. Please refresh in a moment.',
+      nameReq: 'Class name is required.',
+      updateSuccess: 'Class updated successfully.',
+      duplicateError: 'Class with the same name and section already exists. Try a different section.',
+      deleteSuccess: 'Class deleted successfully.',
+      deleteMismatch: 'Deletion cancelled. Class name and section did not match.',
+      addSuccess: 'Class added successfully.',
+      selectClassReq: 'Please select a class name first.',
+      selectSectionReq: 'Please select a section.',
+      selectBothReq: 'Please select both class and section before adding subjects.',
+      classNotFound: 'Selected class not found. Please refresh and try again.',
+      subjectNameReq: 'Subject name is required.',
+      subjectAddSuccess: 'Subject added successfully to',
+      subjectUpdateSuccess: 'Subject updated successfully.',
+      subjectDeleteSuccess: 'Subject deleted successfully.'
+    },
+    placeholders: {
+      class: 'Class'
+    }
+  },
+  bn: {
+    eyebrow: 'প্রশাসন',
+    title: 'ক্লাস এবং বিষয়',
+    description: 'এক জায়গা থেকে ক্লাস তৈরি করুন এবং প্রতিটি ক্লাসের অধীনে বিষয়গুলি পরিচালনা করুন।',
+    addClass: {
+      title: 'ক্লাস যোগ করুন',
+      subtitle: 'প্রথমে ক্লাস তৈরি করুন। বিভিন্ন সেকশনে একই ক্লাসের নাম অনুমোদিত।',
+      name: 'ক্লাসের নাম *',
+      section: 'সেকশন',
+      placeholder: 'ক / খ',
+      button: 'ক্লাস যোগ করুন',
+      loading: 'যোগ করা হচ্ছে...'
+    },
+    manageClasses: {
+      title: 'ক্লাস সম্পাদনা বা মুছুন',
+      subtitle: 'ক্লাসের নাম/সেকশন আপডেট করুন বা আর প্রয়োজন নেই এমন ক্লাস মুছে ফেলুন।',
+      empty: 'এখনও কোনো ক্লাস পাওয়া যায়নি।',
+      subjects: 'বিষয়',
+      studentsHint: 'ঐ ক্লাসে নিবন্ধিত সকল শিক্ষার্থীকে দেখতে যেকোনো ক্লাস সারিতে ক্লিক করুন।',
+      enriching: 'বিষয় এবং শিক্ষক তথ্য রিফ্রেশ করা হচ্ছে...'
+    },
+    manageSubjects: {
+      title: 'ক্লাস এবং সেকশন অনুযায়ী বিষয় পরিচালনা',
+      subtitle: 'প্রথমে ক্লাসের নাম নির্বাচন করুন, তারপর সেকশন। বিষয় যোগ করতে উভয়ই প্রয়োজনীয়।',
+      empty: 'কোনো ক্লাস পাওয়া যায়নি। বিষয় পরিচালনা করতে প্রথমে সেকশন সহ একটি ক্লাস যোগ করুন।',
+      selected: 'বর্তমানে নির্বাচিত',
+      classLabel: 'ক্লাস',
+      sectionLabel: 'সেকশন',
+      notSelected: 'নির্বাচিত নয়',
+      chooseClass: 'একটি ক্লাস বেছে নিন',
+      chooseSection: 'একটি সেকশন বেছে নিন',
+      selectClassFirst: 'প্রথমে ক্লাস নির্বাচন করুন',
+      noSection: '(কোনো সেকশন নেই)',
+      addSubject: 'বিষয় যোগ করুন',
+      adding: 'যোগ করা হচ্ছে...',
+      name: 'বিষয়ের নাম *',
+      code: 'বিষয় কোড',
+      mathPlaceholder: 'গণিত',
+      mathCodePlaceholder: 'MATH',
+      noSubjects: 'নির্বাচিত ক্লাস এবং সেকশনের জন্য এখনও কোনো বিষয় পাওয়া যায়নি।'
+    },
+    delete: {
+      confirmClass: 'ক্লাস মুছে ফেলার নিশ্চিতকরণ',
+      textPrefix: 'ক্লাস লেবেল',
+      textMid: 'স্থায়ীভাবে মুছতে টাইপ করুন।',
+      enterClass: 'ক্লাস লেবেল লিখুন',
+      cancel: 'বাতিল',
+      delete: 'মুছুন',
+      deleting: 'মুছে ফেলা হচ্ছে...',
+      confirmSubject: 'বিষয় সফলভাবে মুছে ফেলা হয়েছে।'
+    },
+    edit: {
+      save: 'সংরক্ষণ',
+      saving: 'সংরক্ষণ হচ্ছে...',
+      edit: 'সম্পাদনা'
+    },
+    columns: {
+      name: 'ক্লাস',
+      section: 'সেকশন',
+      subjects: 'বিষয়সমূহ',
+      teachers: 'বিষয় অনুযায়ী শিক্ষক'
+    },
+    teacherStatus: {
+      notAssigned: 'নিযুক্ত নয়'
+    },
+    alerts: {
+      delayedInsights: 'কিছু ক্লাস তথ্য পেতে দেরি হচ্ছে। অনুগ্রহ করে কিছুক্ষণ পর রিফ্রেশ করুন।',
+      nameReq: 'ক্লাসের নাম প্রয়োজন।',
+      updateSuccess: 'ক্লাস সফলভাবে আপডেট হয়েছে।',
+      duplicateError: 'একই নাম এবং সেকশনের ক্লাস ইতিমধ্যে বিদ্যমান। অন্য সেকশন চেষ্টা করুন।',
+      deleteSuccess: 'ক্লাস সফলভাবে মুছে ফেলা হয়েছে।',
+      deleteMismatch: 'মুছে ফেলা বাতিল হয়েছে। ক্লাসের নাম এবং সেকশন মেলেনি।',
+      addSuccess: 'ক্লাস সফলভাবে যোগ করা হয়েছে।',
+      selectClassReq: 'অনুগ্রহ করে প্রথমে একটি ক্লাসের নাম নির্বাচন করুন।',
+      selectSectionReq: 'অনুগ্রহ করে একটি সেকশন নির্বাচন করুন।',
+      selectBothReq: 'বিষয় যোগ করার আগে অনুগ্রহ করে ক্লাস এবং সেকশন উভয়ই নির্বাচন করুন।',
+      classNotFound: 'নির্বাচিত ক্লাস পাওয়া যায়নি। অনুগ্রহ করে রিফ্রেশ করে আবার চেষ্টা করুন।',
+      subjectNameReq: 'বিষয়ের নাম প্রয়োজন।',
+      subjectAddSuccess: 'বিষয়টি সফলভাবে যোগ করা হয়েছে',
+      subjectUpdateSuccess: 'বিষয়টি সফলভাবে আপডেট করা হয়েছে।',
+      subjectDeleteSuccess: 'বিষয়টি সফলভাবে মুছে ফেলা হয়েছে।'
+    },
+    placeholders: {
+      class: 'ক্লাস'
+    }
+  }
+};
+
+// Columns moved inside component for localization
 
 const getInitialClassForm = () => ({
   name: '',
@@ -56,6 +227,16 @@ const isConfirmationLabelMatch = (typedValue, expectedValue) =>
   normalizeConfirmationLabel(typedValue) === normalizeConfirmationLabel(expectedValue);
 
 export default function AdminClassesPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
+  const classColumns = useMemo(() => [
+    { key: 'name', label: t.columns.name },
+    { key: 'section', label: t.columns.section },
+    { key: 'subjectCount', label: t.columns.subjects },
+    { key: 'teacherPerSubject', label: t.columns.teachers }
+  ], [t]);
+
   const toast = useToast();
   const [rows, setRows] = useState([]);
   const [classesData, setClassesData] = useState([]);
@@ -113,7 +294,7 @@ export default function AdminClassesPage() {
                 const assignedTeacherNames = teacherNamesBySubjectId[subject.id] || [];
                 return (
                   <p key={subject.id} className="text-xs text-slate-700">
-                    {subject.name}: {assignedTeacherNames.length > 0 ? assignedTeacherNames.join(', ') : 'Not Assigned'}
+                    {subject.name}: {assignedTeacherNames.length > 0 ? assignedTeacherNames.join(', ') : t.teacherStatus.notAssigned}
                   </p>
                 );
               })}
@@ -138,7 +319,7 @@ export default function AdminClassesPage() {
       setClassOptions(
         classes.map((item) => ({
           value: String(item._id),
-          label: formatClassLabel(item, 'Class')
+          label: formatClassLabel(item, t.placeholders.class)
         }))
       );
       setSubjectRows([]);
@@ -190,7 +371,7 @@ export default function AdminClassesPage() {
       setRows(buildClassRows(classes, subjects, teacherNamesBySubjectId));
 
       if (subjectResult.status === 'rejected' || teacherResult.status === 'rejected') {
-        toast.info('Some class insights are delayed. Please refresh in a moment.');
+        toast.info(t.alerts.delayedInsights);
       }
     } catch (apiError) {
       setRows([]);
@@ -276,7 +457,7 @@ export default function AdminClassesPage() {
   const onSaveClass = async (classId) => {
     const normalizedName = String(editClassForm.name || '').trim();
     if (!normalizedName) {
-      toast.error('Class name is required.');
+      toast.error(t.alerts.nameReq);
       return;
     }
 
@@ -292,12 +473,12 @@ export default function AdminClassesPage() {
         getToken()
       );
 
-      toast.success('Class updated successfully.');
+      toast.success(t.alerts.updateSuccess);
       onCancelEditClass();
       await loadData();
     } catch (apiError) {
       if (isClassDuplicateResponse(apiError)) {
-        toast.error('Class with the same name and section already exists. Try a different section.');
+        toast.error(t.alerts.duplicateError);
       } else {
         toast.error(apiError.message);
       }
@@ -316,9 +497,9 @@ export default function AdminClassesPage() {
       return;
     }
 
-    const expectedClassLabel = formatClassLabel(deleteClassTarget, 'Class');
+    const expectedClassLabel = formatClassLabel(deleteClassTarget, t.placeholders.class);
     if (!isConfirmationLabelMatch(typedClassLabel, expectedClassLabel)) {
-      toast.error('Deletion cancelled. Class name and section did not match.');
+      toast.error(t.alerts.deleteMismatch);
       return;
     }
 
@@ -327,7 +508,7 @@ export default function AdminClassesPage() {
 
     try {
       await del(`/classes/${classId}`, getToken());
-      toast.success('Class deleted successfully.');
+      toast.success(t.alerts.deleteSuccess);
       if (editClassId === classId) {
         onCancelEditClass();
       }
@@ -345,7 +526,7 @@ export default function AdminClassesPage() {
     event.preventDefault();
     const normalizedName = String(classForm.name || '').trim();
     if (!normalizedName) {
-      toast.error('Class name is required.');
+      toast.error(t.alerts.nameReq);
       return;
     }
 
@@ -362,11 +543,11 @@ export default function AdminClassesPage() {
       );
 
       setClassForm(getInitialClassForm());
-      toast.success('Class added successfully.');
+      toast.success(t.alerts.addSuccess);
       await loadData();
     } catch (apiError) {
       if (isClassDuplicateResponse(apiError)) {
-        toast.error('Class with the same name and section already exists. Try a different section.');
+        toast.error(t.alerts.duplicateError);
       } else {
         toast.error(apiError.message);
       }
@@ -379,29 +560,29 @@ export default function AdminClassesPage() {
     event.preventDefault();
     
     if (!selectedClassName) {
-      toast.error('Please select a class name first.');
+      toast.error(t.alerts.selectClassReq);
       return;
     }
 
     if (!selectedClassSection && availableSections.length > 0) {
-      toast.error('Please select a section.');
+      toast.error(t.alerts.selectSectionReq);
       return;
     }
 
     if (!selectedClassId) {
-      toast.error('Please select both class and section before adding subjects.');
+      toast.error(t.alerts.selectBothReq);
       return;
     }
 
     const selectedClass = classesData.find((c) => String(c._id) === selectedClassId);
     if (!selectedClass) {
-      toast.error('Selected class not found. Please refresh and try again.');
+      toast.error(t.alerts.classNotFound);
       return;
     }
 
     const normalizedName = String(subjectForm.name || '').trim();
     if (!normalizedName) {
-      toast.error('Subject name is required.');
+      toast.error(t.alerts.subjectNameReq);
       return;
     }
 
@@ -417,11 +598,11 @@ export default function AdminClassesPage() {
         },
         getToken()
       );
-      setSubjectForm(getInitialSubjectForm());
       const classLabel = selectedClass.section 
         ? `${selectedClass.name} (${selectedClass.section})`
         : selectedClass.name;
-      toast.success(`Subject added successfully to ${classLabel}.`);
+      setSubjectForm(getInitialSubjectForm());
+      toast.success(`${t.alerts.subjectAddSuccess} ${classLabel}.`);
       await loadData();
     } catch (apiError) {
       toast.error(apiError.message);
@@ -446,7 +627,7 @@ export default function AdminClassesPage() {
   const onSaveSubject = async (subjectId) => {
     const normalizedName = String(editSubjectForm.name || '').trim();
     if (!normalizedName) {
-      toast.error('Subject name is required.');
+      toast.error(t.alerts.subjectNameReq);
       return;
     }
 
@@ -461,7 +642,7 @@ export default function AdminClassesPage() {
         },
         getToken()
       );
-      toast.success('Subject updated successfully.');
+      toast.success(t.alerts.subjectUpdateSuccess);
       setEditSubjectId('');
       setEditSubjectForm(getInitialSubjectForm());
       await loadData();
@@ -477,7 +658,7 @@ export default function AdminClassesPage() {
 
     try {
       await del(`/subjects/${subjectId}`, getToken());
-      toast.success('Subject deleted successfully.');
+      toast.success(t.alerts.subjectDeleteSuccess);
       if (editSubjectId === subjectId) {
         onCancelEditSubject();
       }
@@ -492,18 +673,18 @@ export default function AdminClassesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administration"
-        title="Classes & Subjects"
-        description="Create classes and manage subjects under each class from one place."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <form onSubmit={onCreateClass} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Add Class</h3>
-        <p className="mb-4 text-sm text-slate-600">Create classes first. Same class name is allowed across different sections.</p>
+        <h3 className="text-lg font-semibold text-slate-900">{t.addClass.title}</h3>
+        <p className="mb-4 text-sm text-slate-600">{t.addClass.subtitle}</p>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <Input label="Class Name *" value={classForm.name} onChange={onClassFormChange('name')} required className="h-11" />
-          <Input label="Section" value={classForm.section} onChange={onClassFormChange('section')} className="h-11" placeholder="A / B" />
+          <Input label={t.addClass.name} value={classForm.name} onChange={onClassFormChange('name')} required className="h-11" />
+          <Input label={t.addClass.section} value={classForm.section} onChange={onClassFormChange('section')} className="h-11" placeholder={t.addClass.placeholder} />
         </div>
 
         <button
@@ -511,22 +692,22 @@ export default function AdminClassesPage() {
           disabled={submittingClass}
           className="h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submittingClass ? 'Adding...' : 'Add Class'}
+          {submittingClass ? t.addClass.loading : t.addClass.button}
         </button>
       </form>
 
       <Table columns={classColumns} rows={rows} loading={loading} getRowHref={(row) => `/admin/classes/${row.id}`} />
-      <p className="text-xs text-slate-500">Click any class row to view all students registered in that class.</p>
+      <p className="text-xs text-slate-500">{t.manageClasses.studentsHint}</p>
       {enrichingRows && !loading && (
-        <p className="text-xs text-slate-500">Refreshing subject and teacher insights...</p>
+        <p className="text-xs text-slate-500">{t.manageClasses.enriching}</p>
       )}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Edit Or Delete Classes</h3>
-        <p className="mb-4 text-sm text-slate-600">Update class names/sections or delete classes that are no longer needed.</p>
+        <h3 className="text-lg font-semibold text-slate-900">{t.manageClasses.title}</h3>
+        <p className="mb-4 text-sm text-slate-600">{t.manageClasses.subtitle}</p>
 
         {classesData.length === 0 ? (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found yet.</p>
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">{t.manageClasses.empty}</p>
         ) : (
           <div className="space-y-2">
             {classesData.map((classItem) => {
@@ -538,17 +719,17 @@ export default function AdminClassesPage() {
                   {isEditing ? (
                     <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto_auto]">
                       <Input
-                        label="Class Name"
+                        label={t.addClass.name}
                         value={editClassForm.name}
                         onChange={onEditClassFormChange('name')}
                         className="h-10"
                       />
                       <Input
-                        label="Section"
+                        label={t.addClass.section}
                         value={editClassForm.section}
                         onChange={onEditClassFormChange('section')}
                         className="h-10"
-                        placeholder="A / B"
+                        placeholder={t.addClass.placeholder}
                       />
                       <button
                         type="button"
@@ -556,22 +737,22 @@ export default function AdminClassesPage() {
                         disabled={savingClass}
                         className="mt-7 h-10 rounded-md bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {savingClass ? 'Saving...' : 'Save'}
+                        {savingClass ? t.edit.saving : t.edit.save}
                       </button>
                       <button
                         type="button"
                         onClick={onCancelEditClass}
                         className="mt-7 h-10 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       >
-                        Cancel
+                        {t.delete.cancel}
                       </button>
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{formatClassLabel(classItem, 'Class')}</span>
+                        <span className="font-semibold text-slate-900">{formatClassLabel(classItem, t.placeholders.class)}</span>
                         <span className="ml-2 text-xs text-slate-500">
-                          {subjectCountByClassId[classId] || 0} subjects
+                          {subjectCountByClassId[classId] || 0} {t.manageClasses.subjects}
                         </span>
                       </p>
                       <div className="flex items-center gap-2">
@@ -580,7 +761,7 @@ export default function AdminClassesPage() {
                           onClick={() => onStartEditClass(classItem)}
                           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                         >
-                          Edit
+                          {t.edit.edit}
                         </button>
                         <button
                           type="button"
@@ -588,7 +769,7 @@ export default function AdminClassesPage() {
                           disabled={deletingClassId === classId}
                           className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {deletingClassId === classId ? 'Deleting...' : 'Delete'}
+                          {deletingClassId === classId ? t.delete.deleting : t.delete.delete}
                         </button>
                       </div>
                     </div>
@@ -601,33 +782,33 @@ export default function AdminClassesPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Manage Subjects By Class & Section</h3>
-        <p className="mb-4 text-sm text-slate-600">Select class name first, then select section. Both are required to add subjects.</p>
+        <h3 className="text-lg font-semibold text-slate-900">{t.manageSubjects.title}</h3>
+        <p className="mb-4 text-sm text-slate-600">{t.manageSubjects.subtitle}</p>
 
         {classOptions.length === 0 ? (
-          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">No classes found. Add a class with section first to manage subjects.</p>
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">{t.manageSubjects.empty}</p>
         ) : (
           <>
             <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Currently Selected</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">{t.manageSubjects.selected}</p>
               <p className="mt-1 text-sm font-medium text-blue-700">
                 {selectedClassName ? (
                   <>
-                    Class: <span className="font-bold">{selectedClassName}</span>
+                    {t.manageSubjects.classLabel}: <span className="font-bold">{selectedClassName}</span>
                     {selectedClassSection && (
                       <>
-                        {' '} | Section: <span className="font-bold">{selectedClassSection}</span>
+                        {' '} | {t.manageSubjects.sectionLabel}: <span className="font-bold">{selectedClassSection}</span>
                       </>
                     )}
-                    {!selectedClassSection && ' | Section: Not selected'}
+                    {!selectedClassSection && ` | ${t.manageSubjects.sectionLabel}: ${t.manageSubjects.notSelected}`}
                   </>
-                ) : 'Class: Not selected | Section: Not selected'}
+                ) : `${t.manageSubjects.classLabel}: ${t.manageSubjects.notSelected} | ${t.manageSubjects.sectionLabel}: ${t.manageSubjects.notSelected}`}
               </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <Select
-                label="Select Class Name *"
+                label={`${t.manageSubjects.chooseClass} *`}
                 value={selectedClassName}
                 onChange={(event) => {
                   const newClassName = event.target.value;
@@ -637,7 +818,7 @@ export default function AdminClassesPage() {
                   setEditSubjectId('');
                 }}
                 options={[
-                  { value: '', label: 'Choose a class' },
+                  { value: '', label: t.manageSubjects.chooseClass },
                   ...uniqueClassNames.map((name) => ({ value: name, label: name }))
                 ]}
                 className="h-11"
@@ -645,7 +826,7 @@ export default function AdminClassesPage() {
               />
 
               <Select
-                label="Select Section *"
+                label={`${t.manageSubjects.chooseSection} *`}
                 value={selectedClassSection}
                 onChange={(event) => {
                   const newSection = event.target.value;
@@ -657,10 +838,10 @@ export default function AdminClassesPage() {
                   setEditSubjectId('');
                 }}
                 options={[
-                  { value: '', label: selectedClassName ? 'Choose a section' : 'Select class first' },
+                  { value: '', label: selectedClassName ? t.manageSubjects.chooseSection : t.manageSubjects.selectClassFirst },
                   ...availableSections.map((section) => ({
                     value: section,
-                    label: section || '(No Section)'
+                    label: section || t.manageSubjects.noSection
                   }))
                 ]}
                 className="h-11"
@@ -671,49 +852,49 @@ export default function AdminClassesPage() {
 
             <form onSubmit={onCreateSubject} className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 md:grid-cols-[2fr_1fr_auto]">
               <Input
-                label="Subject Name *"
+                label={t.manageSubjects.name}
                 value={subjectForm.name}
                 onChange={onSubjectFormChange('name')}
                 required
                 className="h-11"
-                placeholder="Mathematics"
+                placeholder={t.manageSubjects.mathPlaceholder}
               />
               <Input
-                label="Subject Code"
+                label={t.manageSubjects.code}
                 value={subjectForm.code}
                 onChange={onSubjectFormChange('code')}
                 className="h-11"
-                placeholder="MATH"
+                placeholder={t.manageSubjects.mathCodePlaceholder}
               />
               <button
                 type="submit"
                 disabled={submittingSubject || !selectedClassId}
                 className="mt-7 h-11 rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submittingSubject ? 'Adding...' : 'Add Subject'}
+                {submittingSubject ? t.manageSubjects.adding : t.manageSubjects.addSubject}
               </button>
             </form>
 
             <div className="mt-4 space-y-2">
               {!selectedClassName ? (
-                <p className="text-sm text-slate-500">Please select a class name first.</p>
+                <p className="text-sm text-slate-500">{t.manageSubjects.selectClassFirst}</p>
               ) : !selectedClassSection && availableSections.length > 0 ? (
-                <p className="text-sm text-slate-500">Please select a section.</p>
+                <p className="text-sm text-slate-500">{t.manageSubjects.chooseSection}</p>
               ) : selectedClassSubjects.length === 0 ? (
-                <p className="text-sm text-slate-500">No subjects found for the selected class and section yet.</p>
+                <p className="text-sm text-slate-500">{t.manageSubjects.noSubjects}</p>
               ) : (
                 selectedClassSubjects.map((subject) => (
                   <div key={subject.id} className="rounded-lg border border-slate-200 bg-white p-3">
                     {editSubjectId === subject.id ? (
                       <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto_auto]">
                         <Input
-                          label="Subject Name"
+                          label={t.manageSubjects.name}
                           value={editSubjectForm.name}
                           onChange={onEditSubjectFormChange('name')}
                           className="h-10"
                         />
                         <Input
-                          label="Subject Code"
+                          label={t.manageSubjects.code}
                           value={editSubjectForm.code}
                           onChange={onEditSubjectFormChange('code')}
                           className="h-10"
@@ -724,14 +905,14 @@ export default function AdminClassesPage() {
                           disabled={savingSubject}
                           className="mt-7 h-10 rounded-md bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {savingSubject ? 'Saving...' : 'Save'}
+                          {savingSubject ? t.edit.saving : t.edit.save}
                         </button>
                         <button
                           type="button"
                           onClick={onCancelEditSubject}
                           className="mt-7 h-10 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                         >
-                          Cancel
+                          {t.delete.cancel}
                         </button>
                       </div>
                     ) : (
@@ -746,7 +927,7 @@ export default function AdminClassesPage() {
                             onClick={() => onStartEditSubject(subject)}
                             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                           >
-                            Edit
+                            {t.edit.edit}
                           </button>
                           <button
                             type="button"
@@ -754,7 +935,7 @@ export default function AdminClassesPage() {
                             disabled={deletingSubjectId === subject.id}
                             className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {deletingSubjectId === subject.id ? 'Deleting...' : 'Delete'}
+                            {deletingSubjectId === subject.id ? t.delete.deleting : t.delete.delete}
                           </button>
                         </div>
                       </div>
@@ -770,18 +951,18 @@ export default function AdminClassesPage() {
       {deleteClassTarget && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Confirm Class Deletion</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t.delete.confirmClass}</h3>
             <p className="mt-2 text-sm text-slate-600">
-              Type class label{' '}
-              <span className="font-semibold text-slate-900">{formatClassLabel(deleteClassTarget, 'Class')}</span>{' '}
-              to permanently delete this class.
+              {t.delete.textPrefix}{' '}
+              <span className="font-semibold text-slate-900">{formatClassLabel(deleteClassTarget, t.placeholders.class)}</span>{' '}
+              {t.delete.textMid}
             </p>
 
             <input
               type="text"
               value={typedClassLabel}
               onChange={(event) => setTypedClassLabel(event.target.value)}
-              placeholder="Enter class label"
+              placeholder={t.delete.enterClass}
               className="mt-3 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
             />
 
@@ -794,18 +975,18 @@ export default function AdminClassesPage() {
                 }}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               >
-                Cancel
+                {t.delete.cancel}
               </button>
               <button
                 type="button"
                 onClick={onConfirmDeleteClass}
                 disabled={
                   deletingClassId === String(deleteClassTarget._id) ||
-                  !isConfirmationLabelMatch(typedClassLabel, formatClassLabel(deleteClassTarget, 'Class'))
+                  !isConfirmationLabelMatch(typedClassLabel, formatClassLabel(deleteClassTarget, t.placeholders.class))
                 }
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deletingClassId === String(deleteClassTarget._id) ? 'Deleting...' : 'Delete Class'}
+                {deletingClassId === String(deleteClassTarget._id) ? t.delete.deleting : t.delete.delete}
               </button>
             </div>
           </div>

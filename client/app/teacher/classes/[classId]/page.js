@@ -8,20 +8,44 @@ import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
 
-const columns = [
-  { key: 'admissionNo', label: 'Student ID' },
-  { key: 'name', label: 'Student' },
-  { key: 'guardianContact', label: 'Guardian Contact' },
-  { key: 'attendance', label: 'Attendance' }
-];
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    titleSuffix: 'Students',
+    description: 'All registered students for this class.',
+    defaultClassLabel: 'Class',
+    columns: [
+      { key: 'admissionNo', label: 'Student ID' },
+      { key: 'name', label: 'Student' },
+      { key: 'guardianContact', label: 'Guardian Contact' },
+      { key: 'attendance', label: 'Attendance' }
+    ]
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    titleSuffix: 'শিক্ষার্থীরা',
+    description: 'এই ক্লাসের সমস্ত নিবন্ধিত শিক্ষার্থী।',
+    defaultClassLabel: 'ক্লাস',
+    columns: [
+      { key: 'admissionNo', label: 'স্টুডেন্ট আইডি' },
+      { key: 'name', label: 'শিক্ষার্থী' },
+      { key: 'guardianContact', label: 'অভিভাবকের যোগাযোগ' },
+      { key: 'attendance', label: 'উপস্থিতি' }
+    ]
+  }
+};
 
 export default function TeacherClassStudentsPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
   const params = useParams();
   const classId = String(params?.classId || '');
   const toast = useToast();
   const [loading, setLoading] = useState(true);
-  const [classLabel, setClassLabel] = useState('Class');
+  const [classLabel, setClassLabel] = useState(t.defaultClassLabel);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
@@ -47,7 +71,7 @@ export default function TeacherClassStudentsPage() {
         ]);
 
         const classItem = classResponse.data || null;
-        setClassLabel(formatClassLabel(classItem, 'Class'));
+        setClassLabel(formatClassLabel(classItem, t.defaultClassLabel));
 
         setRows(
           (studentResponse.data || []).map((item) => ({
@@ -72,11 +96,11 @@ export default function TeacherClassStudentsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title={`${classLabel} Students`}
-        description="All registered students for this class."
+        eyebrow={t.eyebrow}
+        title={`${classLabel} ${t.titleSuffix}`}
+        description={t.description}
       />
-      <Table columns={columns} rows={rows} loading={loading} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }

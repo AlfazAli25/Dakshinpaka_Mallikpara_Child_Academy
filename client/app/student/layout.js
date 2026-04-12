@@ -307,7 +307,7 @@ export default function StudentLayout({ children }) {
     };
   }, []);
 
-  const panelTitle = studentName ? `Welcome, ${studentName}` : current.title;
+  const panelTitle = studentName ? `${current.welcome || 'Welcome'}, ${studentName}` : current.title;
   const nextExamSlot = upcomingExamSlots[0] || null;
 
   const sidebarUpcomingExamWidget = (

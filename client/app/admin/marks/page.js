@@ -10,6 +10,174 @@ import { del, get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
+
+const text = {
+  en: {
+    eyebrow: 'Administration',
+    title: 'Marks Management',
+    description: 'View, filter, and manage marks entries across all classes and exams.',
+    summary: {
+      currentPage: 'Records On Current Page',
+      grouped: 'Grouped Students',
+      total: 'Total Records',
+      activeFilters: 'Active Filters'
+    },
+    filters: {
+      selectedTitle: 'Currently Selected',
+      exam: 'Exam',
+      class: 'Class',
+      section: 'Section',
+      examPlaceholder: 'Not selected',
+      examFilter: 'Exam Filter',
+      classFilter: 'Class Name Filter',
+      sectionFilter: 'Section Filter',
+      subjectFilter: 'Subject Filter',
+      studentFilter: 'Student Filter',
+      allExams: 'All exams',
+      allClasses: 'All classes',
+      allSections: 'All sections',
+      allSubjects: 'All subjects',
+      allStudents: 'All students in class',
+      selectClassFirst: 'Select class first',
+      selectClassStudent: 'Select class to filter by student',
+      noSection: '(No Section)',
+      searchPlaceholder: 'Search by student, roll number, class, subject, exam, grade'
+    },
+    reportCards: {
+      title: 'Download Class Report Cards (ZIP)',
+      subtitle: 'Select class name and section to download all student report cards in one ZIP file after Final Exam completion.',
+      className: 'Class Name *',
+      section: 'Section *',
+      selectClassName: 'Select class name',
+      selectClass: 'Select class',
+      selectSection: 'Select section',
+      preparing: 'Preparing ZIP...',
+      downloadBtn: 'Download Class Report Cards (ZIP)'
+    },
+    table: {
+      studentName: 'Student Name',
+      rollNumber: 'Roll Number',
+      class: 'Class',
+      section: 'Section',
+      subject: 'Subject',
+      exam: 'Exam',
+      marks: 'Marks',
+      percentage: 'Percentage',
+      grade: 'Grade',
+      remarks: 'Remarks',
+      actions: 'Actions',
+      noRecords: 'No records found.',
+      delete: 'Delete'
+    },
+    pagination: {
+      prefix: 'Page',
+      mid: 'of',
+      total: 'Total records',
+      prev: 'Previous',
+      next: 'Next'
+    },
+    delete: {
+      title: 'Delete Marks Entry',
+      confirmText: 'Please confirm before deleting this marks entry.',
+      textPrefix: 'This action will permanently remove marks for',
+      mid: 'in',
+      cancel: 'Cancel',
+      delete: 'Delete'
+    },
+    alerts: {
+       loadSetupError: 'Failed to load marks setup data',
+       loadStudentsError: 'Failed to load class students',
+       loadMarksError: 'Failed to load marks',
+       deleteSuccess: 'Marks deleted successfully',
+       deleteError: 'Failed to delete marks',
+       downloadError: 'Failed to download class report cards',
+       downloadReq: 'Select class and section before downloading report cards'
+    }
+  },
+  bn: {
+    eyebrow: 'প্রশাসন',
+    title: 'নম্বর ব্যবস্থাপনা',
+    description: 'সব ক্লাস এবং পরীক্ষার নম্বর এন্ট্রি দেখুন, ফিল্টার করুন এবং পরিচালনা করুন।',
+    summary: {
+      currentPage: 'বর্তমান পৃষ্ঠার রেকর্ড',
+      grouped: 'গ্রুপভুক্ত শিক্ষার্থী',
+      total: 'মোট রেকর্ড',
+      activeFilters: 'সক্রিয় ফিল্টার'
+    },
+    filters: {
+      selectedTitle: 'বর্তমানে নির্বাচিত',
+      exam: 'পরীক্ষা',
+      class: 'ক্লাস',
+      section: 'সেকশন',
+      examPlaceholder: 'নির্বাচিত নয়',
+      examFilter: 'পরীক্ষা ফিল্টার',
+      classFilter: 'ক্লাসের নাম ফিল্টার',
+      sectionFilter: 'সেকশন ফিল্টার',
+      subjectFilter: 'বিষয় ফিল্টার',
+      studentFilter: 'শিক্ষার্থী ফিল্টার',
+      allExams: 'সব পরীক্ষা',
+      allClasses: 'সব ক্লাস',
+      allSections: 'সব সেকশন',
+      allSubjects: 'সব বিষয়',
+      allStudents: 'ক্লাসের সব শিক্ষার্থী',
+      selectClassFirst: 'প্রথমে ক্লাস নির্বাচন করুন',
+      selectClassStudent: 'শিক্ষার্থী অনুযায়ী ফিল্টার করতে ক্লাস নির্বাচন করুন',
+      noSection: '(কোনো সেকশন নেই)',
+      searchPlaceholder: 'শিক্ষার্থী, রোল নম্বর, ক্লাস, বিষয়, পরীক্ষা, গ্রেড দিয়ে খুঁজুন'
+    },
+    reportCards: {
+      title: 'ক্লাস রিপোর্ট কার্ড ডাউনলোড (ZIP)',
+      subtitle: 'বার্ষিক পরীক্ষা শেষ হওয়ার পর সব শিক্ষার্থীর রিপোর্ট কার্ড একটি ZIP ফাইলে ডাউনলোড করতে ক্লাসের নাম এবং সেকশন নির্বাচন করুন।',
+      className: 'ক্লাসের নাম *',
+      section: 'সেকশন *',
+      selectClassName: 'ক্লাসের নাম নির্বাচন করুন',
+      selectClass: 'ক্লাস নির্বাচন করুন',
+      selectSection: 'সেকশন নির্বাচন করুন',
+      preparing: 'ZIP ফাইল তৈরি হচ্ছে...',
+      downloadBtn: 'ক্লাস রিপোর্ট কার্ড ডাউনলোড (ZIP)'
+    },
+    table: {
+      studentName: 'শিক্ষার্থীর নাম',
+      rollNumber: 'রোল নম্বর',
+      class: 'ক্লাস',
+      section: 'সেকশন',
+      subject: 'বিষয়',
+      exam: 'পরীক্ষা',
+      marks: 'নম্বর',
+      percentage: 'শতাংশ',
+      grade: 'গ্রেড',
+      remarks: 'মন্তব্য',
+      actions: 'অ্যাকশন',
+      noRecords: 'কোনো রেকর্ড পাওয়া যায়নি।',
+      delete: 'মুছুন'
+    },
+    pagination: {
+      prefix: 'পৃষ্ঠা',
+      mid: 'এর',
+      total: 'মোট রেকর্ড',
+      prev: 'পূর্ববর্তী',
+      next: 'পরবর্তী'
+    },
+    delete: {
+      title: 'নম্বর এন্ট্রি মুছে ফেলুন',
+      confirmText: 'এই নম্বর এন্ট্রিটি মুছে ফেলার আগে নিশ্চিত করুন।',
+      textPrefix: 'এই কাজটি স্থায়ীভাবে',
+      mid: '-এর নম্বর মুছে ফেলবে (বিষয়:',
+      cancel: 'বাতিল',
+      delete: 'মুছুন'
+    },
+    alerts: {
+       loadSetupError: 'নম্বর সেটআপ তথ্য লোড করতে ব্যর্থ হয়েছে',
+       loadStudentsError: 'ক্লাসের শিক্ষার্থী লোড করতে ব্যর্থ হয়েছে',
+       loadMarksError: 'নম্বর লোড করতে ব্যর্থ হয়েছে',
+       deleteSuccess: 'নম্বর সফলভাবে মুছে ফেলা হয়েছে',
+       deleteError: 'নম্বর মুছে ফেলতে ব্যর্থ হয়েছে',
+       downloadError: 'ক্লাস রিপোর্ট কার্ড ডাউনলোড করতে ব্যর্থ হয়েছে',
+       downloadReq: 'রিপোর্ট কার্ড ডাউনলোড করার আগে ক্লাস এবং সেকশন নির্বাচন করুন'
+    }
+  }
+};
 
 const toId = (value) => String(value?._id || value || '');
 
@@ -70,6 +238,8 @@ const mapMarksToRows = (items) =>
   });
 
 export default function AdminMarksPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
   const toast = useToast();
 
   const [loadingSetup, setLoadingSetup] = useState(true);
@@ -136,12 +306,14 @@ export default function AdminMarksPage() {
           return;
         }
 
-        setClassOptionsRaw(Array.isArray(classesRes.data) ? classesRes.data : []);
-        setSubjectOptionsRaw(Array.isArray(subjectsRes.data) ? subjectsRes.data : []);
-        setExamOptionsRaw(Array.isArray(examsRes.data) ? examsRes.data : []);
+        if (active) {
+          setClassOptionsRaw(Array.isArray(classesRes.data) ? classesRes.data : []);
+          setSubjectOptionsRaw(Array.isArray(subjectsRes.data) ? subjectsRes.data : []);
+          setExamOptionsRaw(Array.isArray(examsRes.data) ? examsRes.data : []);
+        }
       } catch (apiError) {
         if (active) {
-          setError(apiError.message || 'Failed to load marks setup data');
+          setError(apiError.message || t.alerts.loadSetupError);
         }
       } finally {
         if (active) {
@@ -178,7 +350,7 @@ export default function AdminMarksPage() {
         if (active) {
           setStudentOptionsRaw([]);
           setSelectedStudentId('');
-          setError(apiError.message || 'Failed to load class students');
+          setError(apiError.message || t.alerts.loadStudentsError);
         }
       }
     };
@@ -229,7 +401,7 @@ export default function AdminMarksPage() {
       } catch (apiError) {
         if (active) {
           setRows([]);
-          setError(apiError.message || 'Failed to load marks');
+          setError(apiError.message || t.alerts.loadMarksError);
         }
       } finally {
         if (active) {
@@ -248,13 +420,13 @@ export default function AdminMarksPage() {
   // Exam is the first filter — show ALL exams with no upstream dependency.
   const examOptions = useMemo(
     () => [
-      { value: '', label: 'All exams' },
+      { value: '', label: t.filters.allExams },
       ...examOptionsRaw.map((item) => ({
         value: toId(item),
         label: formatExamLabel(item)
       }))
     ],
-    [examOptionsRaw]
+    [examOptionsRaw, t.filters.allExams]
   );
 
   // When exam is selected, narrow class names to only those that have that exam.
@@ -274,10 +446,10 @@ export default function AdminMarksPage() {
 
   const classNameFilterOptions = useMemo(
     () => [
-      { value: '', label: 'All classes' },
+      { value: '', label: t.filters.allClasses },
       ...uniqueClassNamesForFilter.map((name) => ({ value: name, label: name }))
     ],
-    [uniqueClassNamesForFilter]
+    [uniqueClassNamesForFilter, t.filters.allClasses]
   );
 
   const availableSectionsForFilter = useMemo(() => {
@@ -290,13 +462,13 @@ export default function AdminMarksPage() {
 
   const classSectionFilterOptions = useMemo(
     () => [
-      { value: '', label: selectedClassName ? 'All sections' : 'Select class first' },
+      { value: '', label: selectedClassName ? t.filters.allSections : t.filters.selectClassFirst },
       ...availableSectionsForFilter.map((section) => ({
         value: section,
-        label: section || '(No Section)'
+        label: section || t.filters.noSection
       }))
     ],
-    [availableSectionsForFilter, selectedClassName]
+    [availableSectionsForFilter, selectedClassName, t.filters.allSections, t.filters.selectClassFirst, t.filters.noSection]
   );
 
   // Subject options — filtered by selected class.
@@ -311,26 +483,26 @@ export default function AdminMarksPage() {
 
   const subjectOptions = useMemo(
     () => [
-      { value: '', label: selectedClassId ? 'All subjects' : 'Select class first' },
+      { value: '', label: selectedClassId ? t.filters.allSubjects : t.filters.selectClassFirst },
       ...filteredSubjectRaw.map((item) => ({
         value: toId(item),
         label: String(item?.name || '-').trim() || '-'
       }))
     ],
-    [filteredSubjectRaw, selectedClassId]
+    [filteredSubjectRaw, selectedClassId, t.filters.allSubjects, t.filters.selectClassFirst]
   );
 
   // (examOptions is defined above — exam is the first filter)
 
   const studentOptions = useMemo(
     () => [
-      { value: '', label: selectedClassId ? 'All students in class' : 'Select class to filter by student' },
+      { value: '', label: selectedClassId ? t.filters.allStudents : t.filters.selectClassStudent },
       ...studentOptionsRaw.map((item) => ({
         value: toId(item),
         label: `${item?.admissionNo || '-'} - ${item?.userId?.name || '-'}`
       }))
     ],
-    [selectedClassId, studentOptionsRaw]
+    [selectedClassId, studentOptionsRaw, t.filters.allStudents, t.filters.selectClassStudent]
   );
 
   const uniqueClassNames = useMemo(
@@ -351,32 +523,32 @@ export default function AdminMarksPage() {
 
   const reportCardClassNameOptions = useMemo(
     () => [
-      { value: '', label: 'Select class name' },
+      { value: '', label: t.reportCards.selectClassName },
       ...uniqueClassNames.map((name) => ({ value: name, label: name }))
     ],
-    [uniqueClassNames]
+    [uniqueClassNames, t.reportCards.selectClassName]
   );
 
   const reportCardClassOptions = useMemo(
     () => [
-      { value: '', label: 'Select class' },
+      { value: '', label: t.reportCards.selectClass },
       ...classOptionsRaw.map((item) => ({
         value: toId(item),
         label: formatClassLabel(item)
       }))
     ],
-    [classOptionsRaw]
+    [classOptionsRaw, t.reportCards.selectClass]
   );
 
   const reportCardSectionOptions = useMemo(() => {
     return [
-      { value: '', label: reportCardClassName ? 'Select section' : 'Select class first' },
+      { value: '', label: reportCardClassName ? t.reportCards.selectSection : t.filters.selectClassFirst },
       ...availableReportCardSections.map((section) => ({
         value: section,
-        label: section || '(No Section)'
+        label: section || t.filters.noSection
       }))
     ];
-  }, [availableReportCardSections, reportCardClassName]);
+  }, [availableReportCardSections, reportCardClassName, t.reportCards.selectSection, t.filters.selectClassFirst, t.filters.noSection]);
 
   const filteredRows = useMemo(() => {
     const query = String(searchText || '').trim().toLowerCase();
@@ -544,7 +716,7 @@ export default function AdminMarksPage() {
 
   const onDownloadReportCardsZip = async () => {
     if (!reportCardClassId || !reportCardSection) {
-      toast.error('Select class and section before downloading report cards');
+      toast.error(t.alerts.downloadReq);
       return;
     }
 
@@ -564,7 +736,7 @@ export default function AdminMarksPage() {
       const safeSection = String(reportCardSection || 'NA').replace(/[^A-Za-z0-9_-]/g, '_');
       downloadBlob(blob, `Class_${safeClassName}_Section_${safeSection}_ReportCards.zip`);
     } catch (apiError) {
-      toast.error(apiError?.message || 'Failed to download class report cards');
+      toast.error(apiError?.message || t.alerts.downloadError);
     } finally {
       setDownloadingReportCardsZip(false);
     }
@@ -582,7 +754,7 @@ export default function AdminMarksPage() {
     try {
       await del(`/marks/${deleteTarget.id}`, getToken());
       setDeleteTarget(null);
-      setMessage('Marks deleted successfully');
+      setMessage(t.alerts.deleteSuccess);
 
       const shouldMoveToPreviousPage = rows.length === 1 && pagination.page > 1;
       setPagination((prev) => ({
@@ -617,7 +789,7 @@ export default function AdminMarksPage() {
         }));
       }
     } catch (apiError) {
-      setError(apiError.message || 'Failed to delete marks');
+      setError(apiError.message || t.alerts.deleteError);
     } finally {
       setDeletingMarkId('');
     }
@@ -628,19 +800,19 @@ export default function AdminMarksPage() {
   const summaryCards = useMemo(
     () => [
       {
-        label: 'Records On Current Page',
+        label: t.summary.currentPage,
         value: String(rows.length)
       },
       {
-        label: 'Grouped Students',
+        label: t.summary.grouped,
         value: String(groupedRows.length)
       },
       {
-        label: 'Total Records',
+        label: t.summary.total,
         value: String(pagination.total || 0)
       },
       {
-        label: 'Active Filters',
+        label: t.summary.activeFilters,
         value: String(
           [selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId, searchText]
             .filter((item) => String(item || '').trim())
@@ -648,7 +820,7 @@ export default function AdminMarksPage() {
         )
       }
     ],
-    [groupedRows.length, pagination.total, rows.length, searchText, selectedClassId, selectedExamId, selectedStudentId, selectedSubjectId]
+    [groupedRows.length, pagination.total, rows.length, searchText, selectedClassId, selectedExamId, selectedStudentId, selectedSubjectId, t]
   );
 
   const openDeleteDialog = (row) => {
@@ -664,9 +836,9 @@ export default function AdminMarksPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administration"
-        title="Marks Management"
-        description="View, filter, and manage marks entries across all classes and exams."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -683,25 +855,25 @@ export default function AdminMarksPage() {
 
       <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">Currently Selected</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">{t.filters.selectedTitle}</p>
           <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
             {selectedExamId ? (
               <>
-                Exam: <span className="font-bold">{examOptions.find((o) => o.value === selectedExamId)?.label || selectedExamId}</span>
+                {t.filters.exam}: <span className="font-bold">{examOptions.find((o) => o.value === selectedExamId)?.label || selectedExamId}</span>
                 {selectedClassName && (
-                  <> | Class: <span className="font-bold">{selectedClassName}</span></>
+                  <> | {t.filters.class}: <span className="font-bold">{selectedClassName}</span></>
                 )}
                 {selectedClassSection && (
-                  <> | Section: <span className="font-bold">{selectedClassSection}</span></>
+                  <> | {t.filters.section}: <span className="font-bold">{selectedClassSection}</span></>
                 )}
               </>
-            ) : 'Exam: Not selected'}
+            ) : `${t.filters.exam}: ${t.filters.examPlaceholder}`}
           </p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Select
-            label="Exam Filter"
+            label={t.filters.examFilter}
             options={examOptions}
             value={selectedExamId}
             onChange={onExamChange}
@@ -709,7 +881,7 @@ export default function AdminMarksPage() {
           />
 
           <Select
-            label="Class Name Filter"
+            label={t.filters.classFilter}
             options={classNameFilterOptions}
             value={selectedClassName}
             onChange={onClassNameFilterChange}
@@ -717,7 +889,7 @@ export default function AdminMarksPage() {
           />
 
           <Select
-            label="Section Filter"
+            label={t.filters.sectionFilter}
             options={classSectionFilterOptions}
             value={selectedClassSection}
             onChange={onClassSectionFilterChange}
@@ -725,7 +897,7 @@ export default function AdminMarksPage() {
           />
 
           <Select
-            label="Subject Filter"
+            label={t.filters.subjectFilter}
             options={subjectOptions}
             value={selectedSubjectId}
             onChange={onSubjectChange}
@@ -733,7 +905,7 @@ export default function AdminMarksPage() {
           />
 
           <Select
-            label="Student Filter"
+            label={t.filters.studentFilter}
             options={studentOptions}
             value={selectedStudentId}
             onChange={onStudentChange}
@@ -743,41 +915,41 @@ export default function AdminMarksPage() {
 
         <div className="mt-2">
           <Input
-            label="Search In Current Page"
+            label={t.filters.searchPlaceholder}
             value={searchText}
             onChange={(event) => setSearchText(event.target.value)}
-            placeholder="Search by student, roll number, class, subject, exam, grade"
+            placeholder={t.filters.searchPlaceholder}
             className="h-11"
           />
         </div>
       </div>
 
       <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">Download Class Report Cards (ZIP)</h3>
+        <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">{t.reportCards.title}</h3>
         <p className="mt-1 text-sm text-slate-600 dark:text-red-100/80">
-          Select class name and section to download all student report cards in one ZIP file after Final Exam completion.
+          {t.reportCards.subtitle}
         </p>
 
         <div className="mb-3 mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">Currently Selected</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">{t.filters.selectedTitle}</p>
           <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
             {reportCardClassName ? (
               <>
-                Class: <span className="font-bold">{reportCardClassName}</span>
+                {t.filters.class}: <span className="font-bold">{reportCardClassName}</span>
                 {reportCardSection && (
                   <>
-                    {' '} | Section: <span className="font-bold">{reportCardSection}</span>
+                    {' '} | {t.filters.section}: <span className="font-bold">{reportCardSection}</span>
                   </>
                 )}
-                {!reportCardSection && ' | Section: Not selected'}
+                {!reportCardSection && ` | ${t.filters.section}: ${t.filters.examPlaceholder}`}
               </>
-            ) : 'Class: Not selected | Section: Not selected'}
+            ) : `${t.filters.class}: ${t.filters.examPlaceholder} | ${t.filters.section}: ${t.filters.examPlaceholder}`}
           </p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Select
-            label="Class Name *"
+            label={t.reportCards.className}
             options={reportCardClassNameOptions}
             value={reportCardClassName}
             onChange={onReportCardClassChange}
@@ -785,7 +957,7 @@ export default function AdminMarksPage() {
           />
 
           <Select
-            label="Section *"
+            label={t.reportCards.section}
             options={reportCardSectionOptions}
             value={reportCardSection}
             onChange={onReportCardSectionChange}
@@ -804,7 +976,7 @@ export default function AdminMarksPage() {
               className="h-11 w-full"
               fullWidth
             >
-              {downloadingReportCardsZip ? 'Preparing ZIP...' : 'Download Class Report Cards (ZIP)'}
+              {downloadingReportCardsZip ? t.reportCards.preparing : t.reportCards.downloadBtn}
             </Button>
           </div>
         </div>
@@ -815,17 +987,17 @@ export default function AdminMarksPage() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-10 bg-gradient-to-r from-red-900 via-red-700 to-red-900 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Class</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Section</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Subject</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Exam</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Marks</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Percentage</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Grade</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Remarks</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Actions</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.studentName}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.rollNumber}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.class}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.section}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.subject}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.exam}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.marks}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.percentage}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.grade}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.remarks}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -843,7 +1015,7 @@ export default function AdminMarksPage() {
               ) : groupedRows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-center text-slate-500" colSpan={11}>
-                    No records found.
+                    {t.table.noRecords}
                   </td>
                 </tr>
               ) : (
@@ -886,7 +1058,7 @@ export default function AdminMarksPage() {
                           variant="danger"
                           size="sm"
                         >
-                          Delete
+                          {t.table.delete}
                         </Button>
                       </td>
                     </tr>
@@ -900,7 +1072,7 @@ export default function AdminMarksPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-red-100/85 bg-white/85 px-4 py-3 shadow-[0_24px_46px_-34px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <p className="text-sm text-slate-600 dark:text-red-100/80">
-          Page {pagination.page} of {pagination.totalPages || 0} | Total records: {pagination.total}
+          {t.pagination.prefix} {pagination.page} {t.pagination.mid} {pagination.totalPages || 0} | {t.pagination.total}: {pagination.total}
         </p>
 
         <div className="flex items-center gap-2">
@@ -911,7 +1083,7 @@ export default function AdminMarksPage() {
             variant="outline"
             size="sm"
           >
-            Previous
+            {t.pagination.prev}
           </Button>
           <Button
             type="button"
@@ -920,17 +1092,17 @@ export default function AdminMarksPage() {
             variant="outline"
             size="sm"
           >
-            Next
+            {t.pagination.next}
           </Button>
         </div>
       </div>
 
       <AppModal
         open={Boolean(deleteTarget)}
-        title="Delete Marks Entry"
+        title={t.delete.title}
         description={
           deleteTarget
-            ? `This action will permanently remove marks for ${deleteTarget.studentName} (${deleteTarget.rollNumber}) in ${deleteTarget.subjectName} - ${deleteTarget.examName}.`
+            ? `${t.delete.textPrefix} ${deleteTarget.studentName} (${deleteTarget.rollNumber}) ${language === 'bn' ? 'এর' : ''} ${deleteTarget.subjectName} - ${deleteTarget.examName} ${language === 'bn' ? 'বিষয়ে।' : '.'}`
             : ''
         }
         onClose={() => setDeleteTarget(null)}
@@ -938,7 +1110,7 @@ export default function AdminMarksPage() {
         footer={
           <>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
+              {t.delete.cancel}
             </Button>
             <Button
               type="button"
@@ -946,13 +1118,13 @@ export default function AdminMarksPage() {
               onClick={onDeleteMark}
               loading={Boolean(deleteTarget && deletingMarkId === deleteTarget.id)}
             >
-              Delete
+              {t.delete.delete}
             </Button>
           </>
         }
       >
         <p className="text-sm text-slate-600 dark:text-red-100/80">
-          Please confirm before deleting this marks entry.
+          {t.delete.confirmText}
         </p>
       </AppModal>
     </div>

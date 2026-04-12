@@ -10,6 +10,212 @@ import { del, get, post, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
+
+const text = {
+  en: {
+    eyebrow: 'Administration',
+    title: 'Exam Management',
+    description: 'Create meaningful class-wise exam plans with subject-level schedule and clear date-time slots.',
+    createPlan: 'Create Exam Plan',
+    editPlan: 'Edit Exam Plan',
+    planSubtitle: 'Plan each selected class with exact subject exam start and end date-time.',
+    form: {
+      examName: 'Exam Name',
+      examType: 'Exam Type',
+      academicYear: 'Academic Year',
+      fee: 'Admit Card Fee Amount (INR)',
+      selectClass: 'Select Class',
+      allClasses: 'All Classes',
+      lockedHint: 'Class selection is locked while editing an existing exam. Create a new record for other classes.',
+      schedule: 'Class-Subject Exam Schedule',
+      scheduleSubtitle: 'Pick subjects and set exact start/end date-time for each subject exam.',
+      noClasses: 'Select one or more classes to begin class-wise subject scheduling.',
+      copyTiming: 'Copy First Timing To All',
+      noSubjects: 'No subjects found for this class.',
+      examDate: 'Exam Date',
+      startTime: 'Start Time',
+      endTime: 'End Time',
+      enableSubject: 'Enable subject to set its exam schedule.',
+      plannedSlots: 'Planned slots',
+      description: 'Description',
+      descriptionPlaceholder: 'Optional note about exam structure, invigilator plan, or extra instructions',
+      save: 'Create Exam',
+      update: 'Update Exam',
+      saving: 'Saving...',
+      cancelEdit: 'Cancel Edit'
+    },
+    search: {
+      title: 'Search Exam',
+      placeholder: 'Type exam name',
+      filter: 'Filter by Class',
+      allClasses: 'All classes'
+    },
+    table: {
+      columns: {
+        examName: 'Exam Name',
+        className: 'Class',
+        section: 'Section',
+        subjects: 'Subject Schedule',
+        examWindow: 'Exam Window',
+        academicYear: 'Academic Year',
+        actions: 'Actions'
+      },
+      subjectSlots: 'subject slot',
+      subjectSlotsPlural: 'subject slots',
+      moreSlots: 'more slot(s)',
+      admitCards: 'Admit Cards',
+      edit: 'Edit',
+      delete: 'Delete'
+    },
+    pagination: {
+      prefix: 'Page',
+      mid: 'of',
+      total: 'Total records',
+      prev: 'Previous',
+      next: 'Next'
+    },
+    delete: {
+      title: 'Delete Exam',
+      textPrefix: 'This action will permanently delete',
+      cancel: 'Cancel',
+      delete: 'Delete',
+      deleting: 'Deleting...'
+    },
+    alerts: {
+      loadSetupError: 'Failed to initialize exam management',
+      loadExamsError: 'Failed to load exams',
+      updateSuccess: 'Exam updated successfully',
+      createSuccess: 'Exam created successfully',
+      multiCreateSuccessPrefix: 'Exams created for',
+      multiCreateSuccessSuffix: 'classes',
+      duplicateError: 'Exam already exists for selected class(es)',
+      createError: 'Failed to create exams',
+      skippedPrefix: 'Some classes were skipped',
+      genericError: 'Failed to save exam',
+      deleteSuccess: 'Exam deleted successfully',
+      deleteError: 'Failed to delete exam',
+      nameReq: 'Exam name is required',
+      classReq: 'Select at least one class',
+      editModeClassReq: 'Edit mode supports one class at a time',
+      yearReq: 'Academic year is required',
+      yearFormat: 'Academic year must be in YYYY format',
+      feeError: 'Admit card fee amount must be 0 or more',
+      subjectReq: 'Select at least one subject for',
+      slotDetailsReq: 'Set date, start time, and end time for',
+      pastDateError: 'Exam date cannot be in the past for',
+      invalidSchedule: 'Invalid schedule date or time for',
+      timeOrderError: 'End time must be after start time for',
+      overlapError: 'Two subjects in the class cannot be scheduled at the same time',
+      examExists: 'Exam already exists'
+    },
+    examTypes: {
+      unitTest: 'Unit Test',
+      finalExam: 'Final Exam'
+    }
+  },
+  bn: {
+    eyebrow: 'প্রশাসন',
+    title: 'পরীক্ষা ব্যবস্থাপনা',
+    description: 'বিষয়ভিত্তিক সময়সূচী এবং নির্দিষ্ট তারিখ-সময় সম্বলিত অর্থপূর্ণ ক্লাস-ভিত্তিক পরীক্ষার পরিকল্পনা তৈরি করুন।',
+    createPlan: 'পরীক্ষার পরিকল্পনা তৈরি করুন',
+    editPlan: 'পরীক্ষার পরিকল্পনা সম্পাদনা করুন',
+    planSubtitle: 'প্রতিটি নির্বাচিত ক্লাসের জন্য বিষয়ের পরীক্ষার শুরুর এবং শেষ তারিখ-সময় পরিকল্পনা করুন।',
+    form: {
+      examName: 'পরীক্ষায় নাম',
+      examType: 'পরীক্ষার ধরন',
+      academicYear: 'শিক্ষাবর্ষ',
+      fee: 'অ্যাডমিট কার্ড ফি (টাকা)',
+      selectClass: 'ক্লাস নির্বাচন করুন',
+      allClasses: 'সব ক্লাস',
+      lockedHint: 'বিদ্যমান পরীক্ষা সম্পাদনার সময় ক্লাস পরিবর্তন করা যাবে না। অন্য ক্লাসের জন্য নতুন রেকর্ড তৈরি করুন।',
+      schedule: 'ক্লাস-বিষয় পরীক্ষার সময়সূচী',
+      scheduleSubtitle: 'বিষয় বেছে নিন এবং প্রতিটি বিষয়ের পরীক্ষার জন্য সঠিক শুরুর ও শেষের তারিখ-সময় সেট করুন।',
+      noClasses: 'ক্লাস-ভিত্তিক বিষয় পরীক্ষার সময়সূচী শুরু করতে এক বা একাধিক ক্লাস নির্বাচন করুন।',
+      copyTiming: 'প্রথম সময়টি সবগুলোতে কপি করুন',
+      noSubjects: 'এই ক্লাসের জন্য কোনো বিষয় পাওয়া যায়নি।',
+      examDate: 'পরীক্ষার তারিখ',
+      startTime: 'শুরুর সময়',
+      endTime: 'শেষের সময়',
+      enableSubject: 'পরীক্ষার সময়সূচী সেট করতে বিষয়টি চালু করুন।',
+      plannedSlots: 'পরিকল্পিত স্লট',
+      description: 'বিবরণ',
+      descriptionPlaceholder: 'পরীক্ষার কাঠামো, পরিদর্শক পরিকল্পনা বা অতিরিক্ত নির্দেশনা সম্পর্কে ঐচ্ছিক নোট',
+      save: 'পরীক্ষা তৈরি করুন',
+      update: 'পরীক্ষা আপডেট করুন',
+      saving: 'সংরক্ষণ হচ্ছে...',
+      cancelEdit: 'সম্পাদনা বাতিল'
+    },
+    search: {
+      title: 'পরীক্ষা খুঁজুন',
+      placeholder: 'পরীক্ষার নাম লিখুন',
+      filter: 'ক্লাস অনুযায়ী দেখুন',
+      allClasses: 'সব ক্লাস'
+    },
+    table: {
+      columns: {
+        examName: 'পরীক্ষায় নাম',
+        className: 'ক্লাস',
+        section: 'সেকশন',
+        subjects: 'বিষয় সময়সূচী',
+        examWindow: 'পরীক্ষার সময়কাল',
+        academicYear: 'শিক্ষাবর্ষ',
+        actions: 'অ্যাকশন'
+      },
+      subjectSlots: 'টি বিষয়ের স্লট',
+      subjectSlotsPlural: 'টি বিষয়ের স্লট',
+      moreSlots: 'আরও স্লট',
+      admitCards: 'অ্যাডমিট কার্ড',
+      edit: 'সম্পাদনা',
+      delete: 'মুছুন'
+    },
+    pagination: {
+      prefix: 'পৃষ্ঠা',
+      mid: 'এর',
+      total: 'মোট রেকর্ড',
+      prev: 'পূর্ববর্তী',
+      next: 'পরবর্তী'
+    },
+    delete: {
+      title: 'পরীক্ষা মুছে ফেলুন',
+      textPrefix: 'এই কাজটি স্থায়ীভাবে মুছে ফেলবে:',
+      cancel: 'বাতিল',
+      delete: 'মুছুন',
+      deleting: 'মুছে ফেলা হচ্ছে...'
+    },
+    alerts: {
+      loadSetupError: 'পরীক্ষা ব্যবস্থাপনা শুরু করতে ব্যর্থ হয়েছে',
+      loadExamsError: 'পরীক্ষা লোড করতে ব্যর্থ হয়েছে',
+      updateSuccess: 'পরীক্ষা সফলভাবে আপডেট করা হয়েছে',
+      createSuccess: 'পরীক্ষা সফলভাবে তৈরি করা হয়েছে',
+      multiCreateSuccessPrefix: '',
+      multiCreateSuccessSuffix: 'টি ক্লাসের জন্য পরীক্ষা তৈরি করা হয়েছে',
+      duplicateError: 'নির্বাচিত ক্লাস(গুলোর) জন্য পরীক্ষা ইতিমধ্যে বিদ্যমান',
+      createError: 'পরীক্ষা তৈরি করতে ব্যর্থ হয়েছে',
+      skippedPrefix: 'কিছু ক্লাস বাদ দেওয়া হয়েছে',
+      genericError: 'পরীক্ষা সংরক্ষণ করতে ব্যর্থ হয়েছে',
+      deleteSuccess: 'পরীক্ষা সফলভাবে মুছে ফেলা হয়েছে',
+      deleteError: 'পরীক্ষা মুছে ফেলতে ব্যর্থ হয়েছে',
+      nameReq: 'পরীক্ষার নাম প্রয়োজন',
+      classReq: 'অন্তত একটি ক্লাস নির্বাচন করুন',
+      editModeClassReq: 'সম্পাদনা মোডে একসাথে একটি ক্লাস সমর্থন করে',
+      yearReq: 'শিক্ষাবর্ষ প্রয়োজন',
+      yearFormat: 'শিক্ষাবর্ষ YYYY ফরম্যাটে হতে হবে',
+      feeError: 'অ্যাডমিট কার্ড ফি ০ বা তার বেশি হতে হবে',
+      subjectReq: 'এর জন্য অন্তত একটি বিষয় নির্বাচন করুন',
+      slotDetailsReq: 'তারিখ, শুরুর সময় এবং শেষ সময় সেট করুন -',
+      pastDateError: 'পরীক্ষার তারিখ অতীতে হতে পারবে না -',
+      invalidSchedule: 'অবৈধ তারিখ বা সময় -',
+      timeOrderError: 'শেষের সময় শুরুর সময়ের পরে হতে হবে -',
+      overlapError: 'ক্লাসে দুটি পরীক্ষা একই সময়ে রাখা যাবে না',
+      examExists: 'পরীক্ষা ইতিমধ্যে বিদ্যমান'
+    },
+    examTypes: {
+      unitTest: 'ইউনিট টেস্ট',
+      finalExam: 'বার্ষিক পরীক্ষা'
+    }
+  }
+};
 
 const Table = dynamic(() => import('@/components/Table'), { ssr: false });
 
@@ -32,204 +238,27 @@ const DEFAULT_FORM = {
   description: ''
 };
 
-const EXAM_TYPE_OPTIONS = [
-  { value: 'Unit Test', label: 'Unit Test' },
-  { value: 'Final Exam', label: 'Final Exam' }
-];
-
-const toId = (value) => String(value?._id || value || '');
-const getScheduleKey = (classId, subjectId) => `${classId}:${subjectId}`;
-
-const normalizeExamType = (value) => {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'final exam' || normalized === 'final') {
-    return 'Final Exam';
-  }
-
-  return 'Unit Test';
-};
-
-const parseDateValue = (value) => {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-};
-
-const toLocalDateInputValue = (value) => {
-  const parsed = parseDateValue(value);
-  if (!parsed) {
-    return '';
-  }
-
-  const timezoneOffsetMs = parsed.getTimezoneOffset() * 60000;
-  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
-};
-
-const toLocalTimeInputValue = (value) => {
-  const parsed = parseDateValue(value);
-  if (!parsed) {
-    return '';
-  }
-
-  const timezoneOffsetMs = parsed.getTimezoneOffset() * 60000;
-  return new Date(parsed.getTime() - timezoneOffsetMs).toISOString().slice(11, 16);
-};
-
-const getTodayDateInputValue = () => {
-  const now = new Date();
-  const timezoneOffsetMs = now.getTimezoneOffset() * 60000;
-  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
-};
-
-const combineDateAndTime = (dateValue, timeValue) => {
-  const normalizedDate = String(dateValue || '').trim();
-  const normalizedTime = String(timeValue || '').trim();
-
-  if (!normalizedDate || !normalizedTime) {
-    return null;
-  }
-
-  const parsed = new Date(`${normalizedDate}T${normalizedTime}`);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-};
-
-const hasTimeOverlap = (firstStart, firstEnd, secondStart, secondEnd) =>
-  firstStart.getTime() < secondEnd.getTime() && secondStart.getTime() < firstEnd.getTime();
-
-const toDateLabel = (value) => {
-  const parsed = parseDateValue(value);
-  if (!parsed) {
-    return '-';
-  }
-
-  return parsed.toLocaleDateString('en-GB');
-};
-
-const toDateTimeLabel = (value) => {
-  const parsed = parseDateValue(value);
-  if (!parsed) {
-    return '-';
-  }
-
-  return parsed.toLocaleString('en-GB');
-};
-
-const toExamWindowLabel = (startDate, endDate) => {
-  const startLabel = toDateLabel(startDate);
-  const endLabel = toDateLabel(endDate);
-
-  if (startLabel === '-' && endLabel === '-') {
-    return '-';
-  }
-
-  if (startLabel === '-' || startLabel === endLabel) {
-    return endLabel;
-  }
-
-  if (endLabel === '-') {
-    return startLabel;
-  }
-
-  return `${startLabel} - ${endLabel}`;
-};
-
-const isExamCompleted = (exam = {}) => {
-  const normalizedStatus = String(exam?.status || '')
-    .trim()
-    .toLowerCase();
-
-  if (normalizedStatus === 'completed') {
-    return true;
-  }
-
-  const examEndDate = parseDateValue(exam?.endDate || exam?.startDate || exam?.date || exam?.examDate);
-  if (!examEndDate) {
-    return false;
-  }
-
-  return examEndDate.getTime() < Date.now();
-};
-
-const getSubjectIdsFromExam = (exam) => {
-  const subjectIds = Array.isArray(exam?.subjects)
-    ? exam.subjects.map((item) => toId(item)).filter(Boolean)
-    : [];
-
-  if (subjectIds.length > 0) {
-    return subjectIds;
-  }
-
-  const legacySubjectId = toId(exam?.subjectId);
-  return legacySubjectId ? [legacySubjectId] : [];
-};
-
-const getScheduleFromExam = (exam) => {
-  const examClassId = toId(exam?.classId);
-  const examStartDate = exam?.startDate || exam?.date || exam?.examDate;
-  const examEndDate = exam?.endDate || examStartDate;
-
-  const normalizedSchedule = Array.isArray(exam?.schedule)
-    ? exam.schedule
-        .map((item) => ({
-          classId: toId(item?.classId) || examClassId,
-          subjectId: toId(item?.subjectId),
-          startDate: item?.startDate || examStartDate,
-          endDate: item?.endDate || examEndDate
-        }))
-        .filter((item) => item.classId && item.subjectId)
-    : [];
-
-  if (normalizedSchedule.length > 0) {
-    return normalizedSchedule;
-  }
-
-  return getSubjectIdsFromExam(exam).map((subjectId) => ({
-    classId: examClassId,
-    subjectId,
-    startDate: examStartDate,
-    endDate: examEndDate
-  }));
-};
-
-const scheduleRowsEqual = (first = [], second = []) => {
-  if (first.length !== second.length) {
-    return false;
-  }
-
-  return first.every((item, index) => {
-    const peer = second[index];
-    return (
-      item.classId === peer.classId &&
-      item.subjectId === peer.subjectId &&
-      item.examDate === peer.examDate &&
-      item.startTime === peer.startTime &&
-      item.endTime === peer.endTime
-    );
-  });
-};
-
-const columns = [
-  { key: 'examName', label: 'Exam Name' },
-  { key: 'className', label: 'Class' },
-  { key: 'section', label: 'Section' },
-  { key: 'subjects', label: 'Subject Schedule' },
-  { key: 'examWindow', label: 'Exam Window' },
-  { key: 'academicYear', label: 'Academic Year' },
-  { key: 'actions', label: 'Actions' }
-];
+// EXAM_TYPE_OPTIONS and columns moved inside component for localization
 
 export default function AdminExamsPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
+  const examTypeOptions = useMemo(() => [
+    { value: 'Unit Test', label: t.examTypes.unitTest },
+    { value: 'Final Exam', label: t.examTypes.finalExam }
+  ], [t]);
+
+  const columns = useMemo(() => [
+    { key: 'examName', label: t.table.columns.examName },
+    { key: 'className', label: t.table.columns.className },
+    { key: 'section', label: t.table.columns.section },
+    { key: 'subjects', label: t.table.columns.subjects },
+    { key: 'examWindow', label: t.table.columns.examWindow },
+    { key: 'academicYear', label: t.table.columns.academicYear },
+    { key: 'actions', label: t.table.columns.actions }
+  ], [t]);
+
   const toast = useToast();
   const todayDateInput = useMemo(() => getTodayDateInputValue(), []);
 
@@ -476,7 +505,7 @@ export default function AdminExamsPage() {
         totalPages: Number(nextPagination.totalPages || 0)
       }));
     } catch (apiError) {
-      toast.error(apiError.message || 'Failed to load exams');
+      toast.error(apiError.message || t.alerts.loadExamsError);
       setExamRecords([]);
     } finally {
       setLoadingExams(false);
@@ -485,7 +514,7 @@ export default function AdminExamsPage() {
 
   useEffect(() => {
     loadSetup().catch((apiError) => {
-      toast.error(apiError.message || 'Failed to initialize exam management');
+      toast.error(apiError.message || t.alerts.loadSetupError);
     });
   }, []);
 
@@ -495,7 +524,7 @@ export default function AdminExamsPage() {
 
   useEffect(() => {
     loadExams(pagination.page).catch((apiError) => {
-      toast.error(apiError.message || 'Failed to load exams');
+      toast.error(apiError.message || t.alerts.loadExamsError);
     });
   }, [pagination.page, search, filterClassId]);
 
@@ -668,64 +697,64 @@ export default function AdminExamsPage() {
 
   const validateForm = () => {
     if (!form.examName.trim()) {
-      return 'Exam name is required';
+      return t.alerts.nameReq;
     }
 
     if (form.classIds.length === 0) {
-      return 'Select at least one class';
+      return t.alerts.classReq;
     }
 
     if (editingExamId && form.classIds.length !== 1) {
-      return 'Edit mode supports one class at a time';
+      return t.alerts.editModeClassReq;
     }
 
     if (!form.academicYear.trim()) {
-      return 'Academic year is required';
+      return t.alerts.yearReq;
     }
 
-    if (!EXAM_TYPE_OPTIONS.some((option) => option.value === form.examType)) {
-      return 'Select a valid exam type';
+    if (!examTypeOptions.some((option) => option.value === form.examType)) {
+      return t.alerts.selectVariant || 'Select a valid exam type';
     }
 
     if (!ACADEMIC_YEAR_REGEX.test(form.academicYear.trim())) {
-      return 'Academic year must be in YYYY format';
+      return t.alerts.yearFormat;
     }
 
     const admitCardFeeAmount = Number(form.admitCardFeeAmount);
     if (!Number.isFinite(admitCardFeeAmount) || admitCardFeeAmount < 0) {
-      return 'Admit card fee amount must be 0 or more';
+      return t.alerts.feeError;
     }
 
     for (const classId of form.classIds) {
-      const classLabel = classLabelMap.get(classId) || 'selected class';
+      const classLabel = classLabelMap.get(classId) || (language === 'bn' ? 'নির্বাচিত ক্লাস' : 'selected class');
       const classRows = form.schedule.filter((row) => row.classId === classId);
       const classSlots = [];
 
       if (classRows.length === 0) {
-        return `Select at least one subject for ${classLabel}`;
+        return `${t.alerts.subjectReq} ${classLabel}`;
       }
 
       for (const row of classRows) {
         const subject = subjectMap.get(row.subjectId);
-        const subjectLabel = subject?.name || subject?.code || 'subject';
+        const subjectLabel = subject?.name || subject?.code || (language === 'bn' ? 'বিষয়' : 'subject');
 
         if (!row.examDate || !row.startTime || !row.endTime) {
-          return `Set date, start time, and end time for ${subjectLabel} (${classLabel})`;
+          return `${t.alerts.slotDetailsReq} ${subjectLabel} (${classLabel})`;
         }
 
         if (row.examDate < todayDateInput) {
-          return `Exam date cannot be in the past for ${subjectLabel} (${classLabel})`;
+          return `${t.alerts.pastDateError} ${subjectLabel} (${classLabel})`;
         }
 
         const startDate = combineDateAndTime(row.examDate, row.startTime);
         const endDate = combineDateAndTime(row.examDate, row.endTime);
 
         if (!startDate || !endDate) {
-          return `Invalid schedule date or time for ${subjectLabel} (${classLabel})`;
+          return `${t.alerts.invalidSchedule} ${subjectLabel} (${classLabel})`;
         }
 
         if (endDate.getTime() < startDate.getTime()) {
-          return `End time must be after start time for ${subjectLabel} (${classLabel})`;
+          return `${t.alerts.timeOrderError} ${subjectLabel} (${classLabel})`;
         }
 
         classSlots.push({
@@ -741,7 +770,7 @@ export default function AdminExamsPage() {
           const secondSlot = classSlots[peerIndex];
 
           if (hasTimeOverlap(firstSlot.startDate, firstSlot.endDate, secondSlot.startDate, secondSlot.endDate)) {
-            return `Two subjects in ${classLabel} cannot be scheduled at the same time (${firstSlot.subjectLabel} and ${secondSlot.subjectLabel})`;
+            return `${t.alerts.overlapError} (${classLabel}: ${firstSlot.subjectLabel} ${language === 'bn' ? 'এবং' : 'and'} ${secondSlot.subjectLabel})`;
           }
         }
       }
@@ -844,7 +873,7 @@ export default function AdminExamsPage() {
         const payload = buildPayloadForClass(targetClassId);
 
         await put(`/exams/${editingExamId}`, payload, token);
-        toast.success('Exam updated successfully');
+        toast.success(t.alerts.updateSuccess);
         clearForm();
         await loadExams(1);
         return;
@@ -864,7 +893,7 @@ export default function AdminExamsPage() {
       const failedCount = failedResults.length;
 
       if (successCount > 0) {
-        toast.success(successCount === 1 ? 'Exam created successfully' : `Exams created for ${successCount} classes`);
+        toast.success(successCount === 1 ? t.alerts.createSuccess : `${t.alerts.multiCreateSuccessPrefix} ${successCount} ${t.alerts.multiCreateSuccessSuffix}`);
         clearForm();
         await loadExams(1);
       }
@@ -873,27 +902,27 @@ export default function AdminExamsPage() {
         const duplicateCount = failedResults.filter((result) => result.reason?.statusCode === 409).length;
 
         if (successCount === 0 && duplicateCount === failedCount) {
-          toast.error('Exam already exists for selected class(es)');
+          toast.error(t.alerts.duplicateError);
           return;
         }
 
         if (successCount === 0) {
-          toast.error(failedResults[0]?.reason?.message || 'Failed to create exams');
+          toast.error(failedResults[0]?.reason?.message || t.alerts.createError);
           return;
         }
 
-        const duplicateMessage = duplicateCount > 0 ? `${duplicateCount} duplicate` : '';
+        const duplicateMessage = duplicateCount > 0 ? (language === 'bn' ? `${duplicateCount}টি কপি` : `${duplicateCount} duplicate`) : '';
         const genericFailureCount = failedCount - duplicateCount;
-        const genericFailureMessage = genericFailureCount > 0 ? `${genericFailureCount} failed` : '';
+        const genericFailureMessage = genericFailureCount > 0 ? (language === 'bn' ? `${genericFailureCount}টি ব্যর্থ` : `${genericFailureCount} failed`) : '';
         const summary = [duplicateMessage, genericFailureMessage].filter(Boolean).join(', ');
 
-        toast.error(`Some classes were skipped (${summary || `${failedCount} failed`})`);
+        toast.error(`${t.alerts.skippedPrefix} (${summary || (language === 'bn' ? `${failedCount}টি ব্যর্থ` : `${failedCount} failed`)})`);
       }
     } catch (apiError) {
       if (apiError?.statusCode === 409) {
-        toast.error('Exam already exists');
+        toast.error(t.alerts.examExists);
       } else {
-        toast.error(apiError.message || 'Failed to save exam');
+        toast.error(apiError.message || t.alerts.genericError);
       }
     } finally {
       setSubmitting(false);
@@ -909,7 +938,7 @@ export default function AdminExamsPage() {
 
     try {
       await del(`/exams/${toId(deleteTarget)}`, getToken());
-      toast.success('Exam deleted successfully');
+      toast.success(t.alerts.deleteSuccess);
       setDeleteTarget(null);
 
       const shouldMoveToPreviousPage = examRecords.length === 1 && pagination.page > 1;
@@ -918,7 +947,7 @@ export default function AdminExamsPage() {
 
       await loadExams(nextPage);
     } catch (apiError) {
-      toast.error(apiError.message || 'Failed to delete exam');
+      toast.error(apiError.message || t.alerts.deleteError);
     } finally {
       setDeletingExamId('');
     }
@@ -930,38 +959,38 @@ export default function AdminExamsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administration"
-        title="Exam Management"
-        description="Create meaningful class-wise exam plans with subject-level schedule and clear date-time slots."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <form onSubmit={onSubmitExam} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">{editingExamId ? 'Edit Exam Plan' : 'Create Exam Plan'}</h3>
+        <h3 className="text-lg font-semibold text-slate-900">{editingExamId ? t.editPlan : t.createPlan}</h3>
         <p className="mb-4 text-sm text-slate-600">
-          Plan each selected class with exact subject exam start and end date-time.
+          {t.planSubtitle}
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Input
-            label="Exam Name"
+            label={t.form.examName}
             value={form.examName}
             onChange={onChangeForm('examName')}
             required
             className="h-11"
-            placeholder="Example: Unit Test 1"
+            placeholder={t.search.placeholder}
           />
 
           <Select
-            label="Exam Type"
+            label={t.form.examType}
             value={form.examType}
             onChange={onChangeForm('examType')}
             required
             className="h-11"
-            options={EXAM_TYPE_OPTIONS}
+            options={examTypeOptions}
           />
 
           <Input
-            label="Academic Year"
+            label={t.form.academicYear}
             value={form.academicYear}
             onChange={onChangeForm('academicYear')}
             required
@@ -970,7 +999,7 @@ export default function AdminExamsPage() {
           />
 
           <Input
-            label="Admit Card Fee Amount (INR)"
+            label={t.form.fee}
             type="number"
             min="0"
             step="0.01"
@@ -981,7 +1010,7 @@ export default function AdminExamsPage() {
           />
 
           <div className="md:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Select Class</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t.form.selectClass}</label>
             <div className="rounded-lg border border-slate-300 p-3">
               <label className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-2 py-1 text-sm font-semibold text-slate-700">
                 <input
@@ -990,7 +1019,7 @@ export default function AdminExamsPage() {
                   onChange={onToggleAllClasses}
                   disabled={loadingSetup || Boolean(editingExamId) || allClassIds.length === 0}
                 />
-                <span>All Classes</span>
+                <span>{t.form.allClasses}</span>
               </label>
 
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1012,21 +1041,21 @@ export default function AdminExamsPage() {
 
               {editingExamId ? (
                 <p className="mt-2 text-xs text-amber-700">
-                  Class selection is locked while editing an existing exam. Create a new record for other classes.
+                  {t.form.lockedHint}
                 </p>
               ) : null}
             </div>
           </div>
 
           <div className="md:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">Class-Subject Exam Schedule</label>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">{t.form.schedule}</label>
             <div className="rounded-lg border border-slate-300 p-3">
               {form.classIds.length === 0 ? (
-                <p className="text-sm text-slate-500">Select one or more classes to begin class-wise subject scheduling.</p>
+                <p className="text-sm text-slate-500">{t.form.noClasses}</p>
               ) : (
                 <div className="space-y-3">
                   {form.classIds.map((classId) => {
-                    const classLabel = classLabelMap.get(classId) || 'Selected Class';
+                    const classLabel = classLabelMap.get(classId) || (language === 'bn' ? 'নির্বাচিত ক্লাস' : 'Selected Class');
                     const classSubjects = subjectsByClassId.get(classId) || [];
                     const activeClassSlots = form.schedule.filter((row) => row.classId === classId);
 
@@ -1036,7 +1065,7 @@ export default function AdminExamsPage() {
                           <div>
                             <h4 className="text-sm font-semibold text-slate-900">{classLabel}</h4>
                             <p className="text-xs text-slate-600">
-                              Pick subjects and set exact start/end date-time for each subject exam.
+                              {t.form.scheduleSubtitle}
                             </p>
                           </div>
 
@@ -1046,12 +1075,12 @@ export default function AdminExamsPage() {
                             disabled={activeClassSlots.length < 2}
                             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Copy First Timing To All
+                            {t.form.copyTiming}
                           </button>
                         </div>
 
                         {classSubjects.length === 0 ? (
-                          <p className="mt-3 text-sm text-slate-500">No subjects found for this class.</p>
+                          <p className="mt-3 text-sm text-slate-500">{t.form.noSubjects}</p>
                         ) : (
                           <div className="mt-3 space-y-2">
                             {classSubjects.map((subject) => {
@@ -1069,14 +1098,14 @@ export default function AdminExamsPage() {
                                       onChange={() => onToggleSubject(classId, subjectId)}
                                       disabled={loadingSetup}
                                     />
-                                    <span className="font-medium text-slate-900">{subject?.name || 'Subject'}</span>
+                                    <span className="font-medium text-slate-900">{subject?.name || (language === 'bn' ? 'বিষয়' : 'Subject')}</span>
                                     {subject?.code ? <span className="text-xs text-slate-500">({subject.code})</span> : null}
                                   </label>
 
                                   {isSelected ? (
                                     <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
                                       <label>
-                                        <span className="mb-1 block text-xs font-medium text-slate-600">Exam Date</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">{t.form.examDate}</span>
                                         <input
                                           type="date"
                                           min={todayDateInput}
@@ -1090,7 +1119,7 @@ export default function AdminExamsPage() {
                                       </label>
 
                                       <label>
-                                        <span className="mb-1 block text-xs font-medium text-slate-600">Start Time</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">{t.form.startTime}</span>
                                         <input
                                           type="time"
                                           value={activeSlot?.startTime || ''}
@@ -1103,7 +1132,7 @@ export default function AdminExamsPage() {
                                       </label>
 
                                       <label>
-                                        <span className="mb-1 block text-xs font-medium text-slate-600">End Time</span>
+                                        <span className="mb-1 block text-xs font-medium text-slate-600">{t.form.endTime}</span>
                                         <input
                                           type="time"
                                           value={activeSlot?.endTime || ''}
@@ -1116,7 +1145,7 @@ export default function AdminExamsPage() {
                                       </label>
                                     </div>
                                   ) : (
-                                    <p className="mt-2 text-xs text-slate-500">Enable subject to set its exam schedule.</p>
+                                    <p className="mt-2 text-xs text-slate-500">{t.form.enableSubject}</p>
                                   )}
                                 </div>
                               );
@@ -1129,18 +1158,18 @@ export default function AdminExamsPage() {
                 </div>
               )}
             </div>
-            <p className="mt-1.5 text-xs text-slate-500">Planned slots: {form.schedule.length}</p>
+            <p className="mt-1.5 text-xs text-slate-500">{t.form.plannedSlots}: {form.schedule.length}</p>
           </div>
         </div>
 
         <label className="mt-3 block">
-          <span className="mb-1.5 block text-sm font-medium text-slate-700">Description</span>
+          <span className="mb-1.5 block text-sm font-medium text-slate-700">{t.form.description}</span>
           <textarea
             value={form.description}
             onChange={onChangeForm('description')}
             rows={3}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-red-600 focus:ring-2 focus:ring-red-100"
-            placeholder="Optional note about exam structure, invigilator plan, or extra instructions"
+            placeholder={t.form.descriptionPlaceholder}
           />
         </label>
 
@@ -1150,7 +1179,7 @@ export default function AdminExamsPage() {
             disabled={submitting}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ? 'Saving...' : editingExamId ? 'Update Exam' : 'Create Exam'}
+            {submitting ? t.form.saving : editingExamId ? t.form.update : t.form.save}
           </button>
 
           {editingExamId ? (
@@ -1159,7 +1188,7 @@ export default function AdminExamsPage() {
               onClick={clearForm}
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
             >
-              Cancel Edit
+              {t.form.cancelEdit}
             </button>
           ) : null}
         </div>
@@ -1168,19 +1197,19 @@ export default function AdminExamsPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2">
           <Input
-            label="Search Exam"
+            label={t.search.title}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             className="h-11"
-            placeholder="Type exam name"
+            placeholder={t.search.placeholder}
           />
 
           <Select
-            label="Filter by Class"
+            label={t.search.filter}
             value={filterClassId}
             onChange={(event) => setFilterClassId(event.target.value)}
             className="h-11"
-            options={[{ value: '', label: 'All classes' }, ...classOptions]}
+            options={[{ value: '', label: t.search.allClasses }, ...classOptions]}
           />
         </div>
       </div>
@@ -1189,7 +1218,7 @@ export default function AdminExamsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <p className="text-sm text-slate-600">
-          Page {pagination.page} of {pagination.totalPages || 0} | Total records: {pagination.total}
+          {t.pagination.prefix} {pagination.page} {t.pagination.mid} {pagination.totalPages || 0} | {t.pagination.total}: {pagination.total}
         </p>
 
         <div className="flex items-center gap-2">
@@ -1199,7 +1228,7 @@ export default function AdminExamsPage() {
             disabled={!hasPrevious || loadingExams}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Previous
+            {t.pagination.prev}
           </button>
           <button
             type="button"
@@ -1207,7 +1236,7 @@ export default function AdminExamsPage() {
             disabled={!hasNext || loadingExams}
             className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Next
+            {t.pagination.next}
           </button>
         </div>
       </div>
@@ -1215,10 +1244,10 @@ export default function AdminExamsPage() {
       {deleteTarget ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Delete Exam</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{t.delete.title}</h3>
             <p className="mt-2 text-sm text-slate-600">
-              This action will permanently delete{' '}
-              <span className="font-semibold text-slate-900">{deleteTarget.examName || 'this exam'}</span>.
+              {t.delete.textPrefix}{' '}
+              <span className="font-semibold text-slate-900">{deleteTarget.examName || (language === 'bn' ? 'এই পরীক্ষা' : 'this exam')}</span>.
             </p>
 
             <div className="mt-4 flex justify-end gap-2">
@@ -1227,7 +1256,7 @@ export default function AdminExamsPage() {
                 onClick={() => setDeleteTarget(null)}
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               >
-                Cancel
+                {t.delete.cancel}
               </button>
               <button
                 type="button"
@@ -1235,7 +1264,7 @@ export default function AdminExamsPage() {
                 disabled={deletingExamId === toId(deleteTarget)}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {deletingExamId === toId(deleteTarget) ? 'Deleting...' : 'Delete'}
+                {deletingExamId === toId(deleteTarget) ? t.delete.deleting : t.delete.delete}
               </button>
             </div>
           </div>

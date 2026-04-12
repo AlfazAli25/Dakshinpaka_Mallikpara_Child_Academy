@@ -8,6 +8,52 @@ import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import DashboardTopSection from '@/components/dashboard/DashboardTopSection';
 import { get } from '@/lib/api';
 import { getToken, getUser } from '@/lib/session';
+import { useLanguage } from '@/lib/language-context';
+
+const text = {
+  en: {
+    eyebrow: 'Administration',
+    title: 'Admin Dashboard',
+    description: 'Track key school metrics and quickly navigate core management operations.',
+    heroSubtitle: 'Manage academics, communication, and operations from one trusted school platform.',
+    stats: {
+      totalStudents: 'Total Students',
+      totalTeachers: 'Total Teachers',
+      totalClasses: 'Total Classes',
+      attendanceAvg: 'Attendance Avg.',
+      todayPresent: 'Today Present',
+      upcomingExam: 'Upcoming Exam',
+      noExam: 'No Upcoming Exam'
+    },
+    charts: {
+      collected: 'Collected',
+      due: 'Due',
+      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+    }
+  },
+  bn: {
+    eyebrow: 'প্রশাসন',
+    title: 'অ্যাডমিন ড্যাশবোর্ড',
+    description: 'স্কুলের মূল মেট্রিক্স ট্র্যাক করুন এবং কোর ম্যানেজমেন্ট অপারেশনগুলি দ্রুত পরিচালনা করুন।',
+    heroSubtitle: 'একই বিশ্বস্ত স্কুল প্ল্যাটফর্ম থেকে একাডেমিক, যোগাযোগ এবং অপারেশন পরিচালনা করুন।',
+    stats: {
+      totalStudents: 'মোট শিক্ষার্থী',
+      totalTeachers: 'মোট শিক্ষক',
+      totalClasses: 'মোট ক্লাস',
+      attendanceAvg: 'গড় উপস্থিতি',
+      todayPresent: 'আজকের উপস্থিতি',
+      upcomingExam: 'আসন্ন পরীক্ষা',
+      noExam: 'কোনো আসন্ন পরীক্ষা নেই'
+    },
+    charts: {
+      collected: 'সংগৃহীত',
+      due: 'বাকি',
+      days: ['সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি'],
+      months: ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন']
+    }
+  }
+};
 
 const StatCard = dynamic(() => import('@/components/StatCard'));
 const DashboardHero3D = dynamic(() => import('@/components/dashboard/DashboardHero3D'), {
@@ -51,19 +97,19 @@ const DEFAULT_DASHBOARD_DATA = {
 
 const clampPercent = (value) => Math.min(100, Math.max(0, Number(value) || 0));
 
-const buildAttendanceSeries = (averagePercent) => {
+const buildAttendanceSeries = (averagePercent, labels) => {
   const base = clampPercent(averagePercent);
   const offsets = [-4, 2, -1, 3, -2, 1];
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayLabels = labels || ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  return labels.map((label, index) => ({
+  return dayLabels.map((label, index) => ({
     label,
     value: clampPercent(base + offsets[index])
   }));
 };
 
-const buildGrowthSeries = (studentsCount) => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+const buildGrowthSeries = (studentsCount, labels) => {
+  const months = labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
   const total = Math.max(Number(studentsCount) || 0, 0);
   const baseline = total > 0 ? Math.max(1, Math.round(total * 0.72)) : 0;
   const increment = total > baseline ? Math.max(1, Math.round((total - baseline) / Math.max(months.length - 1, 1))) : 0;
@@ -74,7 +120,7 @@ const buildGrowthSeries = (studentsCount) => {
   }));
 };
 
-const fetchAdminDashboardStats = async () => {
+const fetchAdminDashboardStats = async (t) => {
   const token = getToken();
   if (!token) {
     return DEFAULT_DASHBOARD_DATA;
@@ -95,24 +141,27 @@ const fetchAdminDashboardStats = async () => {
   return {
     unreadNotifications: 0,
     stats: [
-      { title: 'Total Students', value: String(studentsCount) },
-      { title: 'Total Teachers', value: String(teachersCount) },
-      { title: 'Total Classes', value: String(classesCount) },
-      { title: 'Attendance Avg.', value: `${attendanceAverage.toFixed(1)}%` },
-      { title: 'Today Present', value: String(todayPresent) },
-      { title: 'Upcoming Exam', value: String(summary.upcomingExam || 'No Upcoming Exam') }
+      { key: 'totalStudents', value: String(studentsCount) },
+      { key: 'totalTeachers', value: String(teachersCount) },
+      { key: 'totalClasses', value: String(classesCount) },
+      { key: 'attendanceAvg', value: `${attendanceAverage.toFixed(1)}%` },
+      { key: 'todayPresent', value: String(todayPresent) },
+      { key: 'upcomingExam', value: String(summary.upcomingExam || t.stats.noExam) }
     ],
-    attendanceSeries: buildAttendanceSeries(attendanceAverage),
+    attendanceSeries: buildAttendanceSeries(attendanceAverage, t.charts.days),
     feeSeries: [
-      { label: 'Collected', value: estimatedCollectedFees },
-      { label: 'Due', value: estimatedDueFees }
+      { label: t.charts.collected, value: estimatedCollectedFees },
+      { label: t.charts.due, value: estimatedDueFees }
     ],
-    growthSeries: buildGrowthSeries(studentsCount)
+    growthSeries: buildGrowthSeries(studentsCount, t.charts.months)
   };
 };
 
 export default function AdminDashboardPage() {
-  const { data, isLoading } = useSWR('admin-dashboard-stats', fetchAdminDashboardStats, {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
+  const { data, isLoading } = useSWR(['admin-dashboard-stats', language], () => fetchAdminDashboardStats(t), {
     refreshInterval: 60000
   });
 
@@ -125,9 +174,9 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Administration"
-        title="Admin Dashboard"
-        description="Track key school metrics and quickly navigate core management operations."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <section className="relative overflow-hidden rounded-3xl border border-red-100/70 bg-gradient-to-br from-white via-red-50/60 to-red-100/70 p-3 shadow-[0_30px_64px_-42px_rgba(153,27,27,0.7)] dark:border-red-400/20 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/35 md:p-4">
@@ -137,11 +186,11 @@ export default function AdminDashboardPage() {
         </div>
       </section>
 
-      <SchoolBrandPanel subtitle="Manage academics, communication, and operations from one trusted school platform." />
+      <SchoolBrandPanel subtitle={t.heroSubtitle} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {dashboardData.stats.map((item) => (
-          <StatCard key={item.title} title={item.title} value={item.value} loading={isLoading} />
+          <StatCard key={item.key || item.title} title={t.stats[item.key] || item.title} value={item.value} loading={isLoading} />
         ))}
       </div>
 

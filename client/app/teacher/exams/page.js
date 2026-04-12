@@ -6,18 +6,52 @@ import PageHeader from '@/components/PageHeader';
 import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
+import { useLanguage } from '@/lib/language-context';
 
-const columns = [
-  { key: 'examName', label: 'Exam Name' },
-  { key: 'className', label: 'Class' },
-  { key: 'section', label: 'Section' },
-  { key: 'subjects', label: 'Subjects' },
-  { key: 'academicYear', label: 'Academic Year' },
-  { key: 'date', label: 'Date' },
-  { key: 'startTime', label: 'Start Time' },
-  { key: 'endTime', label: 'End Time' },
-  { key: 'status', label: 'Status' }
-];
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    title: 'Exams',
+    description: 'View your upcoming and completed exams for assigned classes and subjects.',
+    columns: [
+      { key: 'examName', label: 'Exam Name' },
+      { key: 'className', label: 'Class' },
+      { key: 'section', label: 'Section' },
+      { key: 'subjects', label: 'Subjects' },
+      { key: 'academicYear', label: 'Academic Year' },
+      { key: 'date', label: 'Date' },
+      { key: 'startTime', label: 'Start Time' },
+      { key: 'endTime', label: 'End Time' },
+      { key: 'status', label: 'Status' }
+    ],
+    statusLabels: {
+      Ongoing: 'Ongoing',
+      Scheduled: 'Scheduled',
+      Completed: 'Completed'
+    }
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    title: 'পরীক্ষাসমূহ',
+    description: 'নির্ধারিত ক্লাস এবং সাবজেক্টের জন্য আপনার আসন্ন এবং সম্পন্ন পরীক্ষাগুলো দেখুন।',
+    columns: [
+      { key: 'examName', label: 'পরীক্ষার নাম' },
+      { key: 'className', label: 'ক্লাস' },
+      { key: 'section', label: 'সেকশন' },
+      { key: 'subjects', label: 'বিষয়' },
+      { key: 'academicYear', label: 'শিক্ষাবর্ষ' },
+      { key: 'date', label: 'তারিখ' },
+      { key: 'startTime', label: 'শুরুর সময়' },
+      { key: 'endTime', label: 'শেষের সময়' },
+      { key: 'status', label: 'অবস্থা' }
+    ],
+    statusLabels: {
+      Ongoing: 'চলমান',
+      Scheduled: 'নির্ধারিত',
+      Completed: 'সম্পন্ন'
+    }
+  }
+};
 
 const toValidDate = (value) => {
   if (!value) {
@@ -94,6 +128,9 @@ const getDerivedStatus = ({ startDate, endDate }) => {
 };
 
 export default function TeacherExamsPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
 
@@ -127,7 +164,7 @@ export default function TeacherExamsPage() {
               date: toDateLabel(examWindow.startDate),
               startTime: toTimeLabel(examWindow.startDate),
               endTime: toTimeLabel(examWindow.endDate),
-              status: getDerivedStatus(examWindow)
+              status: t.statusLabels[getDerivedStatus(examWindow)] || getDerivedStatus(examWindow)
             };
           })
         );
@@ -144,11 +181,11 @@ export default function TeacherExamsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title="Exams"
-        description="View your upcoming and completed exams for assigned classes and subjects."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
-      <Table columns={columns} rows={rows} loading={loading} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }

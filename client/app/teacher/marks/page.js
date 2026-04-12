@@ -8,6 +8,112 @@ import { get, post, put } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
+
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    title: 'Marks Entry',
+    description: 'Select class, subject, and exam, then enter marks student-wise with validations.',
+    alerts: {
+      loadStudentsFail: 'Failed to load students for marks entry',
+      selectBeforeSave: 'Please select class, subject, and exam before saving marks',
+      sessionExpired: 'Session expired. Please login again.',
+      saveSuccess: 'Marks saved successfully',
+      atLeastOne: 'Enter marks for at least one student before using Save All',
+      savePartialLabel: 'Saved',
+      studentsLabel: 'student',
+      studentsPlural: 's',
+      failedLabel: 'failed',
+      marksMaxOnce: 'Set max marks once before saving',
+      marksReq: 'Marks obtained is required',
+      marksNum: 'Marks must be numeric',
+      marksBounds: 'Marks obtained must be 0 or greater and max marks must be greater than 0',
+      marksExceed: 'Marks obtained cannot exceed max marks',
+      marksExist: 'Marks already entered',
+      saveFail: 'Failed to save marks'
+    },
+    controls: {
+      exam: 'Exam',
+      class: 'Class',
+      section: 'Section',
+      subject: 'Subject',
+      maxMarks: 'Max Marks (for this subject)',
+      selectExam: 'Select exam',
+      selectClass: 'Select class',
+      selectClassFirst: 'Select class first',
+      selectSection: 'Select section',
+      selectSubject: 'Select subject',
+      noSection: '(No Section)',
+      exampleMax: 'Example: 100'
+    },
+    table: {
+      studentName: 'Student Name',
+      rollNumber: 'Roll Number',
+      marksObtained: 'Marks Obtained',
+      percentage: 'Percentage',
+      actions: 'Actions',
+      saveAll: 'Save All',
+      savingAll: 'Saving All...',
+      emptySelect: 'Select class, subject, and conducted exam to fetch students.',
+      emptyClass: 'No students found for this class.',
+      saving: 'Saving...',
+      update: 'Update',
+      save: 'Save'
+    }
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    title: 'নম্বর এন্ট্রি',
+    description: 'ক্লাস, বিষয় এবং পরীক্ষা নির্বাচন করুন, যাচাইসহ নম্বর এন্ট্রি করুন।',
+    alerts: {
+      loadStudentsFail: 'শিক্ষার্থীদের তথ্য লোড করতে ব্যর্থ হয়েছে',
+      selectBeforeSave: 'নম্বর সংরক্ষণের আগে ক্লাস, বিষয় এবং পরীক্ষা নির্বাচন করুন',
+      sessionExpired: 'সেশন শেষ হয়েছে। অনুগ্রহ করে আবার লগইন করুন।',
+      saveSuccess: 'নম্বর সফলভাবে সংরক্ষিত হয়েছে',
+      atLeastOne: 'Save All ব্যবহার করার আগে অন্তত একজন শিক্ষার্থীর নম্বর দিন',
+      savePartialLabel: 'সংরক্ষিত হয়েছে',
+      studentsLabel: 'জন শিক্ষার্থী',
+      studentsPlural: '',
+      failedLabel: 'ব্যর্থ হয়েছে',
+      marksMaxOnce: 'সংরক্ষণ করার আগে একবার সর্বোচ্চ নম্বর সেট করুন',
+      marksReq: 'প্রাপ্ত নম্বর প্রয়োজন',
+      marksNum: 'নম্বর সংখ্যাসূচক হতে হবে',
+      marksBounds: 'প্রাপ্ত নম্বর ০ বা তার বেশি হতে হবে এবং সর্বোচ্চ নম্বর ০ এর চেয়ে বেশি হতে হবে',
+      marksExceed: 'প্রাপ্ত নম্বর সর্বোচ্চ নম্বরের বেশি হতে পারে না',
+      marksExist: 'নম্বর ইতিমধ্যে এন্ট্রি করা হয়েছে',
+      saveFail: 'নম্বর সংরক্ষণ করতে ব্যর্থ হয়েছে'
+    },
+    controls: {
+      exam: 'পরীক্ষা',
+      class: 'ক্লাস',
+      section: 'সেকশন',
+      subject: 'বিষয়',
+      maxMarks: 'সর্বোচ্চ নম্বর (এই বিষয়ের জন্য)',
+      selectExam: 'পরীক্ষা নির্বাচন করুন',
+      selectClass: 'ক্লাস নির্বাচন করুন',
+      selectClassFirst: 'প্রথমে ক্লাস নির্বাচন করুন',
+      selectSection: 'সেকশন নির্বাচন করুন',
+      selectSubject: 'বিষয় নির্বাচন করুন',
+      noSection: '(কোনো সেকশন নেই)',
+      exampleMax: 'উদাহরণ: ১০০'
+    },
+    table: {
+      studentName: 'শিক্ষার্থীর নাম',
+      rollNumber: 'রোল নম্বর',
+      marksObtained: 'প্রাপ্ত নম্বর',
+      percentage: 'শতাংশ',
+      actions: 'অ্যাকশন',
+      saveAll: 'সব সংরক্ষণ করুন',
+      savingAll: 'সব সংরক্ষণ করা হচ্ছে...',
+      emptySelect: 'শিক্ষার্থীদের তালিকা দেখতে ক্লাস, বিষয় এবং পরীক্ষা নির্বাচন করুন।',
+      emptyClass: 'এই ক্লাসের জন্য কোনো শিক্ষার্থী পাওয়া যায়নি।',
+      saving: 'সংরক্ষণ হচ্ছে...',
+      update: 'আপডেট করুন',
+      save: 'সংরক্ষণ করুন'
+    }
+  }
+};
 
 const toId = (value) => String(value?._id || value || '');
 
@@ -164,37 +270,40 @@ const buildRows = (students = [], marksByStudentId = new Map()) => {
     });
 };
 
-const validateRow = (row, maxMarksInput) => {
+const validateRow = (row, maxMarksInput, tText) => {
   const rawMarks = String(row.marksObtained || '').trim();
   const rawMax = String(maxMarksInput || '').trim();
 
   if (!rawMax) {
-    return 'Set max marks once before saving';
+    return tText.marksMaxOnce;
   }
 
   if (!rawMarks) {
-    return 'Marks obtained is required';
+    return tText.marksReq;
   }
 
   const marks = Number(rawMarks);
   const max = Number(rawMax);
 
   if (!Number.isFinite(marks) || !Number.isFinite(max)) {
-    return 'Marks must be numeric';
+    return tText.marksNum;
   }
 
   if (marks < 0 || max <= 0) {
-    return 'Marks obtained must be 0 or greater and max marks must be greater than 0';
+    return tText.marksBounds;
   }
 
   if (marks > max) {
-    return 'Marks obtained cannot exceed max marks';
+    return tText.marksExceed;
   }
 
   return '';
 };
 
 export default function TeacherMarksPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
   const toast = useToast();
   const [loadingFilters, setLoadingFilters] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -266,7 +375,7 @@ export default function TeacherMarksPage() {
 
   const examOptions = useMemo(
     () => [
-      { value: '', label: 'Select exam' },
+      { value: '', label: t.controls.selectExam },
       ...exams.map((exam) => {
         const name = String(exam?.examName || 'Exam').trim();
         const year = exam?.academicYear ? ` (${exam.academicYear})` : '';
@@ -294,7 +403,7 @@ export default function TeacherMarksPage() {
 
   const classNameFilterOptions = useMemo(
     () => [
-      { value: '', label: 'Select class' },
+      { value: '', label: t.controls.selectClass },
       ...uniqueClassNames.map((name) => ({ value: name, label: name }))
     ],
     [uniqueClassNames]
@@ -310,10 +419,10 @@ export default function TeacherMarksPage() {
 
   const classSectionFilterOptions = useMemo(
     () => [
-      { value: '', label: selectedClassName ? 'Select section' : 'Select class first' },
+      { value: '', label: selectedClassName ? t.controls.selectSection : t.controls.selectClassFirst },
       ...availableSections.map((section) => ({
         value: section,
-        label: section || '(No Section)'
+        label: section || t.controls.noSection
       }))
     ],
     [availableSections, selectedClassName]
@@ -326,7 +435,7 @@ export default function TeacherMarksPage() {
 
   const subjectOptions = useMemo(
     () => [
-      { value: '', label: selectedClassId ? 'Select subject' : 'Select class first' },
+      { value: '', label: selectedClassId ? t.controls.selectSubject : t.controls.selectClassFirst },
       ...subjectsForSelectedClass.map((item) => ({
         value: toId(item),
         label: String(item?.name || '-').trim() || '-'
@@ -379,7 +488,7 @@ export default function TeacherMarksPage() {
         if (active) {
           setRows([]);
           setMaxMarksInput('');
-          toast.error(apiError.message || 'Failed to load students for marks entry');
+          toast.error(apiError.message || t.alerts.loadStudentsFail);
         }
       } finally {
         if (active) {
@@ -517,10 +626,10 @@ export default function TeacherMarksPage() {
       return { ok: true };
     } catch (apiError) {
       if (apiError?.statusCode === 409) {
-        return { ok: false, message: 'Marks already entered' };
+        return { ok: false, message: t.alerts.marksExist };
       }
 
-      return { ok: false, message: apiError.message || 'Failed to save marks' };
+      return { ok: false, message: apiError.message || t.alerts.saveFail };
     }
   };
 
@@ -531,11 +640,11 @@ export default function TeacherMarksPage() {
     }
 
     if (!selectedClassId || !selectedSubjectId || !selectedExamId) {
-      toast.error('Please select class, subject, and exam before saving marks');
+      toast.error(t.alerts.selectBeforeSave);
       return;
     }
 
-    const validationMessage = validateRow(targetRow, maxMarksInput);
+    const validationMessage = validateRow(targetRow, maxMarksInput, t.alerts);
     if (validationMessage) {
       toast.error(validationMessage);
       return;
@@ -552,7 +661,7 @@ export default function TeacherMarksPage() {
     try {
       const result = await persistRowMark(targetRow, token);
       if (result.ok) {
-        toast.success('Marks saved successfully');
+        toast.success(t.alerts.saveSuccess);
       } else {
         toast.error(result.message);
       }
@@ -563,18 +672,18 @@ export default function TeacherMarksPage() {
 
   const onSaveAllRows = async () => {
     if (!selectedClassId || !selectedSubjectId || !selectedExamId) {
-      toast.error('Please select class, subject, and exam before saving marks');
+      toast.error(t.alerts.selectBeforeSave);
       return;
     }
 
     const rowsToSave = rows.filter((row) => String(row.marksObtained || '').trim() !== '');
     if (rowsToSave.length === 0) {
-      toast.error('Enter marks for at least one student before using Save All');
+      toast.error(t.alerts.atLeastOne);
       return;
     }
 
     for (const row of rowsToSave) {
-      const validationMessage = validateRow(row, maxMarksInput);
+      const validationMessage = validateRow(row, maxMarksInput, t.alerts);
       if (validationMessage) {
         toast.error(`${validationMessage} (${row.studentName})`);
         return;
@@ -608,11 +717,11 @@ export default function TeacherMarksPage() {
       }
 
       if (failures.length === 0) {
-        toast.success(`Marks saved for ${successCount} student${successCount === 1 ? '' : 's'}`);
+        toast.success(`${t.alerts.saveSuccess} ${successCount} ${t.alerts.studentsLabel}${successCount === 1 ? '' : t.alerts.studentsPlural}`);
       } else {
         const firstFailure = failures[0];
         toast.error(
-          `Saved ${successCount} student${successCount === 1 ? '' : 's'}, failed ${failures.length}. ${firstFailure.studentName}: ${firstFailure.message}`
+          `${t.alerts.savePartialLabel} ${successCount} ${t.alerts.studentsLabel}${successCount === 1 ? '' : t.alerts.studentsPlural}, ${t.alerts.failedLabel} ${failures.length}. ${firstFailure.studentName}: ${firstFailure.message}`
         );
       }
     } finally {
@@ -624,14 +733,14 @@ export default function TeacherMarksPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title="Marks Entry"
-        description="Select class, subject, and exam, then enter marks student-wise with validations."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <div className="grid gap-3 md:grid-cols-3">
         <Select
-          label="Exam"
+          label={t.controls.exam}
           options={examOptions}
           value={selectedExamId}
           onChange={onChangeExam}
@@ -639,7 +748,7 @@ export default function TeacherMarksPage() {
         />
 
         <Select
-          label="Class"
+          label={t.controls.class}
           options={classNameFilterOptions}
           value={selectedClassName}
           onChange={onChangeClassName}
@@ -647,7 +756,7 @@ export default function TeacherMarksPage() {
         />
 
         <Select
-          label="Section"
+          label={t.controls.section}
           options={classSectionFilterOptions}
           value={selectedClassSection}
           onChange={onChangeClassSection}
@@ -655,7 +764,7 @@ export default function TeacherMarksPage() {
         />
 
         <Select
-          label="Subject"
+          label={t.controls.subject}
           options={subjectOptions}
           value={selectedSubjectId}
           onChange={onChangeSubject}
@@ -663,14 +772,14 @@ export default function TeacherMarksPage() {
         />
 
         <Input
-          label="Max Marks (for this subject)"
+          label={t.controls.maxMarks}
           type="number"
           min="1"
           step="0.01"
           value={maxMarksInput}
           onChange={(event) => setMaxMarksInput(event.target.value)}
           className="h-11"
-          placeholder="Example: 100"
+          placeholder={t.controls.exampleMax}
           disabled={!selectedClassId || !selectedSubjectId || !selectedExamId || loadingStudents}
         />
       </div>
@@ -680,13 +789,13 @@ export default function TeacherMarksPage() {
           <table className="min-w-full text-sm">
             <thead className="sticky top-0 z-10 bg-red-700 text-left">
               <tr>
-                <th className="px-4 py-3 font-semibold text-red-50">Student Name</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Roll Number</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Marks Obtained</th>
-                <th className="px-4 py-3 font-semibold text-red-50">Percentage</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.studentName}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.rollNumber}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.marksObtained}</th>
+                <th className="px-4 py-3 font-semibold text-red-50">{t.table.percentage}</th>
                 <th className="px-4 py-3 font-semibold text-red-50">
                   <div className="flex items-center justify-between gap-2">
-                    <span>Actions</span>
+                    <span>{t.table.actions}</span>
                     <button
                       type="button"
                       onClick={onSaveAllRows}
@@ -700,7 +809,7 @@ export default function TeacherMarksPage() {
                       }
                       className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {savingAll ? 'Saving All...' : 'Save All'}
+                      {savingAll ? t.table.savingAll : t.table.saveAll}
                     </button>
                   </div>
                 </th>
@@ -718,18 +827,18 @@ export default function TeacherMarksPage() {
               ) : !selectedClassId || !selectedSubjectId || !selectedExamId ? (
                 <tr>
                   <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
-                    Select class, subject, and conducted exam to fetch students.
+                    {t.table.emptySelect}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-center text-slate-500" colSpan={5}>
-                    No students found for this class.
+                    {t.table.emptyClass}
                   </td>
                 </tr>
               ) : (
                 rows.map((row, index) => {
-                  const inlineError = String(row.marksObtained || '').trim() !== '' ? validateRow(row, maxMarksInput) : '';
+                  const inlineError = String(row.marksObtained || '').trim() !== '' ? validateRow(row, maxMarksInput, t.alerts) : '';
                   const effectiveMaxMarks = Number(maxMarksInput || row.maxMarksFromRecord || 0);
                   const percentageLabel = formatPercentage({
                     marksObtained: row.marksObtained,
@@ -764,10 +873,10 @@ export default function TeacherMarksPage() {
                           className="rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {savingStudentId === row.studentId
-                            ? 'Saving...'
+                            ? t.table.saving
                             : row.markId
-                              ? 'Update'
-                              : 'Save'}
+                              ? t.table.update
+                              : t.table.save}
                         </button>
                       </td>
                     </tr>

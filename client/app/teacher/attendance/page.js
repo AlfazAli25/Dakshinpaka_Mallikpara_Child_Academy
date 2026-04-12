@@ -7,9 +7,127 @@ import Select from '@/components/Select';
 import { del, get, post, put } from '@/lib/api';
 import { getAuthContext } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
 
 const STUDENT_PAGE_SIZE = 50;
 const HISTORY_PAGE_SIZE = 8;
+
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    title: 'Mark Attendance',
+    description: 'Select class, section, and date, then mark Present using checkboxes (unchecked is Absent).',
+    alerts: {
+      futureDate: 'Attendance cannot be marked for future date',
+      classRequired: 'Class must be selected',
+      dateRequired: 'Date must be selected',
+      studentsRequired: 'Students must exist',
+      sessionExpired: 'Session expired. Please login again.',
+      alreadySaved: 'Attendance already saved. Click Edit Attendance to modify.',
+      updateSuccess: 'Attendance updated successfully',
+      saveSuccess: 'Attendance saved successfully',
+      alreadyMarked: 'Attendance already marked for this date',
+      noSaved: 'No saved attendance found for this student on selected date.',
+      deleteConfirmMsg: 'Delete attendance for this student on the selected date?',
+      deleteConfirmBtn: 'Delete',
+      cancelBtn: 'Cancel',
+      deleteSuccess: 'Attendance deleted successfully'
+    },
+    history: {
+      title: 'Attendance History',
+      empty: 'No saved attendance dates for this class yet.',
+      present: 'Present',
+      absent: 'Absent',
+      openEdit: 'Open & Edit',
+      prev: 'Previous',
+      next: 'Next',
+      page: 'Page'
+    },
+    table: {
+      title: 'Attendance Table',
+      editBtn: 'Edit Attendance',
+      cancelBtn: 'Cancel Edit',
+      saving: 'Saving...',
+      updating: 'Updating...',
+      updateBtn: 'Update Attendance',
+      savedBtn: 'Attendance Saved',
+      saveBtn: 'Save Attendance',
+      futureDateMsg: 'Attendance cannot be marked for future date.',
+      alreadySavedMsg: 'Attendance already saved for this date. Click Edit Attendance to modify.',
+      rollNo: 'Roll Number',
+      studentName: 'Student Name',
+      attendanceCol: 'Attendance',
+      actionCol: 'Action',
+      empty: 'No students found for the selected class and section.',
+      deleting: 'Deleting...',
+      deleteBtn: 'Delete'
+    },
+    controls: {
+      class: 'Class',
+      section: 'Section',
+      date: 'Date',
+      selectClass: 'Select Class',
+      selectSection: 'Select Section'
+    }
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    title: 'উপস্থিতি চিহ্নিত করুন',
+    description: 'ক্লাস, সেকশন এবং তারিখ নির্বাচন করুন, তারপর চেকবক্স ব্যবহার করে উপস্থিত চিহ্নিত করুন (খালি থাকলে অনুপস্থিত)।',
+    alerts: {
+      futureDate: 'ভবিষ্যতের তারিখের জন্য উপস্থিতি চিহ্নিত করা যাবে না',
+      classRequired: 'ক্লাস নির্বাচন করতে হবে',
+      dateRequired: 'তারিখ নির্বাচন করতে হবে',
+      studentsRequired: 'শিক্ষার্থী থাকতে হবে',
+      sessionExpired: 'সেশন শেষ হয়েছে। অনুগ্রহ করে আবার লগইন করুন।',
+      alreadySaved: 'উপস্থিতি ইতিমধ্যে সংরক্ষিত হয়েছে। পরিবর্তন করতে Edit Attendance এ ক্লিক করুন।',
+      updateSuccess: 'উপস্থিতি সফলভাবে আপডেট হয়েছে',
+      saveSuccess: 'উপস্থিতি সফলভাবে সংরক্ষিত হয়েছে',
+      alreadyMarked: 'এই তারিখের জন্য উপস্থিতি ইতিমধ্যে চিহ্নিত করা হয়েছে',
+      noSaved: 'নির্বাচিত তারিখে এই শিক্ষার্থীর কোনো সংরক্ষিত উপস্থিতি পাওয়া যায়নি।',
+      deleteConfirmMsg: 'এই শিক্ষার্থীর নির্বাচিত তারিখের উপস্থিতি মুছবেন কি?',
+      deleteConfirmBtn: 'মুছুন',
+      cancelBtn: 'বাতিল করুন',
+      deleteSuccess: 'উপস্থিতি সফলভাবে মুছে ফেলা হয়েছে'
+    },
+    history: {
+      title: 'উপস্থিতির ইতিহাস',
+      empty: 'এই ক্লাসের জন্য এখনও কোনো উপস্থিতির তারিখ সংরক্ষিত নেই।',
+      present: 'উপস্থিত',
+      absent: 'অনুপস্থিত',
+      openEdit: 'খুলুন এবং সম্পাদনা করুন',
+      prev: 'পূর্ববর্তী',
+      next: 'পরবর্তী',
+      page: 'পৃষ্ঠা'
+    },
+    table: {
+      title: 'উপস্থিতি টেবিল',
+      editBtn: 'উপস্থিতি সম্পাদনা করুন',
+      cancelBtn: 'সম্পাদনা বাতিল করুন',
+      saving: 'সংরক্ষণ হচ্ছে...',
+      updating: 'আপডেট হচ্ছে...',
+      updateBtn: 'উপস্থিতি আপডেট করুন',
+      savedBtn: 'উপস্থিতি সংরক্ষিত',
+      saveBtn: 'উপস্থিতি সংরক্ষণ করুন',
+      futureDateMsg: 'ভবিষ্যতের তারিখের জন্য উপস্থিতি চিহ্নিত করা যাবে না।',
+      alreadySavedMsg: 'এই তারিখের জন্য উপস্থিতি ইতিমধ্যে সংরক্ষিত হয়েছে। পরিবর্তন করতে Edit Attendance এ ক্লিক করুন।',
+      rollNo: 'রোল নম্বর',
+      studentName: 'শিক্ষার্থীর নাম',
+      attendanceCol: 'উপস্থিতি',
+      actionCol: 'অ্যাকশন',
+      empty: 'নির্বাচিত ক্লাস এবং সেকশনের জন্য কোনো শিক্ষার্থী পাওয়া যায়নি।',
+      deleting: 'মোছা হচ্ছে...',
+      deleteBtn: 'মুছুন'
+    },
+    controls: {
+      class: 'ক্লাস',
+      section: 'সেকশন',
+      date: 'তারিখ',
+      selectClass: 'ক্লাস নির্বাচন করুন',
+      selectSection: 'সেকশন নির্বাচন করুন'
+    }
+  }
+};
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -59,6 +177,9 @@ const sortStudentsByRollNo = (items = []) =>
   });
 
 export default function TeacherAttendancePage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
   const toast = useToast();
   const [loadingClasses, setLoadingClasses] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
@@ -87,10 +208,10 @@ export default function TeacherAttendancePage() {
     const uniqueNames = [...new Set(classRows.map((item) => toClassNameKey(item)).filter(Boolean))];
 
     return [
-      { value: '', label: 'Select Class' },
+      { value: '', label: t.controls.selectClass },
       ...uniqueNames.map((name) => ({ value: name, label: name }))
     ];
-  }, [classRows]);
+  }, [classRows, t]);
 
   const sectionOptions = useMemo(() => {
     const sections = classRows
@@ -100,10 +221,10 @@ export default function TeacherAttendancePage() {
 
     const uniqueSections = [...new Set(sections)];
     return [
-      { value: '', label: 'Select Section' },
+      { value: '', label: t.controls.selectSection },
       ...uniqueSections.map((section) => ({ value: section, label: section }))
     ];
-  }, [classRows, selectedClassName]);
+  }, [classRows, selectedClassName, t]);
 
   const selectedClassId = useMemo(() => {
     const selectedClass = classRows.find(
@@ -314,7 +435,7 @@ export default function TeacherAttendancePage() {
     }
 
     if (normalizedDateKey > todayInputValue) {
-      toast.error('Attendance cannot be marked for future date');
+      toast.error(t.alerts.futureDate);
       return;
     }
 
@@ -332,28 +453,28 @@ export default function TeacherAttendancePage() {
 
   const onSaveAttendance = async () => {
     if (selectedDate > todayInputValue) {
-      toast.error('Attendance cannot be marked for future date');
+      toast.error(t.alerts.futureDate);
       return;
     }
 
     if (!selectedClassId) {
-      toast.error('Class must be selected');
+      toast.error(t.alerts.classRequired);
       return;
     }
 
     if (!selectedDate) {
-      toast.error('Date must be selected');
+      toast.error(t.alerts.dateRequired);
       return;
     }
 
     if (students.length === 0) {
-      toast.error('Students must exist');
+      toast.error(t.alerts.studentsRequired);
       return;
     }
 
     const { token } = getAuthContext();
     if (!token) {
-      toast.error('Session expired. Please login again.');
+      toast.error(t.alerts.sessionExpired);
       return;
     }
 
@@ -371,7 +492,7 @@ export default function TeacherAttendancePage() {
     try {
       if (hasExistingAttendance) {
         if (!editMode) {
-          toast.error('Attendance already saved. Click Edit Attendance to modify.');
+          toast.error(t.alerts.alreadySaved);
           return;
         }
 
@@ -394,17 +515,17 @@ export default function TeacherAttendancePage() {
           await post('/attendance', creates, token);
         }
 
-        toast.success('Attendance updated successfully');
+        toast.success(t.alerts.updateSuccess);
       } else {
         await post('/attendance', payload, token);
-        toast.success('Attendance saved successfully');
+        toast.success(t.alerts.saveSuccess);
       }
 
       setEditMode(false);
       setReloadKey((prev) => prev + 1);
     } catch (apiError) {
       if (apiError?.statusCode === 409) {
-        toast.error('Attendance already marked for this date');
+        toast.error(t.alerts.alreadyMarked);
       } else {
         toast.error(apiError.message);
       }
@@ -416,13 +537,13 @@ export default function TeacherAttendancePage() {
   const onDeleteAttendanceForStudent = async (studentId) => {
     const attendanceId = String(attendanceIdByStudentId[studentId] || '');
     if (!attendanceId) {
-      toast.error('No saved attendance found for this student on selected date.');
+      toast.error(t.alerts.noSaved);
       return;
     }
 
-    const confirmed = await toast.confirm('Delete attendance for this student on the selected date?', {
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
+    const confirmed = await toast.confirm(t.alerts.deleteConfirmMsg, {
+      confirmLabel: t.alerts.deleteConfirmBtn,
+      cancelLabel: t.alerts.cancelBtn,
       destructive: true
     });
     if (!confirmed) {
@@ -431,14 +552,14 @@ export default function TeacherAttendancePage() {
 
     const { token } = getAuthContext();
     if (!token) {
-      toast.error('Session expired. Please login again.');
+      toast.error(t.alerts.sessionExpired);
       return;
     }
 
     setDeletingAttendanceId(attendanceId);
     try {
       await del(`/attendance/${attendanceId}`, token);
-      toast.success('Attendance deleted successfully');
+      toast.success(t.alerts.deleteSuccess);
       setReloadKey((prev) => prev + 1);
     } catch (apiError) {
       toast.error(apiError.message);
@@ -453,15 +574,15 @@ export default function TeacherAttendancePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title="Mark Attendance"
-        description="Select class, section, and date, then mark Present using checkboxes (unchecked is Absent)."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-3 md:grid-cols-3">
           <Select
-            label="Class"
+            label={t.controls.class}
             options={classNameOptions}
             value={selectedClassName}
             onChange={(event) => setSelectedClassName(event.target.value)}
@@ -469,7 +590,7 @@ export default function TeacherAttendancePage() {
             className="h-11"
           />
           <Select
-            label="Section"
+            label={t.controls.section}
             options={sectionOptions}
             value={selectedSection}
             onChange={(event) => setSelectedSection(event.target.value)}
@@ -477,7 +598,7 @@ export default function TeacherAttendancePage() {
             className="h-11"
           />
           <Input
-            label="Date"
+            label={t.controls.date}
             type="date"
             value={selectedDate}
             onChange={(event) => setSelectedDate(event.target.value)}
@@ -490,7 +611,7 @@ export default function TeacherAttendancePage() {
       {selectedClassId && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Attendance History</h3>
+            <h3 className="text-base font-semibold text-slate-900">{t.history.title}</h3>
           </div>
 
           {loadingHistory ? (
@@ -500,7 +621,7 @@ export default function TeacherAttendancePage() {
               ))}
             </div>
           ) : historyRows.length === 0 ? (
-            <p className="text-sm text-slate-500">No saved attendance dates for this class yet.</p>
+            <p className="text-sm text-slate-500">{t.history.empty}</p>
           ) : (
             <div className="space-y-2">
               {historyRows.map((item, index) => {
@@ -520,10 +641,10 @@ export default function TeacherAttendancePage() {
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{formatDateValue(item.date)}</p>
                       <p className="text-xs text-slate-600">
-                        Present: {Number(item.presentCount || 0)} | Absent: {Number(item.absentCount || 0)}
+                        {t.history.present}: {Number(item.presentCount || 0)} | {t.history.absent}: {Number(item.absentCount || 0)}
                       </p>
                     </div>
-                    <span className="text-xs font-semibold text-red-700">Open & Edit</span>
+                    <span className="text-xs font-semibold text-red-700">{t.history.openEdit}</span>
                   </button>
                 );
               })}
@@ -537,16 +658,16 @@ export default function TeacherAttendancePage() {
               onClick={() => setHistoryPage((prev) => Math.max(prev - 1, 1))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Previous
+              {t.history.prev}
             </button>
-            <span className="text-xs text-slate-500">Page {historyPage}</span>
+            <span className="text-xs text-slate-500">{t.history.page} {historyPage}</span>
             <button
               type="button"
               disabled={!historyHasNextPage || loadingHistory}
               onClick={() => setHistoryPage((prev) => prev + 1)}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Next
+              {t.history.next}
             </button>
           </div>
         </div>
@@ -555,7 +676,7 @@ export default function TeacherAttendancePage() {
       {showStudentTable && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-base font-semibold text-slate-900">Attendance Table</h3>
+            <h3 className="text-base font-semibold text-slate-900">{t.table.title}</h3>
             <div className="flex flex-wrap items-center gap-2">
               {hasExistingAttendance && !editMode && (
                 <button
@@ -564,7 +685,7 @@ export default function TeacherAttendancePage() {
                   disabled={loadingStudents || saving || selectedDate > todayInputValue}
                   className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Edit Attendance
+                  {t.table.editBtn}
                 </button>
               )}
 
@@ -575,7 +696,7 @@ export default function TeacherAttendancePage() {
                   disabled={saving}
                   className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Cancel Edit
+                  {t.table.cancelBtn}
                 </button>
               )}
 
@@ -587,33 +708,33 @@ export default function TeacherAttendancePage() {
               >
                 {saving
                   ? hasExistingAttendance
-                    ? 'Updating...'
-                    : 'Saving...'
+                    ? t.table.updating
+                    : t.table.saving
                   : hasExistingAttendance
                     ? editMode
-                      ? 'Update Attendance'
-                      : 'Attendance Saved'
-                    : 'Save Attendance'}
+                      ? t.table.updateBtn
+                      : t.table.savedBtn
+                    : t.table.saveBtn}
               </button>
             </div>
           </div>
 
           {selectedDate > todayInputValue && (
-            <p className="mb-3 text-sm text-amber-700">Attendance cannot be marked for future date.</p>
+            <p className="mb-3 text-sm text-amber-700">{t.table.futureDateMsg}</p>
           )}
 
           {hasExistingAttendance && !editMode && selectedDate <= todayInputValue && (
-            <p className="mb-3 text-sm text-slate-600">Attendance already saved for this date. Click Edit Attendance to modify.</p>
+            <p className="mb-3 text-sm text-slate-600">{t.table.alreadySavedMsg}</p>
           )}
 
           <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
             <table className="min-w-full text-sm">
               <thead className="sticky top-0 z-10 bg-red-700 text-left text-red-50">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Roll Number</th>
-                  <th className="px-4 py-3 font-semibold">Student Name</th>
-                  <th className="px-4 py-3 font-semibold">Attendance</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
+                  <th className="px-4 py-3 font-semibold">{t.table.rollNo}</th>
+                  <th className="px-4 py-3 font-semibold">{t.table.studentName}</th>
+                  <th className="px-4 py-3 font-semibold">{t.table.attendanceCol}</th>
+                  <th className="px-4 py-3 font-semibold">{t.table.actionCol}</th>
                 </tr>
               </thead>
               <tbody>
@@ -637,7 +758,7 @@ export default function TeacherAttendancePage() {
                 ) : students.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-slate-500">
-                      No students found for the selected class and section.
+                      {t.table.empty}
                     </td>
                   </tr>
                 ) : (
@@ -661,7 +782,7 @@ export default function TeacherAttendancePage() {
                               onChange={(event) => onTogglePresent(studentId, event.target.checked)}
                               className="h-4 w-4 rounded border-slate-300 text-red-700 focus:ring-red-200"
                             />
-                            <span>{isPresent ? 'Present' : 'Absent'}</span>
+                            <span>{isPresent ? t.history.present : t.history.absent}</span>
                           </label>
                         </td>
                         <td className="px-4 py-3">
@@ -673,8 +794,8 @@ export default function TeacherAttendancePage() {
                               className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {deletingAttendanceId && deletingAttendanceId === attendanceIdByStudentId[studentId]
-                                ? 'Deleting...'
-                                : 'Delete'}
+                                ? t.table.deleting
+                                : t.table.deleteBtn}
                             </button>
                           ) : (
                             <span className="text-xs text-slate-400">-</span>
@@ -695,16 +816,16 @@ export default function TeacherAttendancePage() {
               onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Previous
+              {t.history.prev}
             </button>
-            <span className="text-xs text-slate-500">Page {page}</span>
+            <span className="text-xs text-slate-500">{t.history.page} {page}</span>
             <button
               type="button"
               disabled={!hasNextPage || loadingStudents}
               onClick={() => setPage((prev) => prev + 1)}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Next
+              {t.history.next}
             </button>
           </div>
         </div>

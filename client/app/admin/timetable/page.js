@@ -14,6 +14,7 @@ import {
   sortTimetableRows,
   toId
 } from '@/lib/timetable-grid';
+import { useLanguage } from '@/lib/language-context';
 import { useToast } from '@/lib/toast-context';
 
 const PERIOD_TIME_SLOTS = Object.freeze({
@@ -48,20 +49,13 @@ const getInitialForm = () => {
 
 const requiredFormFields = ['classId', 'day', 'periodNumber', 'subjectId'];
 
-const CONFLICT_MESSAGES = Object.freeze({
-  teacherConflict: 'Teacher already has a class at this time',
-  classPeriodConflict: 'Class already has a subject in this period',
-  subjectPeriodConflict: 'Subject already assigned in this period',
-  subjectTeacherConflict: 'Subject not assigned to teacher'
-});
-
-const getTeacherLabel = (teacher) => {
+const getTeacherLabel = (teacher, teacherLabelStr = 'Teacher') => {
   const name = String(teacher?.userId?.name || '').trim();
   const teacherCode = String(teacher?.teacherId || '').trim();
   if (name && teacherCode) {
     return `${name} (${teacherCode})`;
   }
-  return name || teacherCode || 'Teacher';
+  return name || teacherCode || teacherLabelStr;
 };
 
 const normalizeSection = (value) => String(value || '').trim().toUpperCase();
@@ -80,36 +74,222 @@ const toMinutes = (timeValue) => {
   return (hours * 60) + minutes;
 };
 
-const mapSaveErrorToConflictMessage = (rawErrorMessage) => {
+const mapSaveErrorToConflictMessage = (rawErrorMessage, t) => {
   const normalizedErrorMessage = String(rawErrorMessage || '').toLowerCase();
 
   if (normalizedErrorMessage.includes('teacher already assigned')) {
-    return CONFLICT_MESSAGES.teacherConflict;
+    return t.conflicts.teacherConflict;
   }
 
   if (
     normalizedErrorMessage.includes('class already has a subject in this period')
     || normalizedErrorMessage.includes('class period already has')
   ) {
-    return CONFLICT_MESSAGES.classPeriodConflict;
+    return t.conflicts.classPeriodConflict;
   }
 
   if (normalizedErrorMessage.includes('subject already assigned in this period')) {
-    return CONFLICT_MESSAGES.subjectPeriodConflict;
+    return t.conflicts.subjectPeriodConflict;
   }
 
   if (
     normalizedErrorMessage.includes('subject not assigned to teacher')
     || normalizedErrorMessage.includes('not assigned to this subject')
   ) {
-    return CONFLICT_MESSAGES.subjectTeacherConflict;
+    return t.conflicts.subjectTeacherConflict;
   }
 
   return '';
 };
 
 export default function AdminTimetablePage() {
+  const { language } = useLanguage();
   const toast = useToast();
+
+  const text = {
+    en: {
+      eyebrow: 'Administration',
+      title: 'Timetable Management',
+      description: 'Create, edit, and manage class timetable slots by class, day, and period.',
+      currentlySelected: {
+        title: 'Currently Selected',
+        class: 'Class',
+        section: 'Section',
+        notSelected: 'Not selected'
+      },
+      form: {
+        labels: {
+          className: 'Class Name *',
+          section: 'Section *',
+          day: 'Day',
+          period: 'Period Number',
+          subject: 'Subject',
+          teacher: 'Teacher',
+          time: 'Time (Auto from period)',
+          room: 'Room Number'
+        },
+        placeholders: {
+          selectClassName: 'Select class name',
+          selectSection: 'Select section',
+          selectClassFirst: 'Select class first',
+          noSection: '(No Section)',
+          selectSubject: 'Select subject',
+          selectSubjectFirst: 'Select subject first',
+          assignedTeacher: 'Assigned teacher',
+          noTeacher: 'No teacher assigned for this subject',
+          room: 'Optional',
+          selectPeriod: 'Select a period'
+        },
+        periodLabel: 'Period',
+        buttons: {
+          save: 'Save Timetable',
+          update: 'Update Timetable',
+          saving: 'Saving...',
+          clear: 'Clear'
+        }
+      },
+      grid: {
+        title: 'Weekly Grid View',
+        subtitle: 'Subject, teacher, and timing details by day and period.',
+        table: {
+          dayPeriod: 'Day / Period',
+          period: 'Period',
+          loading: 'Loading timetable...',
+          noEntries: 'No timetable entries found for this class.',
+          room: 'Room',
+          actions: {
+            edit: 'Edit',
+            delete: 'Delete'
+          }
+        }
+      },
+      days: {
+        Monday: 'Monday',
+        Tuesday: 'Tuesday',
+        Wednesday: 'Wednesday',
+        Thursday: 'Thursday',
+        Friday: 'Friday',
+        Saturday: 'Saturday'
+      },
+      alerts: {
+        selectClassName: 'Please select a class name',
+        selectSection: 'Please select a section',
+        selectClassSectionBoth: 'Please select both class and section',
+        noSectionConfig: 'Selected class has no section configured',
+        invalidPeriod: 'Invalid period selected',
+        timeError: 'Start time must be before end time',
+        requiredFields: 'All required fields must be filled',
+        saveSuccess: 'Timetable saved successfully',
+        saveError: 'Failed to save timetable',
+        deleteConfirm: 'Delete this timetable entry?',
+        deleteSuccess: 'Timetable deleted successfully',
+        deleteError: 'Failed to delete timetable entry',
+        loadSetupError: 'Failed to load timetable setup',
+        loadTimetableError: 'Failed to load timetable'
+      },
+      conflicts: {
+        teacherConflict: 'Teacher already has a class at this time',
+        classPeriodConflict: 'Class already has a subject in this period',
+        subjectPeriodConflict: 'Subject already assigned in this period',
+        subjectTeacherConflict: 'Subject not assigned to teacher'
+      },
+      labels: {
+        teacher: 'Teacher'
+      }
+    },
+    bn: {
+      eyebrow: 'প্রশাসন',
+      title: 'সময়সূচী ব্যবস্থাপনা',
+      description: 'ক্লাস, দিন এবং পিরিয়ড অনুযায়ী ক্লাসের সময়সূচী স্লট তৈরি, সম্পাদনা এবং পরিচালনা করুন।',
+      currentlySelected: {
+        title: 'বর্তমানে নির্বাচিত',
+        class: 'ক্লাস',
+        section: 'বিভাগ',
+        notSelected: 'নির্বাচিত নয়'
+      },
+      form: {
+        labels: {
+          className: 'ক্লাসের নাম *',
+          section: 'বিভাগ *',
+          day: 'দিন',
+          period: 'পিরিয়ড নম্বর',
+          subject: 'বিষয়',
+          teacher: 'শিক্ষক',
+          time: 'সময় (পিরিয়ড থেকে স্বয়ংক্রিয়)',
+          room: 'রুম নম্বর'
+        },
+        placeholders: {
+          selectClassName: 'ক্লাসের নাম নির্বাচন করুন',
+          selectSection: 'বিভাগ নির্বাচন করুন',
+          selectClassFirst: 'প্রথমে ক্লাস নির্বাচন করুন',
+          noSection: '(কোন বিভাগ নেই)',
+          selectSubject: 'বিষয় নির্বাচন করুন',
+          selectSubjectFirst: 'প্রথমে বিষয় নির্বাচন করুন',
+          assignedTeacher: 'নির্ধারিত শিক্ষক',
+          noTeacher: 'এই বিষয়ের জন্য কোন শিক্ষক নির্ধারিত নেই',
+          room: 'ঐচ্ছিক',
+          selectPeriod: 'পিরিয়ড নির্বাচন করুন'
+        },
+        periodLabel: 'পিরিয়ড',
+        buttons: {
+          save: 'সময়সূচী সংরক্ষণ করুন',
+          update: 'সময়সূচী আপডেট করুন',
+          saving: 'সংরক্ষণ করা হচ্ছে...',
+          clear: 'পরিষ্কার করুন'
+        }
+      },
+      grid: {
+        title: 'সাপ্তাহিক গ্রিড ভিউ',
+        subtitle: 'দিন এবং পিরিয়ড অনুযায়ী বিষয়, শিক্ষক এবং সময়ের বিবরণ।',
+        table: {
+          dayPeriod: 'দিন / পিরিয়ড',
+          period: 'পিরিয়ড',
+          loading: 'সময়সূচী লোড হচ্ছে...',
+          noEntries: 'এই ক্লাসের জন্য কোন সময়সূচী পাওয়া যায়নি।',
+          room: 'রুম',
+          actions: {
+            edit: 'সম্পাদনা',
+            delete: 'মুছে ফেলুন'
+          }
+        }
+      },
+      days: {
+        Monday: 'সোমবার',
+        Tuesday: 'মঙ্গলবার',
+        Wednesday: 'বুধবার',
+        Thursday: 'বৃহস্পতিবার',
+        Friday: 'শুক্রবার',
+        Saturday: 'শনিবার'
+      },
+      alerts: {
+        selectClassName: 'দয়া করে একটি ক্লাসের নাম নির্বাচন করুন',
+        selectSection: 'দয়া করে একটি বিভাগ নির্বাচন করুন',
+        selectClassSectionBoth: 'দয়া করে ক্লাস এবং বিভাগ উভয়ই নির্বাচন করুন',
+        noSectionConfig: 'নির্বাচিত ক্লাসের জন্য কোন বিভাগ কনফিগার করা নেই',
+        invalidPeriod: 'অবৈধ পিরিয়ড নির্বাচিত',
+        timeError: 'শুরুর সময় অবশ্যই শেষ সময়ের আগে হতে হবে',
+        requiredFields: 'সব প্রয়োজনীয় ক্ষেত্র পূরণ করতে হবে',
+        saveSuccess: 'সময়সূচী সফলভাবে সংরক্ষিত হয়েছে',
+        saveError: 'সময়সূচী সংরক্ষণ করতে ব্যর্থ হয়েছে',
+        deleteConfirm: 'আপনি কি এই সময়সূচীটি মুছতে চান?',
+        deleteSuccess: 'সময়সূচী সফলভাবে মুছে ফেলা হয়েছে',
+        deleteError: 'সময়সূচী মুছতে ব্যর্থ হয়েছে',
+        loadSetupError: 'সময়সূচী সেটআপ লোড করতে ব্যর্থ হয়েছে',
+        loadTimetableError: 'সময়সূচী লোড করতে ব্যর্থ হয়েছে'
+      },
+      conflicts: {
+        teacherConflict: 'শিক্ষকের এই সময়ে ইতিমধ্যেই একটি ক্লাস আছে',
+        classPeriodConflict: 'এই পিরিয়ডে ক্লাসের ইতিমধ্যেই একটি বিষয় আছে',
+        subjectPeriodConflict: 'এই পিরিয়ডে বিষয় ইতিমধ্যেই নির্ধারিত আছে',
+        subjectTeacherConflict: 'শিক্ষককে বিষয় নির্ধারিত করা হয়নি'
+      },
+      labels: {
+        teacher: 'শিক্ষক'
+      }
+    }
+  };
+
+  const t = text[language] || text.en;
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState('');
   const [classes, setClasses] = useState([]);
@@ -149,34 +329,34 @@ export default function AdminTimetablePage() {
 
   const classNameOptions = useMemo(
     () => [
-      { value: '', label: 'Select class name' },
+      { value: '', label: t.form.placeholders.selectClassName },
       ...uniqueClassNames.map((name) => ({ value: name, label: name }))
     ],
-    [uniqueClassNames]
+    [uniqueClassNames, t.form.placeholders.selectClassName]
   );
 
   const classSectionOptions = useMemo(
     () => [
-      { value: '', label: form.className ? 'Select section' : 'Select class first' },
+      { value: '', label: form.className ? t.form.placeholders.selectSection : t.form.placeholders.selectClassFirst },
       ...availableSections.map((section) => ({
         value: section,
-        label: section || '(No Section)'
+        label: section || t.form.placeholders.noSection
       }))
     ],
-    [availableSections, form.className]
+    [availableSections, form.className, t.form.placeholders.selectSection, t.form.placeholders.selectClassFirst, t.form.placeholders.noSection]
   );
 
   const subjectOptions = useMemo(() => {
     const classSubjects = subjects.filter((item) => toId(item?.classId) === form.classId);
 
     return [
-      { value: '', label: 'Select subject' },
+      { value: '', label: t.form.placeholders.selectSubject },
       ...classSubjects.map((item) => ({
         value: toId(item),
-        label: String(item?.name || '').trim() || 'Subject'
+        label: String(item?.name || '').trim() || t.form.periodLabel
       }))
     ];
-  }, [form.classId, subjects]);
+  }, [form.classId, subjects, t.form.placeholders.selectSubject, t.form.periodLabel]);
 
   const subjectById = useMemo(() => {
     const map = new Map();
@@ -190,7 +370,7 @@ export default function AdminTimetablePage() {
     if (!form.subjectId) {
       return {
         teacherUserId: '',
-        label: 'Select subject first'
+        label: t.form.placeholders.selectSubjectFirst
       };
     }
 
@@ -208,7 +388,7 @@ export default function AdminTimetablePage() {
 
       return {
         teacherUserId: directTeacherUserId,
-        label: 'Assigned teacher'
+        label: t.form.placeholders.assignedTeacher
       };
     }
 
@@ -225,13 +405,13 @@ export default function AdminTimetablePage() {
 
     return {
       teacherUserId: '',
-      label: 'No teacher assigned for this subject'
+      label: t.form.placeholders.noTeacher
     };
-  }, [form.subjectId, subjectById, teachers]);
+  }, [form.subjectId, subjectById, teachers, t.form.placeholders.selectSubjectFirst, t.form.placeholders.assignedTeacher, t.form.placeholders.noTeacher]);
 
   const dayOptions = useMemo(
-    () => TIMETABLE_DAYS.map((day) => ({ value: day, label: day })),
-    []
+    () => TIMETABLE_DAYS.map((day) => ({ value: day, label: t.days[day] || day })),
+    [t.days]
   );
 
   const effectiveTeacherUserId = useMemo(
@@ -240,8 +420,8 @@ export default function AdminTimetablePage() {
   );
 
   const periodOptions = useMemo(
-    () => TIMETABLE_PERIODS.map((periodNumber) => ({ value: String(periodNumber), label: `Period ${periodNumber}` })),
-    []
+    () => TIMETABLE_PERIODS.map((periodNumber) => ({ value: String(periodNumber), label: `${t.form.periodLabel} ${periodNumber}` })),
+    [t.form.periodLabel]
   );
 
   const selectedPeriodTimeSlot = useMemo(
@@ -283,7 +463,7 @@ export default function AdminTimetablePage() {
         };
       });
     } catch (apiError) {
-      toast.error(apiError.message || 'Failed to load timetable setup');
+      toast.error(apiError.message || t.alerts.loadSetupError);
     } finally {
       setLoadingSetup(false);
     }
@@ -308,7 +488,7 @@ export default function AdminTimetablePage() {
       setRows(sortTimetableRows(Array.isArray(response?.data) ? response.data : []));
     } catch (apiError) {
       setRows([]);
-      toast.error(apiError.message || 'Failed to load timetable');
+      toast.error(apiError.message || t.alerts.loadTimetableError);
     } finally {
       setLoadingRows(false);
     }
@@ -477,40 +657,40 @@ export default function AdminTimetablePage() {
     event.preventDefault();
 
     if (!form.className) {
-      toast.error('Please select a class name');
+      toast.error(t.alerts.selectClassName);
       return;
     }
 
     if (!form.classSection && availableSections.length > 0) {
-      toast.error('Please select a section');
+      toast.error(t.alerts.selectSection);
       return;
     }
 
     if (!form.classId) {
-      toast.error('Please select both class and section');
+      toast.error(t.alerts.selectClassSectionBoth);
       return;
     }
 
     const effectiveSection = normalizeSection(form.section || selectedClassSection);
     if (!effectiveSection) {
-      toast.error('Selected class has no section configured');
+      toast.error(t.alerts.noSectionConfig);
       return;
     }
 
     if (!effectiveTeacherUserId) {
-      toast.error(CONFLICT_MESSAGES.subjectTeacherConflict);
+      toast.error(t.conflicts.subjectTeacherConflict);
       return;
     }
 
     const missingField = requiredFormFields.find((field) => !String(form[field] || '').trim());
     if (missingField) {
-      toast.error('All required fields must be filled');
+      toast.error(t.alerts.requiredFields);
       return;
     }
 
     const effectivePeriodTimeSlot = getPeriodTimeSlot(form.periodNumber);
     if (!effectivePeriodTimeSlot) {
-      toast.error('Invalid period selected');
+      toast.error(t.alerts.invalidPeriod);
       return;
     }
 
@@ -518,7 +698,7 @@ export default function AdminTimetablePage() {
     const effectiveEndTime = effectivePeriodTimeSlot.endTime;
 
     if (toMinutes(effectiveStartTime) >= toMinutes(effectiveEndTime)) {
-      toast.error('Start time must be before end time');
+      toast.error(t.alerts.timeError);
       return;
     }
 
@@ -527,7 +707,7 @@ export default function AdminTimetablePage() {
     try {
       const classPeriodConflict = hasClassPeriodConflict();
       if (classPeriodConflict.hasConflict) {
-        toast.error(CONFLICT_MESSAGES.classPeriodConflict);
+        toast.error(t.conflicts.classPeriodConflict);
         return;
       }
 
@@ -549,12 +729,12 @@ export default function AdminTimetablePage() {
         await post('/timetable', payload, getToken());
       }
 
-      toast.success('Timetable saved successfully');
+      toast.success(t.alerts.saveSuccess);
       resetFormForNextEntry();
       await loadClassTimetable({ classId: payload.classId, section: payload.section });
     } catch (apiError) {
-      const mappedConflictMessage = mapSaveErrorToConflictMessage(apiError?.message);
-      toast.error(mappedConflictMessage || apiError.message || 'Failed to save timetable');
+      const mappedConflictMessage = mapSaveErrorToConflictMessage(apiError?.message, t);
+      toast.error(mappedConflictMessage || apiError.message || t.alerts.saveError);
     } finally {
       setSaving(false);
     }
@@ -587,9 +767,9 @@ export default function AdminTimetablePage() {
       return;
     }
 
-    const confirmed = await toast.confirm('Delete this timetable entry?', {
-      confirmLabel: 'Delete',
-      cancelLabel: 'Cancel',
+    const confirmed = await toast.confirm(t.alerts.deleteConfirm, {
+      confirmLabel: t.grid.table.actions.delete,
+      cancelLabel: t.buttons ? t.buttons.clear : 'Cancel',
       destructive: true
     });
     if (!confirmed) {
@@ -600,7 +780,7 @@ export default function AdminTimetablePage() {
 
     try {
       await del(`/timetable/${rowId}`, getToken());
-      toast.success('Timetable deleted successfully');
+      toast.success(t.alerts.deleteSuccess);
 
       if (editingId === rowId) {
         resetFormForNextEntry();
@@ -608,7 +788,7 @@ export default function AdminTimetablePage() {
 
       await loadClassTimetable({ classId: form.classId, section: form.section });
     } catch (apiError) {
-      toast.error(apiError.message || 'Failed to delete timetable entry');
+      toast.error(apiError.message || t.alerts.deleteError);
     } finally {
       setDeletingId('');
     }
@@ -619,32 +799,32 @@ export default function AdminTimetablePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Administration"
-        title="Timetable Management"
-        description="Create, edit, and manage class timetable slots by class, day, and period."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
       <form onSubmit={onSaveTimetable} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
         <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Currently Selected</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">{t.currentlySelected.title}</p>
           <p className="mt-1 text-sm font-medium text-blue-700">
             {form.className ? (
               <>
-                Class: <span className="font-bold">{form.className}</span>
+                {t.currentlySelected.class}: <span className="font-bold">{form.className}</span>
                 {form.classSection && (
                   <>
-                    {' '} | Section: <span className="font-bold">{form.classSection}</span>
+                    {' '} | {t.currentlySelected.section}: <span className="font-bold">{form.classSection}</span>
                   </>
                 )}
-                {!form.classSection && ' | Section: Not selected'}
+                {!form.classSection && ` | ${t.currentlySelected.section}: ${t.currentlySelected.notSelected}`}
               </>
-            ) : 'Class: Not selected | Section: Not selected'}
+            ) : `${t.currentlySelected.class}: ${t.currentlySelected.notSelected} | ${t.currentlySelected.section}: ${t.currentlySelected.notSelected}`}
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Select
-            label="Class Name *"
+            label={t.form.labels.className}
             value={form.className}
             onChange={onFieldChange('className')}
             options={classNameOptions}
@@ -653,7 +833,7 @@ export default function AdminTimetablePage() {
           />
 
           <Select
-            label="Section *"
+            label={t.form.labels.section}
             value={form.classSection}
             onChange={onFieldChange('classSection')}
             options={classSectionOptions}
@@ -662,7 +842,7 @@ export default function AdminTimetablePage() {
           />
 
           <Select
-            label="Day"
+            label={t.form.labels.day}
             value={form.day}
             onChange={onFieldChange('day')}
             options={dayOptions}
@@ -671,7 +851,7 @@ export default function AdminTimetablePage() {
           />
 
           <Select
-            label="Period Number"
+            label={t.form.labels.period}
             value={form.periodNumber}
             onChange={onFieldChange('periodNumber')}
             options={periodOptions}
@@ -680,7 +860,7 @@ export default function AdminTimetablePage() {
           />
 
           <Select
-            label="Subject"
+            label={t.form.labels.subject}
             value={form.subjectId}
             onChange={onFieldChange('subjectId')}
             options={subjectOptions}
@@ -689,24 +869,24 @@ export default function AdminTimetablePage() {
           />
 
           <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
-            <p className="mb-1.5 text-sm font-medium text-slate-700">Teacher</p>
+            <p className="mb-1.5 text-sm font-medium text-slate-700">{t.form.labels.teacher}</p>
             <p className="text-sm font-semibold text-slate-900">{assignedTeacher.label}</p>
           </div>
 
           <div className="mb-3 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2">
-            <p className="mb-1.5 text-sm font-medium text-slate-700">Time (Auto from period)</p>
+            <p className="mb-1.5 text-sm font-medium text-slate-700">{t.form.labels.time}</p>
             <p className="text-sm font-semibold text-slate-900">
               {selectedPeriodTimeSlot
                 ? `${selectedPeriodTimeSlot.startTime} - ${selectedPeriodTimeSlot.endTime}`
-                : 'Select a period'}
+                : t.form.placeholders.selectPeriod}
             </p>
           </div>
 
           <Input
-            label="Room Number"
+            label={t.form.labels.room}
             value={form.roomNumber}
             onChange={onFieldChange('roomNumber')}
-            placeholder="Optional"
+            placeholder={t.form.placeholders.room}
             disabled={saving}
           />
         </div>
@@ -717,7 +897,7 @@ export default function AdminTimetablePage() {
             disabled={saving || isLoading}
             className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {saving ? 'Saving...' : editingId ? 'Update Timetable' : 'Save Timetable'}
+            {saving ? t.form.buttons.saving : editingId ? t.form.buttons.update : t.form.buttons.save}
           </button>
 
           <button
@@ -726,28 +906,28 @@ export default function AdminTimetablePage() {
             disabled={saving}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Clear
+            {t.form.buttons.clear}
           </button>
         </div>
       </form>
 
       <section className="overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm">
         <div className="border-b border-red-100 px-4 py-3 md:px-5">
-          <h2 className="text-base font-semibold text-slate-900">Weekly Grid View</h2>
-          <p className="text-xs text-slate-600">Subject, teacher, and timing details by day and period.</p>
+          <h2 className="text-base font-semibold text-slate-900">{t.grid.title}</h2>
+          <p className="text-xs text-slate-600">{t.grid.subtitle}</p>
         </div>
 
         <div className="max-h-[288px] overflow-x-auto overflow-y-auto">
           <table className="min-w-[1100px] w-full text-sm">
             <thead className="sticky top-0 z-10 bg-red-700 text-red-50">
               <tr>
-                <th className="rounded-tl-xl px-3 py-3 text-left font-semibold">Day / Period</th>
+                <th className="rounded-tl-xl px-3 py-3 text-left font-semibold">{t.grid.table.dayPeriod}</th>
                 {TIMETABLE_PERIODS.map((periodNumber, index) => (
                   <th
                     key={periodNumber}
                     className={`px-3 py-3 text-left font-semibold ${index === TIMETABLE_PERIODS.length - 1 ? 'rounded-tr-xl' : ''}`}
                   >
-                    Period {periodNumber}
+                    {t.grid.table.period} {periodNumber}
                   </th>
                 ))}
               </tr>
@@ -757,19 +937,19 @@ export default function AdminTimetablePage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={TIMETABLE_PERIODS.length + 1} className="px-4 py-6 text-center text-slate-500">
-                    Loading timetable...
+                    {t.grid.table.loading}
                   </td>
                 </tr>
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={TIMETABLE_PERIODS.length + 1} className="px-4 py-6 text-center text-slate-500">
-                    No timetable entries found for this class.
+                    {t.grid.table.noEntries}
                   </td>
                 </tr>
               ) : (
                 gridRows.map((dayRow, rowIndex) => (
                   <tr key={dayRow.day} className={rowIndex % 2 === 1 ? 'bg-red-50/20' : ''}>
-                    <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-900">{dayRow.day}</td>
+                    <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-900">{t.days[dayRow.day] || dayRow.day}</td>
                     {dayRow.cells.map((cell) => (
                       <td key={`${cell.day}-${cell.periodNumber}`} className="border-t border-slate-100 px-2 py-2 align-top">
                         {cell.items.length === 0 ? (
@@ -778,11 +958,11 @@ export default function AdminTimetablePage() {
                           <div className="space-y-2">
                             {cell.items.map((item) => (
                               <div key={toId(item)} className="rounded-lg border border-slate-200 bg-white p-2">
-                                <p className="text-xs font-semibold text-slate-900">{item?.subjectId?.name || 'Subject'}</p>
-                                <p className="text-xs text-slate-700">{item?.teacherId?.name || 'Teacher'}</p>
+                                <p className="text-xs font-semibold text-slate-900">{item?.subjectId?.name || t.form.labels.subject}</p>
+                                <p className="text-xs text-slate-700">{item?.teacherId?.name || t.labels.teacher}</p>
                                 <p className="text-[11px] text-slate-600">{item?.startTime} - {item?.endTime}</p>
                                 {item?.roomNumber ? (
-                                  <p className="text-[11px] text-slate-500">Room: {item.roomNumber}</p>
+                                  <p className="text-[11px] text-slate-500">{t.grid.table.room}: {item.roomNumber}</p>
                                 ) : null}
 
                                 <div className="mt-2 flex gap-1">
@@ -791,7 +971,7 @@ export default function AdminTimetablePage() {
                                     onClick={() => onEditRow(item)}
                                     className="rounded bg-amber-500 px-2 py-1 text-[11px] font-semibold text-white hover:bg-amber-600"
                                   >
-                                    Edit
+                                    {t.grid.table.actions.edit}
                                   </button>
                                   <button
                                     type="button"
@@ -799,7 +979,7 @@ export default function AdminTimetablePage() {
                                     disabled={deletingId === toId(item)}
                                     className="rounded bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-70"
                                   >
-                                    {deletingId === toId(item) ? 'Deleting...' : 'Delete'}
+                                    {deletingId === toId(item) ? t.form.buttons.saving : t.grid.table.actions.delete}
                                   </button>
                                 </div>
                               </div>

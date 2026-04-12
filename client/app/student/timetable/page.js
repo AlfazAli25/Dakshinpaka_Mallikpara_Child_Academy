@@ -21,7 +21,18 @@ const text = {
     room: 'Room',
     subjectFallback: 'Subject',
     teacherFallback: 'Teacher',
-    periodLabel: 'Period'
+    periodLabel: 'Period',
+    days: {
+      Monday: 'Monday',
+      Tuesday: 'Tuesday',
+      Wednesday: 'Wednesday',
+      Thursday: 'Thursday',
+      Friday: 'Friday',
+      Saturday: 'Saturday'
+    },
+    alerts: {
+      errorLoad: 'Unable to load timetable right now.'
+    }
   },
   bn: {
     eyebrow: 'স্টুডেন্ট পোর্টাল',
@@ -33,7 +44,18 @@ const text = {
     room: 'রুম',
     subjectFallback: 'বিষয়',
     teacherFallback: 'শিক্ষক',
-    periodLabel: 'পিরিয়ড'
+    periodLabel: 'পিরিয়ড',
+    days: {
+      Monday: 'সোমবার',
+      Tuesday: 'মঙ্গলবার',
+      Wednesday: 'বুধবার',
+      Thursday: 'বৃহস্পতিবার',
+      Friday: 'শুক্রবার',
+      Saturday: 'শনিবার'
+    },
+    alerts: {
+      errorLoad: 'এই মুহূর্তে রুটিন লোড করা যাচ্ছে না।'
+    }
   }
 };
 
@@ -66,7 +88,7 @@ export default function StudentTimetablePage() {
         setRows(sortTimetableRows(Array.isArray(response?.data) ? response.data : []));
       } catch (_error) {
         setRows([]);
-        toast.error('Unable to load timetable right now.');
+        toast.error(t.alerts.errorLoad);
       } finally {
         setLoading(false);
       }
@@ -117,7 +139,7 @@ export default function StudentTimetablePage() {
               ) : (
                 gridRows.map((dayRow, rowIndex) => (
                   <tr key={dayRow.day} className={rowIndex % 2 === 1 ? 'bg-red-50/20' : ''}>
-                    <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-900">{dayRow.day}</td>
+                    <td className="border-t border-slate-100 px-3 py-3 font-semibold text-slate-900">{t.days[dayRow.day] || dayRow.day}</td>
                     {dayRow.cells.map((cell) => (
                       <td key={`${cell.day}-${cell.periodNumber}`} className="border-t border-slate-100 px-2 py-2 align-top">
                         {cell.items.length === 0 ? (

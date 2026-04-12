@@ -57,6 +57,18 @@ const text = {
       downloadAdmitCard: 'Download Admit Card',
       downloadingAdmitCard: 'Downloading...',
       admitCardDownloadFailed: 'Failed to download admit card right now.'
+    },
+    welcomeBack: 'Welcome back',
+    importantNotices: 'Important Notices',
+    brandSubtitle: 'Stay connected with your school, track your progress, and never miss an important update.',
+    synthetic: {
+      admitCardTitle: 'Admit Card Available',
+      admitCardDesc: 'Your Admit Card for {examName}{yearSuffix} is now available for download.',
+      upcomingExamFallback: 'upcoming examination'
+    },
+    examStatus: {
+      ongoing: 'Ongoing',
+      noUpcoming: 'No Upcoming Exam'
     }
   },
   bn: {
@@ -95,13 +107,25 @@ const text = {
       downloadAdmitCard: 'অ্যাডমিট কার্ড ডাউনলোড',
       downloadingAdmitCard: 'ডাউনলোড হচ্ছে...',
       admitCardDownloadFailed: 'এই মুহূর্তে অ্যাডমিট কার্ড ডাউনলোড করা যাচ্ছে না।'
+    },
+    welcomeBack: 'স্বাগতম ফিরে আসার জন্য',
+    importantNotices: 'গুরুত্বপূর্ণ নোটিশ',
+    brandSubtitle: 'আপনার স্কুলের সাথে সংযুক্ত থাকুন, আপনার অগ্রগতি ট্র্যাক করুন এবং কোনো গুরুত্বপূর্ণ আপডেট মিস করবেন না।',
+    synthetic: {
+      admitCardTitle: 'অ্যাডমিট কার্ড পাওয়া যাচ্ছে',
+      admitCardDesc: '{examName}{yearSuffix}-এর জন্য আপনার অ্যাডমিট কার্ড এখন ডাউনলোডের জন্য উপলব্ধ।',
+      upcomingExamFallback: 'আসন্ন পরীক্ষা'
+    },
+    examStatus: {
+      ongoing: 'চলমান',
+      noUpcoming: 'কোনো আসন্ন পরীক্ষা নেই'
     }
   }
 };
 
-const DEFAULT_STATS = [
+const getDefaults = (t) => [
   { title: 'Attendance %', value: '0%' },
-  { title: 'Upcoming Exam', value: 'No Upcoming Exam' },
+  { title: 'Upcoming Exam', value: t.examStatus.noUpcoming },
   { title: 'Pending Fees', value: 'INR 0' }
 ];
 
@@ -127,24 +151,24 @@ const buildAdmitCardSyntheticNotice = (card = {}) => {
 
   return {
     _id: `admit-card-${admitCardId}`,
-    title: 'Admit Card Available',
-    description: `Your Admit Card for ${examName}${yearSuffix} is now available for download.`,
+    title: t.synthetic.admitCardTitle,
+    description: t.synthetic.admitCardDesc.replace('{examName}', examName).replace('{yearSuffix}', yearSuffix),
     noticeType: 'General',
     status: 'Active',
     isImportant: true,
     sourceType: 'ADMIT_CARD_SYSTEM',
     actionType: 'ADMIT_CARD_DOWNLOAD',
-    actionLabel: 'Download Admit Card',
+    actionLabel: t.notices.downloadAdmitCard,
     actionPath: `/admit-cards/${admitCardId}/download`,
     admitCardId,
     createdAt: card?.availableAt || card?.updatedAt || new Date().toISOString()
   };
 };
 
-const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [] } = {}) => {
+const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [], t } = {}) => {
   const normalizedNotices = Array.isArray(notices) ? notices : [];
   const availableCards = Array.isArray(availableAdmitCards) ? availableAdmitCards : [];
-
+ 
   const existingAdmitCardIds = new Set();
   normalizedNotices.forEach((notice) => {
     const directId = String(notice?.admitCardId || '').trim();
@@ -152,15 +176,15 @@ const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [] } =
       existingAdmitCardIds.add(directId);
       return;
     }
-
+ 
     const fromPathId = parseAdmitCardIdFromPath(notice?.actionPath);
     if (fromPathId) {
       existingAdmitCardIds.add(fromPathId);
     }
   });
-
+ 
   const syntheticNotices = availableCards
-    .map((card) => buildAdmitCardSyntheticNotice(card))
+    .map((card) => buildAdmitCardSyntheticNotice(card, t))
     .filter(Boolean)
     .filter((item) => !existingAdmitCardIds.has(String(item.admitCardId || '').trim()));
 
@@ -225,17 +249,17 @@ const getExamWindow = (exam) => {
   };
 };
 
-const getUpcomingExamValue = (exams) => {
+const getUpcomingExamValue = (exams, t) => {
   const nowMs = Date.now();
-
+ 
   const examWindows = (Array.isArray(exams) ? exams : [])
     .map((item) => {
       const examWindow = getExamWindow(item);
       if (!examWindow) {
         return null;
       }
-
-      const examName = String(item?.examName || item?.description || 'Exam').trim() || 'Exam';
+ 
+      const examName = String(item?.examName || item?.description || t.synthetic.upcomingExamFallback).trim() || t.synthetic.upcomingExamFallback;
       return {
         name: examName,
         startDate: examWindow.startDate,
@@ -243,28 +267,30 @@ const getUpcomingExamValue = (exams) => {
       };
     })
     .filter(Boolean);
-
+ 
   const ongoingExam = examWindows
     .filter((item) => nowMs >= item.startDate.getTime() && nowMs <= item.endDate.getTime())
     .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
-
+ 
   if (ongoingExam) {
-    return 'Ongoing';
+    return t.examStatus.ongoing;
   }
-
+ 
   const nextScheduledExam = examWindows
     .filter((item) => item.startDate.getTime() > nowMs)
     .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())[0];
-
-  return nextScheduledExam?.name || 'No Upcoming Exam';
+ 
+  return nextScheduledExam?.name || t.examStatus.noUpcoming;
 };
 
-const fetchStudentDashboardData = async () => {
+const fetchStudentDashboardData = async (t) => {
   const { token } = getAuthContext();
+  const defaultStats = getDefaults(t);
+
   if (!token) {
     return {
       studentProfile: null,
-      stats: DEFAULT_STATS,
+      stats: defaultStats,
       notices: []
     };
   }
@@ -277,7 +303,7 @@ const fetchStudentDashboardData = async () => {
   if (!student) {
     return {
       studentProfile: null,
-      stats: DEFAULT_STATS,
+      stats: defaultStats,
       notices: []
     };
   }
@@ -307,17 +333,18 @@ const fetchStudentDashboardData = async () => {
         ? configuredAttendance
         : 0
   }%`;
-  const upcomingExamValue = getUpcomingExamValue(examsRes.data || []);
+  const upcomingExamValue = getUpcomingExamValue(examsRes.data || [], t);
   const pendingFromFees = (feesRes.data || []).reduce(
     (sum, item) => sum + Math.max((item.amountDue || 0) - (item.amountPaid || 0), 0),
     0
   );
-
+ 
   const notices = mergeNoticesWithAdmitCards({
     notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
-    availableAdmitCards: Array.isArray(admitCardsRes?.data) ? admitCardsRes.data : []
+    availableAdmitCards: Array.isArray(admitCardsRes?.data) ? admitCardsRes.data : [],
+    t
   });
-
+ 
   return {
     studentProfile: student,
     stats: [
@@ -335,12 +362,13 @@ export default function StudentDashboardPage() {
   const [downloadingNoticeId, setDownloadingNoticeId] = useState('');
   const [admitCardDownloadError, setAdmitCardDownloadError] = useState('');
 
-  const { data, isLoading } = useSWR('student-dashboard', fetchStudentDashboardData, {
+  const { data, isLoading } = useSWR(t ? ['student-dashboard', t] : null, () => fetchStudentDashboardData(t), {
     refreshInterval: 60000
   });
 
   const studentProfile = data?.studentProfile || null;
-  const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : DEFAULT_STATS), [data]);
+  const defaultStats = useMemo(() => getDefaults(t), [t]);
+  const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : defaultStats), [data, defaultStats]);
   const notices = useMemo(() => (Array.isArray(data?.notices) ? data.notices : []), [data]);
   const importantNoticeCount = useMemo(
     () => notices.filter((item) => Boolean(item?.isImportant)).length,
@@ -428,15 +456,15 @@ export default function StudentDashboardPage() {
         <div className="relative z-10">
           <PortalTopSection
             role="Student"
-            heading={studentProfile?.userId?.name ? `Welcome back, ${studentProfile.userId.name}` : t.title}
+            heading={studentProfile?.userId?.name ? `${t.welcomeBack}, ${studentProfile.userId.name}` : t.title}
             subheading={t.description}
-            metricLabel="Important Notices"
+            metricLabel={t.importantNotices}
             metricValue={String(importantNoticeCount)}
           />
         </div>
       </section>
-
-      <SchoolBrandPanel subtitle="Stay connected with your school, track your progress, and never miss an important update." />
+ 
+      <SchoolBrandPanel subtitle={t.brandSubtitle} />
 
       <InfoCard title={t.notices.title}>
         {isLoading ? (

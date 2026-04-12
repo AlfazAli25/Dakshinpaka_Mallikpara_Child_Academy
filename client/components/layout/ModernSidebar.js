@@ -35,8 +35,8 @@ const iconByLabelKey = {
   checkout: Receipt
 };
 
-const resolveLabelIcon = (label = '') => {
-  const key = String(label || '').toLowerCase();
+const resolveLabelIcon = (label = '', href = '') => {
+  const key = (String(label || '') + ' ' + String(href || '')).toLowerCase();
   for (const [token, icon] of Object.entries(iconByLabelKey)) {
     if (key.includes(token)) {
       return icon;
@@ -108,7 +108,7 @@ function ModernSidebar({
         <nav className="space-y-2">
           {links.map((link) => {
             const active = pathname === link.href;
-            const Icon = resolveLabelIcon(link.label);
+            const Icon = resolveLabelIcon(link.label, link.href);
 
             return (
               <Link

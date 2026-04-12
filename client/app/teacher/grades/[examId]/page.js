@@ -9,13 +9,48 @@ import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getAuthContext, getCurrentTeacherRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+import { useLanguage } from '@/lib/language-context';
 
-const gradeColumns = [
-  { key: 'student', label: 'Student' },
-  { key: 'admissionNo', label: 'Student ID' },
-  { key: 'marks', label: 'Marks' },
-  { key: 'remarks', label: 'Remarks' }
-];
+const text = {
+  en: {
+    eyebrow: 'Teaching Panel',
+    title: 'Grade Entry',
+    description: 'Review marks and remarks for the selected exam.',
+    detailsTitle: 'Exam Details',
+    details: {
+      examId: 'Exam ID',
+      subject: 'Subject',
+      classLbl: 'Class',
+      date: 'Date',
+      totalMarks: 'Total Marks'
+    },
+    columns: [
+      { key: 'student', label: 'Student' },
+      { key: 'admissionNo', label: 'Student ID' },
+      { key: 'marks', label: 'Marks' },
+      { key: 'remarks', label: 'Remarks' }
+    ]
+  },
+  bn: {
+    eyebrow: 'টিচিং প্যানেল',
+    title: 'গ্রেড এন্ট্রি',
+    description: 'নির্বাচিত পরীক্ষার নম্বর এবং মন্তব্য পর্যালোচনা করুন।',
+    detailsTitle: 'পরীক্ষার বিবরণ',
+    details: {
+      examId: 'পরীক্ষা আইডি',
+      subject: 'বিষয়',
+      classLbl: 'ক্লাস',
+      date: 'তারিখ',
+      totalMarks: 'মোট নম্বর'
+    },
+    columns: [
+      { key: 'student', label: 'শিক্ষার্থী' },
+      { key: 'admissionNo', label: 'স্টুডেন্ট আইডি' },
+      { key: 'marks', label: 'নম্বর' },
+      { key: 'remarks', label: 'মন্তব্য' }
+    ]
+  }
+};
 
 const formatDateValue = (value) => {
   if (!value) {
@@ -31,6 +66,9 @@ const formatDateValue = (value) => {
 };
 
 export default function TeacherGradesPage() {
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
   const params = useParams();
   const examId = params?.examId;
   const toast = useToast();
@@ -85,20 +123,20 @@ export default function TeacherGradesPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Teaching Panel"
-        title="Grade Entry"
-        description="Review marks and remarks for the selected exam."
+        eyebrow={t.eyebrow}
+        title={t.title}
+        description={t.description}
       />
 
-      <InfoCard title="Exam Details">
-        <p className="text-sm text-slate-700">Exam ID: {exam?._id || examId || '-'}</p>
-        <p className="text-sm text-slate-700">Subject: {exam?.subjectId?.name || '-'}</p>
-        <p className="text-sm text-slate-700">Class: {formatClassLabel(exam?.classId)}</p>
-        <p className="text-sm text-slate-700">Date: {formatDateValue(exam?.date)}</p>
-        <p className="text-sm text-slate-700">Total Marks: {exam?.totalMarks || 0}</p>
+      <InfoCard title={t.detailsTitle}>
+        <p className="text-sm text-slate-700">{t.details.examId}: {exam?._id || examId || '-'}</p>
+        <p className="text-sm text-slate-700">{t.details.subject}: {exam?.subjectId?.name || '-'}</p>
+        <p className="text-sm text-slate-700">{t.details.classLbl}: {formatClassLabel(exam?.classId, t.details.classLbl)}</p>
+        <p className="text-sm text-slate-700">{t.details.date}: {formatDateValue(exam?.date)}</p>
+        <p className="text-sm text-slate-700">{t.details.totalMarks}: {exam?.totalMarks || 0}</p>
       </InfoCard>
 
-      <Table columns={gradeColumns} rows={rows} loading={loading} />
+      <Table columns={t.columns} rows={rows} loading={loading} />
     </div>
   );
 }
