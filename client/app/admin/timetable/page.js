@@ -32,6 +32,8 @@ const getInitialForm = () => {
   const defaultTimeSlot = getPeriodTimeSlot(defaultPeriodNumber);
 
   return {
+    className: '',
+    classSection: '',
     classId: '',
     section: '',
     day: TIMETABLE_DAYS[0],
@@ -129,15 +131,39 @@ export default function AdminTimetablePage() {
     [selectedClass]
   );
 
-  const classOptions = useMemo(
+  const uniqueClassNames = useMemo(
+    () => Array.from(new Set(classes.map((c) => c.name))).sort(),
+    [classes]
+  );
+
+  const availableSections = useMemo(
+    () => {
+      if (!form.className) return [];
+      return classes
+        .filter((c) => c.name === form.className)
+        .map((c) => c.section || '')
+        .sort();
+    },
+    [classes, form.className]
+  );
+
+  const classNameOptions = useMemo(
     () => [
-      { value: '', label: 'Select class' },
-      ...classes.map((item) => ({
-        value: toId(item),
-        label: formatClassLabel(item, 'Class')
+      { value: '', label: 'Select class name' },
+      ...uniqueClassNames.map((name) => ({ value: name, label: name }))
+    ],
+    [uniqueClassNames]
+  );
+
+  const classSectionOptions = useMemo(
+    () => [
+      { value: '', label: form.className ? 'Select section' : 'Select class first' },
+      ...availableSections.map((section) => ({
+        value: section,
+        label: section || '(No Section)'
       }))
     ],
-    [classes]
+    [availableSections, form.className]
   );
 
   const subjectOptions = useMemo(() => {
@@ -353,6 +379,32 @@ export default function AdminTimetablePage() {
     const nextValue = event.target.value;
 
     setForm((prev) => {
+      if (field === 'className') {
+        return {
+          ...prev,
+          className: nextValue,
+          classSection: '',
+          classId: '',
+          section: '',
+          subjectId: '',
+          teacherId: ''
+        };
+      }
+
+      if (field === 'classSection') {
+        const matchedClass = classes.find(
+          (c) => c.name === prev.className && (c.section || '') === nextValue
+        );
+        return {
+          ...prev,
+          classSection: nextValue,
+          classId: matchedClass ? toId(matchedClass) : '',
+          section: normalizeSection(nextValue),
+          subjectId: '',
+          teacherId: ''
+        };
+      }
+
       if (field === 'classId') {
         const nextClass = classes.find((item) => toId(item) === nextValue);
         return {
@@ -392,6 +444,8 @@ export default function AdminTimetablePage() {
   const resetFormForNextEntry = () => {
     setForm((prev) => ({
       ...getInitialForm(),
+      className: prev.className,
+      classSection: prev.classSection,
       classId: prev.classId,
       section: prev.section
     }));
@@ -421,6 +475,21 @@ export default function AdminTimetablePage() {
 
   const onSaveTimetable = async (event) => {
     event.preventDefault();
+
+    if (!form.className) {
+      toast.error('Please select a class name');
+      return;
+    }
+
+    if (!form.classSection && availableSections.length > 0) {
+      toast.error('Please select a section');
+      return;
+    }
+
+    if (!form.classId) {
+      toast.error('Please select both class and section');
+      return;
+    }
 
     const effectiveSection = normalizeSection(form.section || selectedClassSection);
     if (!effectiveSection) {
@@ -494,9 +563,12 @@ export default function AdminTimetablePage() {
   const onEditRow = (row) => {
     const periodNumber = String(row?.periodNumber || TIMETABLE_PERIODS[0]);
     const selectedPeriodSlot = getPeriodTimeSlot(periodNumber);
+    const rowClass = classes.find((c) => toId(c) === toId(row?.classId));
 
     setEditingId(toId(row));
     setForm({
+      className: rowClass?.name || '',
+      classSection: rowClass?.section || '',
       classId: toId(row?.classId),
       section: normalizeSection(row?.section),
       day: String(row?.day || TIMETABLE_DAYS[0]),
@@ -553,13 +625,39 @@ export default function AdminTimetablePage() {
       />
 
       <form onSubmit={onSaveTimetable} className="rounded-2xl border border-red-100 bg-white p-4 shadow-sm md:p-5">
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900">Currently Selected</p>
+          <p className="mt-1 text-sm font-medium text-blue-700">
+            {form.className ? (
+              <>
+                Class: <span className="font-bold">{form.className}</span>
+                {form.classSection && (
+                  <>
+                    {' '} | Section: <span className="font-bold">{form.classSection}</span>
+                  </>
+                )}
+                {!form.classSection && ' | Section: Not selected'}
+              </>
+            ) : 'Class: Not selected | Section: Not selected'}
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Select
-            label="Class"
-            value={form.classId}
-            onChange={onFieldChange('classId')}
-            options={classOptions}
+            label="Class Name *"
+            value={form.className}
+            onChange={onFieldChange('className')}
+            options={classNameOptions}
             disabled={saving || loadingSetup}
+            required
+          />
+
+          <Select
+            label="Section *"
+            value={form.classSection}
+            onChange={onFieldChange('classSection')}
+            options={classSectionOptions}
+            disabled={saving || !form.className}
             required
           />
 

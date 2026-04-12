@@ -94,6 +94,8 @@ export default function AdminNoticesPage() {
   const [form, setForm] = useState(getInitialForm());
   const [editingId, setEditingId] = useState('');
   const [classes, setClasses] = useState([]);
+  const [selectedClassNames, setSelectedClassNames] = useState([]);
+  const [selectedClassSections, setSelectedClassSections] = useState({});
   const [students, setStudents] = useState([]);
   const [notices, setNotices] = useState([]);
   const [pendingNoticePayments, setPendingNoticePayments] = useState([]);
