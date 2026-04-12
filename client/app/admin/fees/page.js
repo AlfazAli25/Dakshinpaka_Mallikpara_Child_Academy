@@ -75,6 +75,33 @@ const filterVerificationRows = (items, searchText) => {
   return items.filter((item) => String(item.studentId?.userId?.name || '').toLowerCase().includes(query));
 };
 
+const downloadQrAsJpeg = () => {
+  const img = new window.Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width || 512;
+    canvas.height = img.height || 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'payment-qr-code.jpeg';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    }, 'image/jpeg', 0.95);
+  };
+  img.src = '/static-payment-qr.svg';
+};
+
 export default function AdminFeesPage() {
   const toast = useToast();
   const [rows, setRows] = useState([]);
@@ -414,13 +441,13 @@ export default function AdminFeesPage() {
           <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-400/20 dark:bg-red-900/20">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold text-slate-800 dark:text-red-100">Static QR Code (Reference)</p>
-              <a
-                href="/static-payment-qr.svg"
-                download="payment-qr-code.svg"
+              <button
+                type="button"
+                onClick={downloadQrAsJpeg}
                 className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-red-400/30 dark:bg-slate-800 dark:text-red-100 dark:hover:bg-slate-700"
               >
                 Download QR
-              </a>
+              </button>
             </div>
             <Image
               src="/static-payment-qr.svg"
