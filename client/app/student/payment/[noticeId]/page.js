@@ -7,7 +7,6 @@ import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import { get, postForm } from '@/lib/api';
-import { post as postApi } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 // UPI deep link logic removed for redesign
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
@@ -54,7 +53,6 @@ export default function StudentNoticePaymentPage() {
   const [paying, setPaying] = useState(false);
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
-  const [upiLoading, setUpiLoading] = useState(false);
   // const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
 
   const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
@@ -67,32 +65,6 @@ export default function StudentNoticePaymentPage() {
 
   // UPI deep link effect removed
 
-  // UPI deep link state
-  const [upiError, setUpiError] = useState('');
-  // Handle UPI payment
-  const onPayViaUpi = async () => {
-    setUpiError('');
-    setUpiLoading(true);
-    try {
-      const auth = getAuthContext();
-      if (!auth.token) {
-        setUpiError('Not authenticated. Please login again.');
-        return;
-      }
-      // Call backend to generate UPI link
-      const res = await postApi('/upi/generate-link', { feeType: 'notice' }, auth.token);
-      if (!res?.data?.upiLink) {
-        setUpiError('Failed to generate UPI link.');
-        return;
-      }
-      // Redirect to UPI app
-      window.location.href = res.data.upiLink;
-    } catch (err) {
-      setUpiError(err?.message || 'Failed to generate UPI link.');
-    } finally {
-      setUpiLoading(false);
-    }
-  };
 
   const canPay = useMemo(
     () => Boolean(noticeId && student?._id && isPaymentNotice && !hasPaid && !isPendingVerification && payableAmount > 0),
@@ -266,18 +238,7 @@ export default function StudentNoticePaymentPage() {
                   </p>
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onPayViaUpi}
-                      disabled={!canPay || upiLoading}
-                      className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {upiLoading ? 'Redirecting…' : 'Pay via UPI App'}
-                    </button>
-                    {upiError && (
-                      <span className="text-xs text-red-600 ml-2">{upiError}</span>
-                    )}
-                    <p className="text-xs text-slate-500">On mobile, this opens your UPI app directly.</p>
+                    {/* UPI deep link button and logic removed as per request */}
                   </div>
                 </div>
 
