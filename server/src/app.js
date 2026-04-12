@@ -27,7 +27,6 @@ const reportCardRoutes = require('./routes/report-card.routes');
 const noticeRoutes = require('./routes/notice.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const systemRoutes = require('./routes/system.routes');
-const upiRoutes = require('./routes/upi.routes');
 const { SCHOOL_NAME } = require('./config/school');
 const { notFound, errorHandler } = require('./middleware/error.middleware');
 const { attachRequestContext } = require('./middleware/request-context.middleware');
@@ -148,7 +147,7 @@ app.use('/api/report-cards', reportCardRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/system', systemRoutes);
-app.use('/api/upi', upiRoutes);
+// UPI deep link API removed
 
 app.use(notFound);
 app.use(errorHandler);
