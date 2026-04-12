@@ -59,7 +59,18 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
       return 'Home';
     }
 
-    return toTitleCase(segments[segments.length - 1] || 'Dashboard');
+    const lastSegment = segments[segments.length - 1] || 'Dashboard';
+
+    // If the last segment looks like a MongoDB ObjectID (24 hex chars)
+    // or any raw ID / slug that starts with a digit, show "Profile" instead.
+    const isRawId = /^[a-f0-9]{24}$/i.test(lastSegment) || /^\d+$/.test(lastSegment);
+    if (isRawId) {
+      return 'Profile';
+    }
+
+    // If the segment is a Next.js dynamic route placeholder like [studentId], strip the brackets.
+    const cleaned = lastSegment.replace(/^\[|\]$/g, '');
+    return toTitleCase(cleaned);
   }, [pathname]);
 
   const toggleSidebar = () => {
