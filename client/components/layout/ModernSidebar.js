@@ -20,7 +20,9 @@ import {
 } from 'lucide-react';
 import { SCHOOL_NAME } from '@/lib/school-config';
 
+// Add Bengali keywords for icon mapping
 const iconByLabelKey = {
+  // English
   dashboard: LayoutDashboard,
   students: Users,
   teachers: UserRoundCog,
@@ -33,24 +35,45 @@ const iconByLabelKey = {
   results: NotebookPen,
   attendance: ClipboardCheck,
   checkout: Receipt,
-  routine: CalendarCheck2
+  routine: CalendarCheck2,
+  // Bengali
+  'ড্যাশবোর্ড': LayoutDashboard,
+  'ছাত্রছাত্রী': Users,
+  'শিক্ষক': UserRoundCog,
+  'ক্লাস': SquareLibrary,
+  'নোটিশ': Bell,
+  'রুটিন': CalendarCheck2,
+  'পরীক্ষা': BookOpen,
+  'মার্কস': ClipboardCheck,
+  'ফলাফল': NotebookPen,
+  'ফি': Receipt,
+  'উপস্থিতি': ClipboardCheck
 };
 
 const resolveLabelIcon = (label = '', href = '') => {
   // Prioritize href path matching for language-independent icon resolution
   const hrefLower = String(href || '').toLowerCase();
   
-  // Check href first for more reliable matching
+  // Check href first for more reliable matching (English only)
   for (const [token, icon] of Object.entries(iconByLabelKey)) {
-    if (hrefLower.includes(token)) {
+    // Only check English tokens in href
+    if (/^[a-z]+$/.test(token) && hrefLower.includes(token)) {
       return icon;
     }
   }
-  
-  // Fallback to label matching (for English labels)
-  const labelLower = String(label || '').toLowerCase();
+
+  // Check label for both English and Bengali tokens
+  const labelStr = String(label || '');
   for (const [token, icon] of Object.entries(iconByLabelKey)) {
-    if (labelLower.includes(token)) {
+    if (labelStr.includes(token)) {
+      return icon;
+    }
+  }
+
+  // Fallback to lowercase label matching (for English labels)
+  const labelLower = labelStr.toLowerCase();
+  for (const [token, icon] of Object.entries(iconByLabelKey)) {
+    if (/^[a-z]+$/.test(token) && labelLower.includes(token)) {
       return icon;
     }
   }
