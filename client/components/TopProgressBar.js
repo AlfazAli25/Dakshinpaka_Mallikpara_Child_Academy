@@ -1,41 +1,56 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-export default function TopProgressBar() {
+
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const timer = useRef(null);
 
-  // Start progress on route change
+  // Show progress bar on route change start
   useEffect(() => {
-    setVisible(true);
-    setProgress(0);
-    let value = 0;
-    function step() {
-      value += Math.random() * 18 + 2; // Fast at first, slows down
-      if (value < 90) {
-        setProgress(value);
-        timer.current = setTimeout(step, 120);
+    const handleStart = () => {
+      setVisible(true);
+      setProgress(0);
+      let value = 0;
+      function step() {
+        value += Math.random() * 18 + 2;
+        if (value < 90) {
+          setProgress(value);
+          timer.current = setTimeout(step, 120);
+        }
       }
-    }
-    step();
-    return () => timer.current && clearTimeout(timer.current);
-  }, [pathname]);
-
-  // Complete progress when page is loaded
-  useEffect(() => {
-    if (!visible) return;
-    const handleComplete = () => {
+      step();
+    };
+    const handleDone = () => {
       setProgress(100);
       setTimeout(() => setVisible(false), 350);
+      if (timer.current) clearTimeout(timer.current);
     };
-    window.addEventListener("load", handleComplete);
-    return () => window.removeEventListener("load", handleComplete);
-  }, [visible]);
 
-  // Hide bar when not visible
+    // Listen to Next.js router events
+    router.events?.on?.("routeChangeStart", handleStart);
+    router.events?.on?.("routeChangeComplete", handleDone);
+    router.events?.on?.("routeChangeError", handleDone);
+
+    // Also handle initial load
+    handleStart();
+    window.addEventListener("load", handleDone);
+
+    return () => {
+      router.events?.off?.("routeChangeStart", handleStart);
+      router.events?.off?.("routeChangeComplete", handleDone);
+      router.events?.off?.("routeChangeError", handleDone);
+      window.removeEventListener("load", handleDone);
+      if (timer.current) clearTimeout(timer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, pathname]);
+
   if (!visible) return null;
 
   return (
