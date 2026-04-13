@@ -32,14 +32,20 @@ export default function TopProgressBar() {
       if (timer.current) clearTimeout(timer.current);
     };
 
+
     // Listen to Next.js router events
     router.events?.on?.("routeChangeStart", handleStart);
     router.events?.on?.("routeChangeComplete", handleDone);
     router.events?.on?.("routeChangeError", handleDone);
 
-    // Also handle initial load
-    handleStart();
-    window.addEventListener("load", handleDone);
+    // On initial mount, if the page is already loaded, ensure the bar is hidden
+    if (document.readyState === "complete") {
+      setVisible(false);
+      setProgress(100);
+    } else {
+      // If not loaded, listen for load event
+      window.addEventListener("load", handleDone);
+    }
 
     return () => {
       router.events?.off?.("routeChangeStart", handleStart);
