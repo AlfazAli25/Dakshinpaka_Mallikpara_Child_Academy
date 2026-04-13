@@ -302,9 +302,9 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
     <div className="relative min-h-screen">
       <ParticlesBackground3D className="opacity-45" />
 
-      <div className="sticky top-0 z-30 border-b border-red-900/40 bg-gradient-to-r from-red-900/95 via-red-800/95 to-red-900/95 px-3 py-3 shadow-lg backdrop-blur md:px-5">
-        <div className="flex items-center justify-between gap-2 md:gap-4">
-          <div className="flex min-w-0 items-center gap-2 md:gap-3">
+      <div className="sticky top-0 z-30 border-b border-red-900/40 bg-gradient-to-r from-red-900/95 via-red-800/95 to-red-900/95 px-2 py-2 shadow-lg backdrop-blur md:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 md:gap-4">
+          <div className="flex min-w-0 items-center gap-1 md:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -323,11 +323,11 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
               <img src="/School_Logo.png" alt="School Logo" className="h-9 w-9 rounded-lg object-contain" />
             </Link>
 
-            <div className="min-w-0">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100/90">
+            <div className="min-w-0 max-w-[120px] sm:max-w-none">
+              <p className="truncate text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] text-red-100/90">
                 {title === 'Admin Panel' ? t.adminPanel : title === 'Teacher Panel' ? t.teacherPanel : title === 'Student Panel' ? t.studentPanel : title}
               </p>
-              <p className="truncate text-sm font-semibold text-white/95 md:text-base">
+              <p className="truncate text-xs sm:text-sm font-semibold text-white/95 md:text-base flex items-center">
                 {activePageLabel}
                 <span className="mx-1.5 inline-flex text-red-200/90">
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -337,7 +337,7 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex flex-wrap items-center gap-1 md:gap-3 w-full sm:w-auto justify-end">
             <LanguageToggle />
             <ThemeToggle />
 
