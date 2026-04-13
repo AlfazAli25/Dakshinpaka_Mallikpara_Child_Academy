@@ -32,13 +32,25 @@ const iconByLabelKey = {
   fees: Receipt,
   results: NotebookPen,
   attendance: ClipboardCheck,
-  checkout: Receipt
+  checkout: Receipt,
+  routine: CalendarCheck2
 };
 
 const resolveLabelIcon = (label = '', href = '') => {
-  const key = (String(label || '') + ' ' + String(href || '')).toLowerCase();
+  // Prioritize href path matching for language-independent icon resolution
+  const hrefLower = String(href || '').toLowerCase();
+  
+  // Check href first for more reliable matching
   for (const [token, icon] of Object.entries(iconByLabelKey)) {
-    if (key.includes(token)) {
+    if (hrefLower.includes(token)) {
+      return icon;
+    }
+  }
+  
+  // Fallback to label matching (for English labels)
+  const labelLower = String(label || '').toLowerCase();
+  for (const [token, icon] of Object.entries(iconByLabelKey)) {
+    if (labelLower.includes(token)) {
       return icon;
     }
   }
