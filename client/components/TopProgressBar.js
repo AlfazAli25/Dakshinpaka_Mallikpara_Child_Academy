@@ -38,10 +38,26 @@ export default function TopProgressBar() {
     router.events?.on?.("routeChangeComplete", handleDone);
     router.events?.on?.("routeChangeError", handleDone);
 
-    // On initial mount, if the page is already loaded, ensure the bar is hidden
+
+    // Always show the bar on mount (even if already loaded)
+    setVisible(true);
+    setProgress(0);
+    let value = 0;
+    function step() {
+      value += Math.random() * 18 + 2;
+      if (value < 90) {
+        setProgress(value);
+        timer.current = setTimeout(step, 120);
+      }
+    }
+    step();
+
+    // If already loaded, hide bar immediately after a short delay
     if (document.readyState === "complete") {
-      setVisible(false);
-      setProgress(100);
+      setTimeout(() => {
+        setProgress(100);
+        setTimeout(() => setVisible(false), 350);
+      }, 200);
     } else {
       // If not loaded, listen for load event
       window.addEventListener("load", handleDone);
