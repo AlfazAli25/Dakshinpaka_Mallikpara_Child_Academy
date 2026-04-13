@@ -4,7 +4,9 @@ import { SWRConfig } from 'swr';
 import { LanguageProvider } from '@/lib/language-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
+
 import PageTransitionLoader from '@/components/animations/PageTransitionLoader';
+import TopProgressBar from '@/components/TopProgressBar';
 
 export default function Providers({ children }) {
   return (
@@ -22,6 +24,7 @@ export default function Providers({ children }) {
               errorRetryInterval: 1000
             }}
           >
+            <TopProgressBar />
             <PageTransitionLoader />
             {children}
           </SWRConfig>
