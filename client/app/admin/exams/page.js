@@ -238,6 +238,115 @@ const DEFAULT_FORM = {
   description: ''
 };
 
+// Helper functions
+const toId = (value) => String(value?._id || value || '').trim();
+
+const getTodayDateInputValue = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const toLocalDateInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const toLocalTimeInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
+const getScheduleFromExam = (exam) => {
+  if (!exam) return [];
+  return Array.isArray(exam.schedule) ? exam.schedule : [];
+};
+
+const normalizeExamType = (value) => {
+  const normalized = String(value || '').trim();
+  return normalized === 'Final Exam' ? 'Final Exam' : 'Unit Test';
+};
+
+const getScheduleKey = (classId, subjectId) => {
+  return `${String(classId || '').trim()}-${String(subjectId || '').trim()}`;
+};
+
+const combineDateAndTime = (dateStr, timeStr) => {
+  if (!dateStr || !timeStr) return null;
+  const combined = new Date(`${dateStr}T${timeStr}`);
+  return isNaN(combined.getTime()) ? null : combined;
+};
+
+const hasTimeOverlap = (start1, end1, start2, end2) => {
+  const s1 = start1.getTime();
+  const e1 = end1.getTime();
+  const s2 = start2.getTime();
+  const e2 = end2.getTime();
+  return s1 < e2 && s2 < e1;
+};
+
+const toDateTimeLabel = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-GB', { 
+    day: '2-digit', 
+    month: 'short', 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+};
+
+const toExamWindowLabel = (startValue, endValue) => {
+  if (!startValue) return '-';
+  const start = new Date(startValue);
+  if (isNaN(start.getTime())) return '-';
+  
+  if (!endValue) {
+    return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  
+  const end = new Date(endValue);
+  if (isNaN(end.getTime())) {
+    return start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+  
+  return `${start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+};
+
+const isExamCompleted = (exam) => {
+  if (!exam) return false;
+  const endDate = exam.endDate || exam.date || exam.examDate;
+  if (!endDate) return false;
+  const end = new Date(endDate);
+  return !isNaN(end.getTime()) && end.getTime() < Date.now();
+};
+
+const scheduleRowsEqual = (rows1, rows2) => {
+  if (rows1.length !== rows2.length) return false;
+  for (let i = 0; i < rows1.length; i++) {
+    const r1 = rows1[i];
+    const r2 = rows2[i];
+    if (r1.classId !== r2.classId || r1.subjectId !== r2.subjectId || 
+        r1.examDate !== r2.examDate || r1.startTime !== r2.startTime || 
+        r1.endTime !== r2.endTime) {
+      return false;
+    }
+  }
+  return true;
+};
+
 // EXAM_TYPE_OPTIONS and columns moved inside component for localization
 
 export default function AdminExamsPage() {
