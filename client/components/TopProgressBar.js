@@ -1,10 +1,10 @@
-"use client";
 
+"use client";
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useRouter } from "next/navigation";
 
-
+export default function TopProgressBar() {
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
   const pathname = usePathname();
@@ -64,4 +64,5 @@ import { useRouter } from "next/navigation";
       />
     </div>
   );
+}
 
