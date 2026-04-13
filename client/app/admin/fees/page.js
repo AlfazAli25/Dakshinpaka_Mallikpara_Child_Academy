@@ -165,15 +165,6 @@ const text = {
   }
 };
 
-  const verificationColumns = [
-    { key: 'studentAdmissionNo', label: t.verification.table.studentId },
-    { key: 'studentName', label: t.verification.table.student },
-    { key: 'className', label: t.verification.table.class },
-    { key: 'section', label: t.verification.table.section },
-    { key: 'amount', label: t.verification.table.amount },
-    { key: 'submittedAt', label: t.verification.table.submittedAt },
-    { key: 'status', label: t.verification.table.status }
-  ];
 
 const PENDING_SCREENSHOT_VERIFICATION_MESSAGE = 'Payment screenshot pending verification. Please verify before processing payment.';
 
@@ -261,6 +252,19 @@ const downloadQrAsJpeg = () => {
 
 export default function AdminFeesPage() {
   const toast = useToast();
+  const { language } = useLanguage();
+  const t = text[language] || text.en;
+
+  const verificationColumns = [
+    { key: 'studentAdmissionNo', label: t.verification.table.studentId },
+    { key: 'studentName', label: t.verification.table.student },
+    { key: 'className', label: t.verification.table.class },
+    { key: 'section', label: t.verification.table.section },
+    { key: 'amount', label: t.verification.table.amount },
+    { key: 'submittedAt', label: t.verification.table.submittedAt },
+    { key: 'status', label: t.verification.table.status }
+  ];
+
   const [rows, setRows] = useState([]);
   const [students, setStudents] = useState([]);
   const [pendingVerifications, setPendingVerifications] = useState([]);
@@ -275,7 +279,6 @@ export default function AdminFeesPage() {
   const [debouncedVerificationSearch, setDebouncedVerificationSearch] = useState('');
   const [transactionReference, setTransactionReference] = useState('');
   const [amount, setAmount] = useState('');
-
   useEffect(() => {
     if (error) {
       toast.error(error);
