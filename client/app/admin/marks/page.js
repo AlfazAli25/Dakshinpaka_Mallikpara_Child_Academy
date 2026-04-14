@@ -439,23 +439,26 @@ export default function AdminMarksPage() {
     [uniqueExamMap, t.filters.allExams]
   );
 
-  // When exam is selected, show only classes that have completed that exam.
+  // When exam is selected, show all classes assigned to that exam (from exam setup)
   const uniqueClassNamesForFilter = useMemo(() => {
     if (selectedExamId) {
-      // Find the selected exam object
-      const selectedExam = [...uniqueExamMap.values()].find((e) => toId(e) === selectedExamId);
+      const selectedExam = examOptionsRaw.find((e) => toId(e) === selectedExamId);
       if (!selectedExam) return [];
-      // Find all classes that have completed this exam (by examId)
-      const completedClassNames = new Set();
-      rows.forEach((row) => {
-        if (row.examName === (selectedExam.examName || selectedExam.description || '-')) {
-          completedClassNames.add(row.className);
-        }
-      });
-      return Array.from(completedClassNames).sort();
+      // If exam has classIds (array), use those; else fallback to classId
+      let classIds = [];
+      if (Array.isArray(selectedExam.classIds) && selectedExam.classIds.length > 0) {
+        classIds = selectedExam.classIds.map(toId);
+      } else if (selectedExam.classId) {
+        classIds = [toId(selectedExam.classId)];
+      }
+      // Map classIds to class names
+      const classNames = classOptionsRaw
+        .filter((c) => classIds.includes(toId(c)))
+        .map((c) => c.name);
+      return Array.from(new Set(classNames)).sort();
     }
     return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
-  }, [classOptionsRaw, uniqueExamMap, selectedExamId, rows]);
+  }, [classOptionsRaw, examOptionsRaw, selectedExamId]);
 
   const classNameFilterOptions = useMemo(
     () => [
