@@ -446,24 +446,40 @@ export default function AdminMarksPage() {
       if (!selectedExam) return [];
       const selectedExamIdStr = String(selectedExamId).trim();
       const selectedExamName = (selectedExam.examName || selectedExam.description || '').trim().toLowerCase();
+      // Build a normalized map of class option names for lookup
+      const classOptionNameMap = new Map();
+      classOptionsRaw.forEach((c) => {
+        classOptionNameMap.set((c.name || '').trim().toLowerCase(), c.name);
+      });
       const completedClassNames = new Set();
       rows.forEach((row) => {
-        // Normalize examId and examName for comparison
+        // Normalize examId, examName, and className for comparison
         const rowExamIdStr = String(row.examId).trim();
         const rowExamName = (row.examName || '').trim().toLowerCase();
+        const rowClassNameNorm = (row.className || '').trim().toLowerCase();
         if (
           rowExamIdStr === selectedExamIdStr ||
           (rowExamName && rowExamName === selectedExamName)
         ) {
-          completedClassNames.add(row.className);
+          // Use the canonical class name from classOptionsRaw if available
+          if (classOptionNameMap.has(rowClassNameNorm)) {
+            completedClassNames.add(classOptionNameMap.get(rowClassNameNorm));
+          } else if (row.className) {
+            completedClassNames.add(row.className);
+          }
         }
       });
       // Fallback: if no class found by examId, try matching by examName only
       if (completedClassNames.size === 0 && selectedExamName) {
         rows.forEach((row) => {
           const rowExamName = (row.examName || '').trim().toLowerCase();
+          const rowClassNameNorm = (row.className || '').trim().toLowerCase();
           if (rowExamName === selectedExamName) {
-            completedClassNames.add(row.className);
+            if (classOptionNameMap.has(rowClassNameNorm)) {
+              completedClassNames.add(classOptionNameMap.get(rowClassNameNorm));
+            } else if (row.className) {
+              completedClassNames.add(row.className);
+            }
           }
         });
       }
