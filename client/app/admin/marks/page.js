@@ -417,31 +417,45 @@ export default function AdminMarksPage() {
     };
   }, [pagination.page, pagination.limit, selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId]);
 
-  // Exam is the first filter — show ALL exams with no upstream dependency.
+  // Exam is the first filter — show each exam name only once (unique by name+date+year)
+  const uniqueExamMap = useMemo(() => {
+    const map = new Map();
+    for (const exam of examOptionsRaw) {
+      // Key: examName + date + academicYear
+      const key = `${exam.examName || ''}|${exam.examDate || exam.date || ''}|${exam.academicYear || ''}`;
+      if (!map.has(key)) map.set(key, exam);
+    }
+    return map;
+  }, [examOptionsRaw]);
+
   const examOptions = useMemo(
     () => [
       { value: '', label: t.filters.allExams },
-      ...examOptionsRaw.map((item) => ({
+      ...Array.from(uniqueExamMap.values()).map((item) => ({
         value: toId(item),
         label: formatExamLabel(item)
       }))
     ],
-    [examOptionsRaw, t.filters.allExams]
+    [uniqueExamMap, t.filters.allExams]
   );
 
   // When exam is selected, show only classes that have completed that exam.
   const uniqueClassNamesForFilter = useMemo(() => {
     if (selectedExamId) {
-      // Find all classes that have marks for this exam
-      const completedClassIds = new Set(
-        rows
-          .filter((row) => String(row.examName).toLowerCase().includes(String(examOptions.find((o) => o.value === selectedExamId)?.label?.split('(')[0] || '').toLowerCase()))
-          .map((row) => row.className)
-      );
-      return Array.from(completedClassIds).sort();
+      // Find the selected exam object
+      const selectedExam = [...uniqueExamMap.values()].find((e) => toId(e) === selectedExamId);
+      if (!selectedExam) return [];
+      // Find all classes that have completed this exam (by examId)
+      const completedClassNames = new Set();
+      rows.forEach((row) => {
+        if (row.examName === (selectedExam.examName || selectedExam.description || '-')) {
+          completedClassNames.add(row.className);
+        }
+      });
+      return Array.from(completedClassNames).sort();
     }
     return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
-  }, [classOptionsRaw, examOptionsRaw, selectedExamId, rows, examOptions]);
+  }, [classOptionsRaw, uniqueExamMap, selectedExamId, rows]);
 
   const classNameFilterOptions = useMemo(
     () => [
@@ -451,13 +465,24 @@ export default function AdminMarksPage() {
     [uniqueClassNamesForFilter, t.filters.allClasses]
   );
 
+  // When class is selected, show only sections of that class that completed the selected exam
   const availableSectionsForFilter = useMemo(() => {
-    if (!selectedClassName) return [];
-    return classOptionsRaw
-      .filter((c) => c.name === selectedClassName)
-      .map((c) => c.section || '')
-      .sort();
-  }, [classOptionsRaw, selectedClassName]);
+    if (!selectedClassName || !selectedExamId) return [];
+    // Find the selected exam object
+    const selectedExam = [...uniqueExamMap.values()].find((e) => toId(e) === selectedExamId);
+    if (!selectedExam) return [];
+    // Find all sections for the selected class that have completed this exam
+    const completedSections = new Set();
+    rows.forEach((row) => {
+      if (
+        row.examName === (selectedExam.examName || selectedExam.description || '-') &&
+        row.className === selectedClassName
+      ) {
+        completedSections.add(row.classSection);
+      }
+    });
+    return Array.from(completedSections).sort();
+  }, [classOptionsRaw, selectedClassName, selectedExamId, rows, uniqueExamMap]);
 
   const classSectionFilterOptions = useMemo(
     () => [
