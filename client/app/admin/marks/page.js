@@ -442,13 +442,31 @@ export default function AdminMarksPage() {
   // When exam is selected, show only classes that have marks entered for that exam (i.e., completed the exam)
   const uniqueClassNamesForFilter = useMemo(() => {
     if (selectedExamId) {
-      // Find all class names that have at least one marks row for the selected exam
+      const selectedExam = examOptionsRaw.find((e) => toId(e) === selectedExamId);
+      if (!selectedExam) return [];
+      const selectedExamIdStr = String(selectedExamId).trim();
+      const selectedExamName = (selectedExam.examName || selectedExam.description || '').trim().toLowerCase();
       const completedClassNames = new Set();
       rows.forEach((row) => {
-        if (row.examId === selectedExamId || row.examName === examOptionsRaw.find((e) => toId(e) === selectedExamId)?.examName) {
+        // Normalize examId and examName for comparison
+        const rowExamIdStr = String(row.examId).trim();
+        const rowExamName = (row.examName || '').trim().toLowerCase();
+        if (
+          rowExamIdStr === selectedExamIdStr ||
+          (rowExamName && rowExamName === selectedExamName)
+        ) {
           completedClassNames.add(row.className);
         }
       });
+      // Fallback: if no class found by examId, try matching by examName only
+      if (completedClassNames.size === 0 && selectedExamName) {
+        rows.forEach((row) => {
+          const rowExamName = (row.examName || '').trim().toLowerCase();
+          if (rowExamName === selectedExamName) {
+            completedClassNames.add(row.className);
+          }
+        });
+      }
       return Array.from(completedClassNames).sort();
     }
     return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
