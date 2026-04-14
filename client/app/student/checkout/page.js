@@ -319,8 +319,30 @@ export default function StudentCheckoutPage() {
               />
               <p className="mt-2 text-xs text-slate-500">Scan this QR to pay online, then upload screenshot and submit.</p>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {/* UPI deep link button removed for redesign */}
+              {/* Phone & UPI ID with copy feature */}
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-700">Phone:</span>
+                  <span id="school-phone" className="text-xs text-slate-800 select-all">8509658357</span>
+                  <button
+                    type="button"
+                    className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    onClick={() => {
+                      navigator.clipboard.writeText('8509658357');
+                    }}
+                  >Copy</button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-700">UPI ID:</span>
+                  <span id="school-upi" className="text-xs text-slate-800 select-all">alfazali499-1@okicici</span>
+                  <button
+                    type="button"
+                    className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
+                    onClick={() => {
+                      navigator.clipboard.writeText('alfazali499-1@okicici');
+                    }}
+                  >Copy</button>
+                </div>
               </div>
             </div>
 
