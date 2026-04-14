@@ -429,20 +429,19 @@ export default function AdminMarksPage() {
     [examOptionsRaw, t.filters.allExams]
   );
 
-  // When exam is selected, narrow class names to only those that have that exam.
+  // When exam is selected, show only classes that have completed that exam.
   const uniqueClassNamesForFilter = useMemo(() => {
     if (selectedExamId) {
-      const selectedExam = examOptionsRaw.find((e) => toId(e) === selectedExamId);
-      const examClassId = toId(selectedExam?.classId);
-      if (examClassId) {
-        const matchedClass = classOptionsRaw.find((c) => toId(c) === examClassId);
-        if (matchedClass?.name) {
-          return [matchedClass.name];
-        }
-      }
+      // Find all classes that have marks for this exam
+      const completedClassIds = new Set(
+        rows
+          .filter((row) => String(row.examName).toLowerCase().includes(String(examOptions.find((o) => o.value === selectedExamId)?.label?.split('(')[0] || '').toLowerCase()))
+          .map((row) => row.className)
+      );
+      return Array.from(completedClassIds).sort();
     }
     return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
-  }, [classOptionsRaw, examOptionsRaw, selectedExamId]);
+  }, [classOptionsRaw, examOptionsRaw, selectedExamId, rows, examOptions]);
 
   const classNameFilterOptions = useMemo(
     () => [
