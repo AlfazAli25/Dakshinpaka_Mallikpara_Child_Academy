@@ -7,9 +7,13 @@ import Table from '@/components/Table';
 import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
-// UPI deep link logic removed for redesign
+import { SCHOOL_NAME, SCHOOL_UPI_ID, SCHOOL_UPI_PAYEE_NAME } from '@/lib/school-config';
+import { buildUpiPaymentLink, createDefaultUpiReference, launchUpiPayment } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+
+const FALLBACK_UPI_ID = 'alfazali499-1@okicici';
+const FALLBACK_PHONE = '8509658357';
 
 const checkoutColumns = [
   { key: 'paymentDate', label: 'Payment Date' },
@@ -87,9 +91,10 @@ export default function StudentCheckoutPage() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  // const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
+  const [autoUpiReference, setAutoUpiReference] = useState(() => createDefaultUpiReference());
 
-  // UPI config debug log removed (UPI logic deprecated)
+  const configuredUpiId = String(SCHOOL_UPI_ID || '').trim() || FALLBACK_UPI_ID;
+  const configuredPayeeName = String(SCHOOL_UPI_PAYEE_NAME || SCHOOL_NAME || 'School Payment').trim() || 'School Payment';
 
   useEffect(() => {
     if (error) {
@@ -190,11 +195,18 @@ export default function StudentCheckoutPage() {
   const enteredAmount = Number(paymentAmount || payableAmount);
   const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= effectivePendingAmount;
   const upiPayAmount = isEnteredAmountValid ? enteredAmount : payableAmount;
-  // const configuredUpiPaymentLink = useMemo(() => null, []);
-
-  // UPI deep link effect removed
-
-  // const upiPaymentLink = null;
+  const resolvedUpiReference = String(transactionReference || autoUpiReference || '').trim();
+  const upiPaymentLink = useMemo(
+    () =>
+      buildUpiPaymentLink({
+        upiId: configuredUpiId,
+        payeeName: configuredPayeeName,
+        amount: upiPayAmount,
+        transactionReference: resolvedUpiReference,
+        note: `School Fee Payment ${resolvedUpiReference ? `(${resolvedUpiReference})` : ''}`.trim()
+      }),
+    [configuredPayeeName, configuredUpiId, resolvedUpiReference, upiPayAmount]
+  );
 
   const feeRowForSubmission = rows[0] || null;
 
@@ -249,12 +261,45 @@ export default function StudentCheckoutPage() {
       setScreenshotFile(null);
       setTransactionReference('');
       setPaymentAmount('');
+      setAutoUpiReference(createDefaultUpiReference());
       await loadCheckoutData();
     } catch (apiError) {
       setError(apiError.message);
     } finally {
       setPaying(false);
     }
+  };
+
+  const onPayViaUpiApp = () => {
+    setError('');
+    setMessage('');
+
+    if (!hasPendingFeeMonth && effectivePendingAmount <= 0) {
+      setError('No pending fees available for payment.');
+      return;
+    }
+
+    if (!isEnteredAmountValid) {
+      setError(
+        effectivePendingAmount > 0
+          ? `Enter a valid payment amount between 1 and ${effectivePendingAmount}.`
+          : 'No pending fees available for payment.'
+      );
+      return;
+    }
+
+    if (!upiPaymentLink) {
+      setError('UPI payment is not configured right now.');
+      return;
+    }
+
+    const didLaunch = launchUpiPayment(upiPaymentLink);
+    if (!didLaunch) {
+      setError('Unable to open UPI app on this device.');
+      return;
+    }
+
+    setMessage('Opening UPI app. Complete payment and upload screenshot for verification.');
   };
 
   const hasPendingFeeMonth = Boolean(feeRowForSubmission);
@@ -274,7 +319,7 @@ export default function StudentCheckoutPage() {
       <PageHeader
         eyebrow="Student Payments"
         title="Checkout"
-        description="Pay via static QR and submit screenshot for admin verification."
+        description="Pay via UPI app or static QR, then submit screenshot for admin verification."
       />
 
       <div className="card-hover rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -300,15 +345,25 @@ export default function StudentCheckoutPage() {
             )}
 
             <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
-                <button
-                  type="button"
-                  onClick={downloadQrAsJpeg}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  Download QR
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={downloadQrAsJpeg}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Download QR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onPayViaUpiApp}
+                    disabled={!hasPendingFeeMonth || !isEnteredAmountValid}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Pay Via an UPI App
+                  </button>
+                </div>
               </div>
               <Image
                 src="/static-payment-qr.svg"
@@ -323,23 +378,23 @@ export default function StudentCheckoutPage() {
               <div className="mt-4 space-y-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-slate-700">Phone:</span>
-                  <span id="school-phone" className="text-xs text-slate-800 select-all">8509658357</span>
+                  <span id="school-phone" className="text-xs text-slate-800 select-all">{FALLBACK_PHONE}</span>
                   <button
                     type="button"
                     className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
                     onClick={() => {
-                      navigator.clipboard.writeText('8509658357');
+                      navigator.clipboard.writeText(FALLBACK_PHONE);
                     }}
                   >Copy</button>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-slate-700">UPI ID:</span>
-                  <span id="school-upi" className="text-xs text-slate-800 select-all">alfazali499-1@okicici</span>
+                  <span id="school-upi" className="text-xs text-slate-800 select-all">{configuredUpiId}</span>
                   <button
                     type="button"
                     className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
                     onClick={() => {
-                      navigator.clipboard.writeText('alfazali499-1@okicici');
+                      navigator.clipboard.writeText(configuredUpiId);
                     }}
                   >Copy</button>
                 </div>
