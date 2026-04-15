@@ -7,8 +7,6 @@ import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 
-const MONTHLY_FEE_AMOUNT = 200;
-
 const toId = (value) => String(value?._id || value || '');
 
 const toValidDate = (value) => {
@@ -205,10 +203,6 @@ export default function StudentLayout({ children }) {
   const [studentName, setStudentName] = useState('');
   const [upcomingExamSlots, setUpcomingExamSlots] = useState([]);
   const [loadingUpcomingExamSlots, setLoadingUpcomingExamSlots] = useState(true);
-  const [pendingFeeWarning, setPendingFeeWarning] = useState({
-    visible: false,
-    amount: 0
-  });
 
   useEffect(() => {
     const { token, user } = getAuthContext();
@@ -263,50 +257,6 @@ export default function StudentLayout({ children }) {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    const loadPendingFeeWarning = async () => {
-      try {
-        const student = await getCurrentStudentRecord();
-        const { token } = getAuthContext();
-
-        if (!token) {
-          if (active) {
-            setPendingFeeWarning({ visible: false, amount: 0 });
-          }
-          return;
-        }
-
-        const feesResponse = await get('/student/fees', token);
-        const ledgerPendingAmount = (Array.isArray(feesResponse.data) ? feesResponse.data : []).reduce(
-          (sum, item) => sum + Math.max(Number(item?.amountDue || 0) - Number(item?.amountPaid || 0), 0),
-          0
-        );
-
-        const profilePendingAmount = Math.max(Number(student?.pendingFees || 0), 0);
-        const pendingAmount = Math.max(ledgerPendingAmount, profilePendingAmount);
-
-        if (active) {
-          setPendingFeeWarning({
-            visible: pendingAmount > MONTHLY_FEE_AMOUNT,
-            amount: pendingAmount
-          });
-        }
-      } catch (_error) {
-        if (active) {
-          setPendingFeeWarning({ visible: false, amount: 0 });
-        }
-      }
-    };
-
-    loadPendingFeeWarning();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const panelTitle = studentName ? `${current.welcome || 'Welcome'}, ${studentName}` : current.title;
   const nextExamSlot = upcomingExamSlots[0] || null;
 
@@ -343,77 +293,11 @@ export default function StudentLayout({ children }) {
     </div>
   );
 
-  const showPendingFeeWarning = pendingFeeWarning.visible && pendingFeeWarning.amount > MONTHLY_FEE_AMOUNT;
-
-  const onClosePendingFeeWarning = () => {
-    setPendingFeeWarning((prev) => ({
-      ...prev,
-      visible: false
-    }));
-  };
-
-  const onPayNowFromWarning = () => {
-    const amount = Math.max(Number(pendingFeeWarning.amount || 0), 0);
-    router.push(`/student/checkout?amount=${amount}`);
-    onClosePendingFeeWarning();
-  };
-
   return (
     <>
       <AppShell title={panelTitle} links={current.links} sidebarExtra={sidebarUpcomingExamWidget}>
         {children}
       </AppShell>
-
-      {showPendingFeeWarning ? (
-        <div className="pointer-events-none fixed left-1/2 top-20 z-[95] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2">
-          <div className="pointer-events-auto overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-red-50 shadow-2xl animate-fade-up">
-            <div className="flex items-start justify-between gap-3 border-b border-amber-100 px-4 py-3">
-              <div className="flex items-start gap-2">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 9v4" />
-                    <path d="M12 17h.01" />
-                    <path d="M10.3 3.4L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3l-8.5-14.6a2 2 0 00-3.4 0z" />
-                  </svg>
-                </span>
-                <div>
-                  <p className="text-sm font-extrabold uppercase tracking-wide text-amber-800">
-                    {current.pendingFeeWarning.title}
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-slate-700">{current.pendingFeeWarning.message}</p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={onClosePendingFeeWarning}
-                className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                aria-label={current.pendingFeeWarning.close}
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18" />
-                  <path d="M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {current.pendingFeeWarning.pendingFeeLabel}
-              </p>
-              <p className="mt-1 text-2xl font-black text-red-700">INR {pendingFeeWarning.amount}</p>
-
-              <button
-                type="button"
-                onClick={onPayNowFromWarning}
-                className="mt-3 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-              >
-                {current.pendingFeeWarning.payNow}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </>
   );
 }
