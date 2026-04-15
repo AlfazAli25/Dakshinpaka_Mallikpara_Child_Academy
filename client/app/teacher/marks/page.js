@@ -117,6 +117,14 @@ const text = {
 
 const toId = (value) => String(value?._id || value || '');
 
+const toExamGroupKey = (exam = {}) => {
+  return `${String(exam?.examName || exam?.description || '').trim()}|${String(exam?.examDate || exam?.date || '').trim()}|${String(exam?.academicYear || '').trim()}`;
+};
+
+const toClassName = (item = {}) => String(item?.classId?.name || item?.name || '').trim();
+
+const toClassSection = (item = {}) => String(item?.classId?.section || item?.section || '').trim();
+
 const examIncludesSubject = (exam, subjectId = '') => {
   const normalizedSubjectId = String(subjectId || '').trim();
   if (!normalizedSubjectId) {
@@ -376,30 +384,62 @@ export default function TeacherMarksPage() {
   const examOptions = useMemo(
     () => [
       { value: '', label: t.controls.selectExam },
-      ...exams.map((exam) => {
-        const name = String(exam?.examName || 'Exam').trim();
-        const year = exam?.academicYear ? ` (${exam.academicYear})` : '';
-        const className = String(exam?.classId?.name || '').trim();
-        const section = String(exam?.classId?.section || '').trim();
-        const classLabel = className ? (section ? `${className}(${section})` : className) : '';
-        const label = classLabel ? `${name} — ${classLabel}${year}` : `${name}${year}`;
-        return { value: toId(exam), label };
-      })
+      ...Array.from(
+        new Map(
+          exams.map((exam) => [toExamGroupKey(exam), exam])
+        ).values()
+      ).map((exam) => ({
+        value: toId(exam),
+        label: toExamLabel(exam)
+      }))
     ],
     [exams]
   );
 
+  const selectedExamGroupExams = useMemo(() => {
+    if (!selectedExamId) {
+      return [];
+    }
+
+    const selectedExam = exams.find((exam) => toId(exam) === selectedExamId);
+    if (!selectedExam) {
+      return [];
+    }
+
+    const selectedExamGroupKey = toExamGroupKey(selectedExam);
+    return exams.filter((exam) => toExamGroupKey(exam) === selectedExamGroupKey);
+  }, [exams, selectedExamId]);
+
+  const selectedExamIdForClass = useMemo(() => {
+    if (!selectedExamId || !selectedClassId) {
+      return selectedExamId;
+    }
+
+    const selectedExam = exams.find((exam) => toId(exam) === selectedExamId);
+    if (!selectedExam) {
+      return selectedExamId;
+    }
+
+    const selectedExamGroupKey = toExamGroupKey(selectedExam);
+    const matchedExam = exams.find(
+      (exam) => toExamGroupKey(exam) === selectedExamGroupKey && toId(exam?.classId) === selectedClassId
+    );
+
+    return matchedExam ? toId(matchedExam) : selectedExamId;
+  }, [exams, selectedClassId, selectedExamId]);
+
   const uniqueClassNames = useMemo(() => {
     if (selectedExamId) {
-      const exam = exams.find((e) => toId(e) === selectedExamId);
-      const examClassId = toId(exam?.classId);
-      if (examClassId) {
-        const matchedClass = classes.find((c) => toId(c) === examClassId);
-        if (matchedClass?.name) return [matchedClass.name];
-      }
+      return Array.from(
+        new Set(
+          selectedExamGroupExams
+            .map((exam) => toClassName(exam))
+            .filter(Boolean)
+        )
+      ).sort();
     }
     return Array.from(new Set(classes.map((c) => c.name))).sort();
-  }, [classes, exams, selectedExamId]);
+  }, [classes, selectedExamGroupExams, selectedExamId]);
 
   const classNameFilterOptions = useMemo(
     () => [
@@ -411,11 +451,12 @@ export default function TeacherMarksPage() {
 
   const availableSections = useMemo(() => {
     if (!selectedClassName) return [];
-    return classes
-      .filter((c) => c.name === selectedClassName)
-      .map((c) => c.section || '')
+    const source = selectedExamId ? selectedExamGroupExams : classes;
+    return source
+      .filter((c) => toClassName(c) === selectedClassName)
+      .map((c) => toClassSection(c))
       .sort();
-  }, [classes, selectedClassName]);
+  }, [classes, selectedClassName, selectedExamGroupExams, selectedExamId]);
 
   const classSectionFilterOptions = useMemo(
     () => [
@@ -467,7 +508,7 @@ export default function TeacherMarksPage() {
         const [studentsResponse, marksResponse] = await Promise.all([
           get(`/students/class/${selectedClassId}`, token),
           get(
-            `/marks/class/${selectedClassId}?subjectId=${selectedSubjectId}&examId=${selectedExamId}&page=1&limit=500`,
+            `/marks/class/${selectedClassId}?subjectId=${selectedSubjectId}&examId=${selectedExamIdForClass}&page=1&limit=500`,
             token
           )
         ]);
@@ -502,30 +543,14 @@ export default function TeacherMarksPage() {
     return () => {
       active = false;
     };
-  }, [selectedClassId, selectedSubjectId, selectedExamId, toast]);
+  }, [selectedClassId, selectedSubjectId, selectedExamIdForClass, selectedExamId, toast]);
 
   const onChangeExam = (event) => {
     const nextExamId = event.target.value;
     setSelectedExamId(nextExamId);
-    
-    if (nextExamId) {
-      const exam = exams.find((e) => toId(e) === nextExamId);
-      const examClassId = toId(exam?.classId);
-      const matchedClass = examClassId ? classes.find((c) => toId(c) === examClassId) : null;
-      if (matchedClass) {
-        setSelectedClassName(matchedClass.name);
-        setSelectedClassSection(matchedClass.section || '');
-        setSelectedClassId(toId(matchedClass));
-      } else {
-        setSelectedClassName('');
-        setSelectedClassSection('');
-        setSelectedClassId('');
-      }
-    } else {
-      setSelectedClassName('');
-      setSelectedClassSection('');
-      setSelectedClassId('');
-    }
+    setSelectedClassName('');
+    setSelectedClassSection('');
+    setSelectedClassId('');
     
     setSelectedSubjectId('');
     setMaxMarksInput('');
@@ -536,19 +561,19 @@ export default function TeacherMarksPage() {
     const nextClassName = event.target.value;
     setSelectedClassName(nextClassName);
     setSelectedClassSection('');
-    
-    const sectionsForName = classes
-      .filter((c) => c.name === nextClassName)
-      .map((c) => c.section || '')
+    const source = selectedExamId ? selectedExamGroupExams : classes;
+    const sectionsForName = source
+      .filter((c) => toClassName(c) === nextClassName)
+      .map((c) => toClassSection(c))
       .sort();
       
     if (!nextClassName) {
       setSelectedClassId('');
     } else if (sectionsForName.length === 1) {
-      const matched = classes.find(
-        (c) => c.name === nextClassName && (c.section || '') === sectionsForName[0]
+      const matched = source.find(
+        (c) => toClassName(c) === nextClassName && toClassSection(c) === sectionsForName[0]
       );
-      setSelectedClassId(matched ? toId(matched) : '');
+      setSelectedClassId(matched ? toId(matched?.classId || matched) : '');
     } else {
       setSelectedClassId('');
     }
@@ -561,10 +586,11 @@ export default function TeacherMarksPage() {
   const onChangeClassSection = (event) => {
     const nextSection = event.target.value;
     setSelectedClassSection(nextSection);
-    const matched = classes.find(
-      (c) => c.name === selectedClassName && (c.section || '') === nextSection
+    const source = selectedExamId ? selectedExamGroupExams : classes;
+    const matched = source.find(
+      (c) => toClassName(c) === selectedClassName && toClassSection(c) === nextSection
     );
-    setSelectedClassId(matched ? toId(matched) : '');
+    setSelectedClassId(matched ? toId(matched?.classId || matched) : '');
     setSelectedSubjectId('');
     setMaxMarksInput('');
     setRows([]);
