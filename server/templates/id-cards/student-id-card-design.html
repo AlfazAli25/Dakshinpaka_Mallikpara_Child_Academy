@@ -107,8 +107,8 @@
       .school-panel {
         position: absolute;
         top: 2.1mm;
-        left: 26.8mm;
-        right: 2.2mm;
+        left: 25.9mm;
+        right: 2.1mm;
         height: 15.6mm;
         overflow: hidden;
         z-index: 5;
@@ -117,35 +117,37 @@
       .school-name {
         margin: 0;
         color: #2c5f2f;
-        font-size: 3.25mm;
-        line-height: 1.02;
+        font-size: 3.05mm;
+        line-height: 1;
         text-transform: uppercase;
         font-weight: 900;
-        letter-spacing: 0.05mm;
+        letter-spacing: 0.03mm;
       }
 
       .school-address {
-        margin: 0.52mm 0 0;
-        font-size: 1.86mm;
+        margin: 0.38mm 0 0;
+        font-size: 1.72mm;
         font-weight: 600;
         color: #1f2937;
-        line-height: 1.02;
-        white-space: nowrap;
-        overflow: visible;
-        text-overflow: clip;
+        line-height: 1.04;
+        white-space: normal;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
       }
 
       .school-reg {
-        margin: 0.35mm 0 0;
-        font-size: 2.08mm;
+        margin: 0.24mm 0 0;
+        font-size: 2mm;
         font-weight: 800;
         color: #1f3f72;
         line-height: 1.02;
       }
 
       .school-phone {
-        margin: 0.35mm 0 0;
-        font-size: 2.03mm;
+        margin: 0.24mm 0 0;
+        font-size: 1.94mm;
         font-weight: 700;
         color: #1f2937;
         line-height: 1.02;
@@ -157,7 +159,7 @@
       .id-band {
         position: absolute;
         top: 18.4mm;
-        left: 25.6mm;
+        left: 22.4mm;
         right: 2.3mm;
         height: 4.85mm;
         background: linear-gradient(90deg, #254f86 0%, #1f4f92 55%, #274f85 100%);
@@ -168,18 +170,6 @@
         align-items: center;
         justify-content: center;
         z-index: 6;
-      }
-
-      .id-band::before {
-        content: "";
-        position: absolute;
-        left: -3.2mm;
-        top: 0;
-        width: 0;
-        height: 0;
-        border-top: 2.42mm solid transparent;
-        border-bottom: 2.42mm solid transparent;
-        border-right: 3.2mm solid #2b5894;
       }
 
       .id-band span {
@@ -214,7 +204,7 @@
       .details {
         position: absolute;
         left: 27.9mm;
-        right: 14.2mm;
+        right: 13.5mm;
         top: 24.95mm;
         z-index: 7;
         display: grid;
@@ -224,12 +214,8 @@
       .row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 1.35mm;
+        gap: 1.1mm;
         min-height: 3.5mm;
-      }
-
-      .row.name-id {
-        grid-template-columns: 0.9fr 1.3fr;
       }
 
       .row.single {
@@ -253,7 +239,7 @@
       .line-cell .label {
         margin: 0;
         color: #111827;
-        font-size: 1.94mm;
+        font-size: 1.88mm;
         line-height: 1;
         font-weight: 600;
         white-space: nowrap;
@@ -264,7 +250,7 @@
         flex: 1;
         min-width: 0;
         color: #111827;
-        font-size: 1.86mm;
+        font-size: 1.82mm;
         line-height: 1;
         font-weight: 500;
         white-space: nowrap;
@@ -273,7 +259,7 @@
       }
 
       .line-cell .value.id-value {
-        font-size: 1.78mm;
+        font-size: 1.7mm;
       }
 
       .line-cell .value.bold,
@@ -369,11 +355,14 @@
       </div>
 
       <section class="details">
-        <div class="row name-id">
+        <div class="row single">
           <div class="line-cell">
             <p class="label">Name:</p>
             <p class="value bold">{{studentName}}</p>
           </div>
+        </div>
+
+        <div class="row single">
           <div class="line-cell">
             <p class="label">Student ID:</p>
             <p class="value strong id-value">{{studentId}}</p>
