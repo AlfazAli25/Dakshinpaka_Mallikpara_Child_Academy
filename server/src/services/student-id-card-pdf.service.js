@@ -157,7 +157,7 @@ const parseAcademicYearStart = (value) => {
 const getValidUptoFromAcademicYear = (academicYearValue) => {
   const fallbackYear = Number(getDefaultAcademicYear());
   const startYear = parseAcademicYearStart(academicYearValue) ?? fallbackYear;
-  return `31/03/${startYear + 1}`;
+  return `31.12.${startYear}`;
 };
 
 const resolveMimeType = (filePath) => {
