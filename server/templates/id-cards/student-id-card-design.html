@@ -15,7 +15,7 @@
         margin: 0;
         width: 86mm;
         height: 54mm;
-        font-family: "Segoe UI", Arial, sans-serif;
+        font-family: "Arial", "Helvetica", sans-serif;
       }
 
       * {
@@ -27,100 +27,199 @@
         width: 86mm;
         height: 54mm;
         overflow: hidden;
-        border: 1px solid #b91c1c;
-        border-radius: 3mm;
-        background: linear-gradient(155deg, #fff7ed 0%, #ffffff 55%, #fee2e2 100%);
+        border: 0.42mm solid #8db0cd;
+        border-radius: 2.8mm;
+        background: #ffffff;
       }
 
       .card::before {
         content: "";
         position: absolute;
-        top: -16mm;
-        right: -14mm;
-        width: 38mm;
-        height: 38mm;
-        border-radius: 50%;
-        background: radial-gradient(circle at center, #fca5a5 0%, #ef4444 60%, #dc2626 100%);
-        opacity: 0.15;
+        top: -9.2mm;
+        left: -10mm;
+        width: 50mm;
+        height: 17.6mm;
+        border-radius: 0 0 60% 60%;
+        background: linear-gradient(102deg, #c8ddf0 0%, #9fc2df 52%, #87afcf 100%);
       }
 
-      .header {
-        display: grid;
-        grid-template-columns: 10mm 1fr;
-        gap: 2mm;
-        align-items: center;
-        padding: 2.2mm 3mm 1.4mm;
-        border-bottom: 1px solid #fecaca;
-        background: linear-gradient(90deg, #fee2e2 0%, #fff7ed 100%);
+      .card::after {
+        content: "";
+        position: absolute;
+        top: -10mm;
+        right: -7mm;
+        width: 33mm;
+        height: 15mm;
+        border-radius: 50%;
+        background: linear-gradient(120deg, #f5d94e 0%, #f0bf3b 100%);
+        opacity: 0.95;
+      }
+
+      .inner-border {
+        position: absolute;
+        inset: 1mm;
+        border-radius: 2.1mm;
+        border: 0.26mm solid #b2cce0;
+        pointer-events: none;
+        z-index: 20;
+      }
+
+      .watermark {
+        position: absolute;
+        left: 35.6mm;
+        top: 24.9mm;
+        width: 19.8mm;
+        height: 19.8mm;
+        object-fit: contain;
+        opacity: 0.1;
+        z-index: 1;
+      }
+
+      .brand-panel {
+        position: absolute;
+        top: 1.9mm;
+        left: 2.2mm;
+        width: 23.8mm;
+        text-align: center;
+        z-index: 5;
       }
 
       .logo-wrap {
-        width: 9.4mm;
-        height: 9.4mm;
+        width: 18.2mm;
+        height: 18.2mm;
+        margin: 0 auto;
         border-radius: 50%;
-        border: 1px solid #fca5a5;
-        background: #ffffff;
+        border: 0.28mm solid #7ea6c7;
+        background: #fbfdff;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        box-shadow: inset 0 0 0 0.22mm #d3e5f5;
       }
 
       .logo-wrap img {
-        width: 90%;
-        height: 90%;
+        width: 95%;
+        height: 95%;
         object-fit: contain;
+      }
+
+      .left-brand-title {
+        margin: 0.9mm 0 0;
+        font-size: 2.15mm;
+        line-height: 1;
+        font-weight: 800;
+        letter-spacing: 0.16mm;
+        color: #1f4c8c;
+        text-transform: uppercase;
+      }
+
+      .left-brand-subtitle {
+        margin: 0.48mm 0 0;
+        font-size: 1.85mm;
+        line-height: 1;
+        font-weight: 700;
+        color: #355f95;
+        letter-spacing: 0.14mm;
+        text-transform: uppercase;
+      }
+
+      .school-panel {
+        position: absolute;
+        top: 2.1mm;
+        left: 27.5mm;
+        right: 2.4mm;
+        z-index: 5;
       }
 
       .school-name {
         margin: 0;
-        font-size: 3mm;
+        color: #2c5f2f;
+        font-size: 4.2mm;
+        line-height: 1.03;
+        text-transform: uppercase;
+        font-weight: 900;
+        letter-spacing: 0.08mm;
+      }
+
+      .school-address {
+        margin: 1.05mm 0 0;
+        font-size: 2.55mm;
+        font-weight: 600;
+        color: #1f2937;
         line-height: 1.12;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .school-reg {
+        margin: 0.52mm 0 0;
+        font-size: 2.8mm;
         font-weight: 800;
-        letter-spacing: 0.02em;
-        color: #7f1d1d;
+        color: #1f3f72;
+        line-height: 1.1;
+      }
+
+      .school-phone {
+        margin: 0.48mm 0 0;
+        font-size: 2.75mm;
+        font-weight: 700;
+        color: #1f2937;
+        line-height: 1.05;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .id-band {
+        position: absolute;
+        top: 18.4mm;
+        left: 25.6mm;
+        right: 2.3mm;
+        height: 4.85mm;
+        background: linear-gradient(90deg, #254f86 0%, #1f4f92 55%, #274f85 100%);
+        border-top: 0.24mm solid #3f6ea6;
+        border-bottom: 0.24mm solid #1c3f6e;
+        border-radius: 0.35mm;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 6;
+      }
+
+      .id-band::before {
+        content: "";
+        position: absolute;
+        left: -3.2mm;
+        top: 0;
+        width: 0;
+        height: 0;
+        border-top: 2.42mm solid transparent;
+        border-bottom: 2.42mm solid transparent;
+        border-right: 3.2mm solid #2b5894;
+      }
+
+      .id-band span {
+        font-size: 2.25mm;
+        line-height: 1;
+        font-weight: 700;
+        letter-spacing: 0.16mm;
+        color: #ffffff;
         text-transform: uppercase;
       }
 
-      .school-branch {
-        margin: 0.35mm 0 0;
-        font-size: 2.1mm;
-        line-height: 1.2;
-        color: #9a3412;
-        font-weight: 600;
-      }
-
-      .id-title {
-        margin: 0.7mm 0 0;
-        font-size: 2mm;
-        line-height: 1;
-        color: #b91c1c;
-        font-weight: 700;
-        letter-spacing: 0.07em;
-      }
-
-      .body {
-        display: grid;
-        grid-template-columns: 20.5mm 1fr;
-        gap: 2.2mm;
-        padding: 2mm 3mm 2.2mm;
-        height: calc(54mm - 12.4mm);
-      }
-
-      .left {
-        display: grid;
-        grid-template-rows: auto auto;
-        gap: 1.5mm;
-        align-content: start;
-      }
-
       .photo-wrap {
-        width: 20.5mm;
-        height: 23.5mm;
-        border-radius: 2.2mm;
-        border: 1px solid #fca5a5;
-        background: #ffffff;
+        position: absolute;
+        left: 3.3mm;
+        top: 24.7mm;
+        width: 22.2mm;
+        height: 25.8mm;
+        border: 0.25mm solid #4f6781;
+        border-radius: 0.5mm;
+        background: #f8fafc;
         overflow: hidden;
+        z-index: 5;
       }
 
       .photo-wrap img {
@@ -129,168 +228,205 @@
         object-fit: cover;
       }
 
+      .details {
+        position: absolute;
+        left: 27.9mm;
+        right: 14.8mm;
+        top: 24.95mm;
+        z-index: 7;
+        display: grid;
+        gap: 0.48mm;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2mm;
+        min-height: 3.5mm;
+      }
+
+      .line-cell {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.55mm;
+        border-bottom: 0.24mm solid #cad6e1;
+        min-height: 3.5mm;
+        overflow: hidden;
+      }
+
+      .line-cell.empty {
+        gap: 0;
+      }
+
+      .line-cell .label {
+        margin: 0;
+        color: #111827;
+        font-size: 1.98mm;
+        line-height: 1;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .line-cell .value {
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        color: #111827;
+        font-size: 1.92mm;
+        line-height: 1;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .line-cell .value.bold,
+      .line-cell .value.strong {
+        font-weight: 700;
+      }
+
+      .line-cell .value.soft {
+        font-weight: 600;
+      }
+
+      .line-cell .value.upper {
+        text-transform: uppercase;
+      }
+
       .qr-wrap {
-        width: 20.5mm;
-        height: 20.5mm;
-        border-radius: 1.6mm;
-        border: 1px solid #fecaca;
+        position: absolute;
+        right: 2.8mm;
+        bottom: 8.1mm;
+        width: 10.6mm;
+        height: 10.6mm;
+        border-radius: 0.55mm;
+        border: 0.2mm solid #8aa9c3;
         background: #ffffff;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        z-index: 8;
       }
 
       .qr-wrap img {
-        width: 86%;
-        height: 86%;
+        width: 88%;
+        height: 88%;
         object-fit: contain;
       }
 
-      .right {
-        display: grid;
-        grid-template-rows: auto auto 1fr auto;
-        gap: 1.2mm;
-        min-height: 0;
-      }
-
-      .student-name {
+      .care-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 1.2mm;
         margin: 0;
-        font-size: 3mm;
-        line-height: 1.15;
-        font-weight: 800;
-        color: #7f1d1d;
-        text-transform: uppercase;
-      }
-
-      .student-id {
-        margin: 0;
-        font-size: 2.25mm;
-        line-height: 1.2;
-        font-weight: 700;
-        color: #991b1b;
-      }
-
-      .meta {
-        margin: 0;
-        display: grid;
-        gap: 0.55mm;
-      }
-
-      .meta-row {
-        display: grid;
-        grid-template-columns: 14mm 1fr;
-        gap: 1.2mm;
-        align-items: start;
-      }
-
-      .meta-label,
-      .meta-value {
-        margin: 0;
-        font-size: 2.08mm;
-        line-height: 1.16;
-      }
-
-      .meta-label {
-        color: #7f1d1d;
-        font-weight: 700;
-        letter-spacing: 0.02em;
-      }
-
-      .meta-value {
+        text-align: center;
+        font-size: 1.22mm;
+        line-height: 1;
         color: #1f2937;
-        font-weight: 600;
+        font-weight: 500;
+        z-index: 8;
+      }
+
+      .school-branch-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        border: 0;
         overflow: hidden;
-        text-overflow: ellipsis;
+        clip: rect(0, 0, 0, 0);
         white-space: nowrap;
-      }
-
-      .footer {
-        border-top: 1px dashed #fca5a5;
-        padding-top: 0.9mm;
-        display: grid;
-        gap: 0.5mm;
-      }
-
-      .footer-line {
-        margin: 0;
-        font-size: 1.75mm;
-        line-height: 1.14;
-        color: #7f1d1d;
-        font-weight: 600;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .footer-line strong {
-        color: #991b1b;
       }
     </style>
   </head>
   <body>
     <article class="card">
-      <header class="header">
+      <div class="inner-border"></div>
+
+      <img class="watermark" src="{{schoolLogo}}" alt="" aria-hidden="true" />
+
+      <header class="brand-panel">
         <div class="logo-wrap">
-          <img src="{{schoolLogo}}" alt="School Logo" />
+          <img src="{{schoolLogo}}" alt="School logo" />
         </div>
-        <div>
-          <p class="school-name">{{schoolName}}</p>
-          <p class="school-branch">{{schoolBranchName}}</p>
-          <p class="id-title">STUDENT IDENTITY CARD</p>
-        </div>
+        <p class="left-brand-title">CHILD ACADEMY</p>
+        <p class="left-brand-subtitle">KINDERGARTEN</p>
       </header>
 
-      <section class="body">
-        <div class="left">
-          <div class="photo-wrap">
-            <img src="{{studentPhoto}}" alt="Student Photo" />
-          </div>
-          <div class="qr-wrap">
-            <img src="{{studentQrCode}}" alt="Student QR Code" />
-          </div>
-        </div>
-
-        <div class="right">
-          <div>
-            <p class="student-name">{{studentName}}</p>
-            <p class="student-id">ID: {{studentId}}</p>
-          </div>
-
-          <div class="meta">
-            <div class="meta-row">
-              <p class="meta-label">Class</p>
-              <p class="meta-value">{{classLabel}}</p>
-            </div>
-            <div class="meta-row">
-              <p class="meta-label">Roll No</p>
-              <p class="meta-value">{{rollNo}}</p>
-            </div>
-            <div class="meta-row">
-              <p class="meta-label">DOB</p>
-              <p class="meta-value">{{dateOfBirth}}</p>
-            </div>
-            <div class="meta-row">
-              <p class="meta-label">Guardian</p>
-              <p class="meta-value">{{guardianContact}}</p>
-            </div>
-            <div class="meta-row">
-              <p class="meta-label">Issued On</p>
-              <p class="meta-value">{{issueDate}}</p>
-            </div>
-            <div class="meta-row">
-              <p class="meta-label">Valid Upto</p>
-              <p class="meta-value">{{validUpto}}</p>
-            </div>
-          </div>
-
-          <footer class="footer">
-            <p class="footer-line"><strong>Address:</strong> {{schoolAddress}}</p>
-            <p class="footer-line"><strong>Phone:</strong> {{schoolPhone}}</p>
-            <p class="footer-line"><strong>Website:</strong> {{schoolWebsite}}</p>
-          </footer>
+      <section class="school-panel">
+        <div class="school-branch-hidden">{{schoolBranchName}}</div>
+        <div>
+          <p class="school-name">{{schoolName}}</p>
+          <p class="school-address">{{schoolAddress}}</p>
+          <p class="school-reg">{{schoolRegLine}}</p>
+          <p class="school-phone">Phone: {{schoolPhone}}</p>
         </div>
       </section>
+
+      <div class="id-band">
+        <span>STUDENT ID CARD</span>
+      </div>
+
+      <div class="photo-wrap">
+        <img src="{{studentPhoto}}" alt="Student photo" />
+      </div>
+
+      <section class="details">
+        <div class="row">
+          <div class="line-cell">
+            <p class="label">Name:</p>
+            <p class="value bold">{{studentName}}</p>
+          </div>
+          <div class="line-cell">
+            <p class="label">Student ID:</p>
+            <p class="value strong">{{studentId}}</p>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="line-cell">
+            <p class="label">Class:</p>
+            <p class="value soft upper">{{className}}</p>
+          </div>
+          <div class="line-cell empty"></div>
+        </div>
+
+        <div class="row">
+          <div class="line-cell">
+            <p class="label">Section:</p>
+            <p class="value soft upper">{{section}}</p>
+          </div>
+          <div class="line-cell">
+            <p class="label">Roll No:</p>
+            <p class="value strong">{{rollNo}}</p>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="line-cell">
+            <p class="label">Academic Session:</p>
+            <p class="value soft">{{academicSession}}</p>
+          </div>
+          <div class="line-cell empty"></div>
+        </div>
+
+        <div class="row">
+          <div class="line-cell">
+            <p class="label">Valid Up to:</p>
+            <p class="value strong">{{validUpto}}</p>
+          </div>
+          <div class="line-cell empty"></div>
+        </div>
+      </section>
+
+      <div class="qr-wrap">
+        <img src="{{studentQrCode}}" alt="Student QR code" />
+      </div>
+
+      <p class="care-line">Please handle this card with care.</p>
     </article>
   </body>
 </html>

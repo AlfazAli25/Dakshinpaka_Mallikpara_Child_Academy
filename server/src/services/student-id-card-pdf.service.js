@@ -134,6 +134,17 @@ const getDefaultValidUpto = () => {
   return `31/03/${targetYear}`;
 };
 
+const getDefaultAcademicSession = () => {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+
+  if (currentMonth >= 3) {
+    return `${now.getFullYear()}-${now.getFullYear() + 1}`;
+  }
+
+  return `${now.getFullYear() - 1}-${now.getFullYear()}`;
+};
+
 const resolveMimeType = (filePath) => {
   const extension = String(path.extname(filePath) || '').toLowerCase();
 
@@ -355,6 +366,12 @@ const buildTemplateModel = async ({ student = {} }) => {
   const dateOfBirth = formatDate(student?.dob, '-');
   const issueDate = formatDate(new Date(), '-');
   const validUpto = toSafeText(process.env.STUDENT_ID_CARD_VALID_UPTO, getDefaultValidUpto());
+  const academicSession = toSafeText(process.env.STUDENT_ACADEMIC_SESSION, getDefaultAcademicSession());
+  const schoolRegLine = toSafeText(
+    process.env.SCHOOL_REGISTRATION_LINE,
+    'Estd: 2018 | Regd. No: IV-090/00520/2018'
+  );
+  const schoolPhone = toSafeText(SCHOOL_MOBILE).replace(/\s*,\s*/g, ' | ');
   const websiteLabel = toSafeText(SCHOOL_WEBSITE_URL, '-')
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/g, '') || '-';
@@ -386,15 +403,19 @@ const buildTemplateModel = async ({ student = {} }) => {
     schoolName: toSafeText(SCHOOL_NAME),
     schoolBranchName: toSafeText(SCHOOL_BRANCH_NAME, toSafeText(SCHOOL_NAME)),
     schoolAddress: toSafeText(SCHOOL_ADDRESS),
-    schoolPhone: toSafeText(SCHOOL_MOBILE),
+    schoolPhone,
+    schoolRegLine,
     schoolWebsite: websiteLabel,
     studentName,
     studentId,
+    className,
+    section,
     classLabel,
     rollNo,
     guardianContact,
     dateOfBirth,
     issueDate,
+    academicSession,
     validUpto
   };
 };
