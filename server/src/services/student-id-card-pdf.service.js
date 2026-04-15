@@ -127,22 +127,37 @@ const formatDate = (value, fallback = '-') => {
   return DATE_FORMATTER.format(parsed);
 };
 
-const getDefaultValidUpto = () => {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const targetYear = currentMonth >= 3 ? now.getFullYear() + 1 : now.getFullYear();
-  return `31/03/${targetYear}`;
-};
-
-const getDefaultAcademicSession = () => {
+const getDefaultAcademicYear = () => {
   const now = new Date();
   const currentMonth = now.getMonth();
 
   if (currentMonth >= 3) {
-    return `${now.getFullYear()}-${now.getFullYear() + 1}`;
+    return String(now.getFullYear());
   }
 
-  return `${now.getFullYear() - 1}-${now.getFullYear()}`;
+  return String(now.getFullYear() - 1);
+};
+
+const parseAcademicYearStart = (value) => {
+  const normalized = String(value ?? '').trim();
+  const match = normalized.match(/\b(19|20)\d{2}\b/);
+
+  if (!match) {
+    return null;
+  }
+
+  const parsedYear = Number(match[0]);
+  if (!Number.isInteger(parsedYear) || parsedYear < 1900 || parsedYear > 2099) {
+    return null;
+  }
+
+  return parsedYear;
+};
+
+const getValidUptoFromAcademicYear = (academicYearValue) => {
+  const fallbackYear = Number(getDefaultAcademicYear());
+  const startYear = parseAcademicYearStart(academicYearValue) ?? fallbackYear;
+  return `31/03/${startYear + 1}`;
 };
 
 const resolveMimeType = (filePath) => {
@@ -365,8 +380,13 @@ const buildTemplateModel = async ({ student = {} }) => {
   const guardianContact = toSafeText(student?.guardianContact, '-');
   const dateOfBirth = formatDate(student?.dob, '-');
   const issueDate = formatDate(new Date(), '-');
-  const validUpto = toSafeText(process.env.STUDENT_ID_CARD_VALID_UPTO, getDefaultValidUpto());
-  const academicSession = toSafeText(process.env.STUDENT_ACADEMIC_SESSION, getDefaultAcademicSession());
+  const rawAcademicYear = toSafeText(
+    process.env.STUDENT_ACADEMIC_YEAR || process.env.STUDENT_ACADEMIC_SESSION,
+    getDefaultAcademicYear()
+  );
+  const normalizedAcademicYearStart = parseAcademicYearStart(rawAcademicYear) ?? Number(getDefaultAcademicYear());
+  const academicYear = String(normalizedAcademicYearStart);
+  const validUpto = getValidUptoFromAcademicYear(academicYear);
   const schoolRegLine = toSafeText(
     process.env.SCHOOL_REGISTRATION_LINE,
     'Estd: 2018 | Regd. No: IV-090/00520/2018'
@@ -415,7 +435,7 @@ const buildTemplateModel = async ({ student = {} }) => {
     guardianContact,
     dateOfBirth,
     issueDate,
-    academicSession,
+    academicYear,
     validUpto
   };
 };

@@ -79,7 +79,7 @@
         position: absolute;
         top: 1.9mm;
         left: 2.2mm;
-        width: 23.8mm;
+        width: 20mm;
         text-align: center;
         z-index: 5;
       }
@@ -102,26 +102,6 @@
         width: 95%;
         height: 95%;
         object-fit: contain;
-      }
-
-      .left-brand-title {
-        margin: 0.9mm 0 0;
-        font-size: 2.15mm;
-        line-height: 1;
-        font-weight: 800;
-        letter-spacing: 0.16mm;
-        color: #1f4c8c;
-        text-transform: uppercase;
-      }
-
-      .left-brand-subtitle {
-        margin: 0.48mm 0 0;
-        font-size: 1.85mm;
-        line-height: 1;
-        font-weight: 700;
-        color: #355f95;
-        letter-spacing: 0.14mm;
-        text-transform: uppercase;
       }
 
       .school-panel {
@@ -214,7 +194,8 @@
       .photo-wrap {
         position: absolute;
         left: 3.3mm;
-        top: 24.7mm;
+        top: auto;
+        bottom: 2.2mm;
         width: 22.2mm;
         height: 25.8mm;
         border: 0.25mm solid #4f6781;
@@ -248,7 +229,7 @@
       }
 
       .row.name-id {
-        grid-template-columns: 1.2fr 1fr;
+        grid-template-columns: 0.95fr 1.25fr;
       }
 
       .row.single {
@@ -272,7 +253,7 @@
       .line-cell .label {
         margin: 0;
         color: #111827;
-        font-size: 1.92mm;
+        font-size: 1.72mm;
         line-height: 1;
         font-weight: 600;
         white-space: nowrap;
@@ -283,12 +264,16 @@
         flex: 1;
         min-width: 0;
         color: #111827;
-        font-size: 1.82mm;
+        font-size: 1.62mm;
         line-height: 1;
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .line-cell .value.id-value {
+        font-size: 1.5mm;
       }
 
       .line-cell .value.bold,
@@ -363,8 +348,6 @@
         <div class="logo-wrap">
           <img src="{{schoolLogo}}" alt="School logo" />
         </div>
-        <p class="left-brand-title">CHILD ACADEMY</p>
-        <p class="left-brand-subtitle">KINDERGARTEN</p>
       </header>
 
       <section class="school-panel">
@@ -393,7 +376,7 @@
           </div>
           <div class="line-cell">
             <p class="label">Student ID:</p>
-            <p class="value strong">{{studentId}}</p>
+            <p class="value strong id-value">{{studentId}}</p>
           </div>
         </div>
 
@@ -417,8 +400,8 @@
 
         <div class="row single">
           <div class="line-cell">
-            <p class="label">Academic Session:</p>
-            <p class="value soft">{{academicSession}}</p>
+            <p class="label">Academic Year:</p>
+            <p class="value soft">{{academicYear}}</p>
           </div>
         </div>
 
