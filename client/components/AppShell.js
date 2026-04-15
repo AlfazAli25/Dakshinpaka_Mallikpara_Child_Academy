@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, ChevronRight, Loader2, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import Sidebar from './Sidebar';
-import ThemeToggle from '@/components/ui/theme-toggle';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
 import { get, getBlob, post } from '@/lib/api';
@@ -406,7 +405,6 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
           <div className="flex flex-wrap items-center gap-1 md:gap-3 w-full sm:w-auto justify-end">
             <LanguageToggle />
-            <ThemeToggle />
 
             {user?.role === 'admin' ? (
               <div className="relative">

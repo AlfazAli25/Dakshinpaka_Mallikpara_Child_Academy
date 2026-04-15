@@ -1,80 +1,64 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const THEME_STORAGE_KEY = 'sms-ui-theme';
 const THEME_VERSION_KEY = 'sms-ui-theme-version';
-const THEME_VERSION = '2';
+const THEME_VERSION = '3';
+const LOCKED_THEME = 'light';
 
 const ThemeContext = createContext(null);
 
-const resolveTheme = () => {
-  if (typeof window === 'undefined') {
-    return 'light';
-  }
-
-  const storedVersion = String(window.localStorage.getItem(THEME_VERSION_KEY) || '').trim();
-  if (storedVersion !== THEME_VERSION) {
-    return 'light';
-  }
-
-  const stored = String(window.localStorage.getItem(THEME_STORAGE_KEY) || '').trim();
-  if (stored === 'dark' || stored === 'light') {
-    return stored;
-  }
-
-  return 'light';
-};
-
-const applyThemeToDom = (theme) => {
+const applyThemeToDom = () => {
   if (typeof document === 'undefined') {
     return;
   }
 
   const html = document.documentElement;
-  html.dataset.theme = theme;
-  html.classList.toggle('dark', theme === 'dark');
-  html.style.colorScheme = theme;
+  html.dataset.theme = LOCKED_THEME;
+  html.classList.remove('dark');
+  html.style.colorScheme = LOCKED_THEME;
 };
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState('light');
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    const initialTheme = resolveTheme();
-    setTheme(initialTheme);
-    applyThemeToDom(initialTheme);
-    setMounted(true);
-  }, []);
+  const enforceLightTheme = useCallback(() => {
+    applyThemeToDom();
 
-  useEffect(() => {
-    if (!mounted) {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    applyThemeToDom(theme);
-
     try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.localStorage.setItem(THEME_STORAGE_KEY, LOCKED_THEME);
       window.localStorage.setItem(THEME_VERSION_KEY, THEME_VERSION);
     } catch (_error) {
       // Ignore local storage write failures.
     }
-  }, [mounted, theme]);
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme((previousTheme) => (previousTheme === 'dark' ? 'light' : 'dark'));
-  };
+  useEffect(() => {
+    enforceLightTheme();
+    setMounted(true);
+  }, [enforceLightTheme]);
+
+  const setTheme = useCallback(() => {
+    enforceLightTheme();
+  }, [enforceLightTheme]);
+
+  const toggleTheme = useCallback(() => {
+    enforceLightTheme();
+  }, [enforceLightTheme]);
 
   const value = useMemo(
     () => ({
-      theme,
+      theme: LOCKED_THEME,
       setTheme,
       toggleTheme,
       mounted
     }),
-    [mounted, theme]
+    [mounted, setTheme, toggleTheme]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
