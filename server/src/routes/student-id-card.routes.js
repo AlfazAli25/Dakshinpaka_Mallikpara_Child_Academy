@@ -7,6 +7,13 @@ const controller = require('../controllers/student-id-card.controller');
 const router = express.Router();
 
 router.get(
+  '/student/me/download',
+  protect,
+  requireRole(['student']),
+  controller.downloadMyStudentIdCard
+);
+
+router.get(
   '/student/:studentId/download',
   protect,
   requireRole(['admin']),

@@ -4,12 +4,12 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, ChevronRight, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { Bell, ChevronRight, Loader2, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import Sidebar from './Sidebar';
 import ThemeToggle from '@/components/ui/theme-toggle';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/language-context';
-import { get, post } from '@/lib/api';
+import { get, getBlob, post } from '@/lib/api';
 import { clearSession, getToken, getUser } from '@/lib/session';
 
 const shellText = {
@@ -81,6 +81,10 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
   const [notifications, setNotifications] = useState([]);
   const [markingReadId, setMarkingReadId] = useState('');
   const [user, setUser] = useState(null);
+  const [studentIdCardOpen, setStudentIdCardOpen] = useState(false);
+  const [studentIdCardLoading, setStudentIdCardLoading] = useState(false);
+  const [studentIdCardError, setStudentIdCardError] = useState('');
+  const [studentIdCardPreviewUrl, setStudentIdCardPreviewUrl] = useState('');
   const notifPanelRef = useRef(null);
   const notifButtonRef = useRef(null);
 
@@ -236,6 +240,32 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
     };
   }, [notifOpen]);
 
+  useEffect(() => {
+    if (!studentIdCardOpen) {
+      return;
+    }
+
+    const onEscapePress = (event) => {
+      if (event.key === 'Escape') {
+        setStudentIdCardOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', onEscapePress);
+    return () => {
+      document.removeEventListener('keydown', onEscapePress);
+    };
+  }, [studentIdCardOpen]);
+
+  useEffect(
+    () => () => {
+      if (studentIdCardPreviewUrl) {
+        URL.revokeObjectURL(studentIdCardPreviewUrl);
+      }
+    },
+    [studentIdCardPreviewUrl]
+  );
+
   const unreadCount = notifications.filter((item) => item.status === 'UNREAD').length;
 
   const markRead = async (notification) => {
@@ -296,6 +326,43 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
     clearSession();
     setUser(null);
     router.push('/');
+  };
+
+  const openStudentIdCardPreview = async () => {
+    if (user?.role !== 'student') {
+      return;
+    }
+
+    setStudentIdCardOpen(true);
+    setStudentIdCardError('');
+
+    if (studentIdCardPreviewUrl || studentIdCardLoading) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      setStudentIdCardError('Unable to load ID card right now.');
+      return;
+    }
+
+    setStudentIdCardLoading(true);
+    try {
+      const pdfBlob = await getBlob('/id-cards/student/me/download', token, { timeoutMs: 120000 });
+      const nextPreviewUrl = URL.createObjectURL(pdfBlob);
+
+      setStudentIdCardPreviewUrl((previousPreviewUrl) => {
+        if (previousPreviewUrl) {
+          URL.revokeObjectURL(previousPreviewUrl);
+        }
+
+        return nextPreviewUrl;
+      });
+    } catch (_error) {
+      setStudentIdCardError('Unable to load ID card right now.');
+    } finally {
+      setStudentIdCardLoading(false);
+    }
   };
 
   return (
@@ -408,13 +475,28 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
             ) : null}
 
             {user ? (
-              <div className="hidden items-center rounded-xl border border-white/35 bg-white/10 px-3 py-1.5 text-white md:flex">
-                <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/90">{formatRole(user.role)}</p>
-                  <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || t.account}</p>
+              user.role === 'student' ? (
+                <button
+                  type="button"
+                  onClick={openStudentIdCardPreview}
+                  className="hidden items-center rounded-xl border border-white/35 bg-white/10 px-3 py-1.5 text-white transition hover:bg-white/20 md:flex"
+                  aria-label="Open student identity card"
+                >
+                  <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/90">{formatRole(user.role)}</p>
+                    <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || t.account}</p>
+                  </div>
+                </button>
+              ) : (
+                <div className="hidden items-center rounded-xl border border-white/35 bg-white/10 px-3 py-1.5 text-white md:flex">
+                  <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-red-100/90">{formatRole(user.role)}</p>
+                    <p className="max-w-[140px] truncate text-xs font-semibold text-white">{user.name || t.account}</p>
+                  </div>
                 </div>
-              </div>
+              )
             ) : null}
 
             {user ? (
@@ -445,6 +527,53 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
           <div className="mx-auto w-full max-w-[1500px]">{children}</div>
         </main>
       </div>
+
+      {studentIdCardOpen ? (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/65 p-4 backdrop-blur-sm"
+          onClick={() => setStudentIdCardOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Student identity card preview"
+        >
+          <div
+            className="h-[70vh] w-[70vw] overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex h-11 items-center justify-between border-b border-slate-200 bg-slate-50 px-3">
+              <p className="text-sm font-semibold text-slate-700">Student ID Card</p>
+              <button
+                type="button"
+                onClick={() => setStudentIdCardOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                aria-label="Close student ID card preview"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="h-[calc(70vh-44px)] w-full bg-white">
+              {studentIdCardLoading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-slate-500" aria-label="Loading student ID card" />
+                </div>
+              ) : studentIdCardError ? (
+                <div className="flex h-full items-center justify-center px-4 text-center">
+                  <p className="text-sm font-medium text-slate-600">{studentIdCardError}</p>
+                </div>
+              ) : studentIdCardPreviewUrl ? (
+                <iframe
+                  src={studentIdCardPreviewUrl}
+                  title="Student ID card"
+                  className="h-full w-full"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

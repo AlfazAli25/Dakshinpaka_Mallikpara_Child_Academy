@@ -61,6 +61,13 @@ const findStudentById = async (studentId) =>
     .populate({ path: 'classId', select: 'name section' })
     .lean();
 
+const findStudentByUserId = async (userId) =>
+  Student.findOne({ userId })
+    .select('admissionNo rollNo profileImageUrl classId userId guardianContact dob updatedAt')
+    .populate({ path: 'userId', select: 'name email' })
+    .populate({ path: 'classId', select: 'name section' })
+    .lean();
+
 const listStudentsByClassId = async (classId) => {
   const students = await Student.find({ classId })
     .select('admissionNo rollNo profileImageUrl classId userId guardianContact dob updatedAt')
@@ -144,6 +151,41 @@ const downloadStudentIdCardHandler = asyncHandler(async (req, res) => {
   });
 });
 
+const downloadMyStudentIdCardHandler = asyncHandler(async (req, res) => {
+  const userId = String(req.user?._id || '').trim();
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw createHttpError(401, 'Unauthorized');
+  }
+
+  const student = await findStudentByUserId(userId);
+  if (!student) {
+    throw createHttpError(404, 'Student profile not found');
+  }
+
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey(
+      'student-id-card',
+      'self',
+      userId,
+      String(student?.updatedAt || ''),
+      String(student?.profileImageUrl || '')
+    ),
+    fileName: buildStudentIdCardFileName({ student }),
+    contentType: 'application/pdf',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      const generated = await createStudentIdCardPdf({ student });
+      return generated.pdfBuffer;
+    }
+  });
+
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
+});
+
 const downloadClassIdCardsZipHandler = asyncHandler(async (req, res) => {
   const classId = String(req.params?.classId || '').trim();
 
@@ -189,5 +231,6 @@ const downloadClassIdCardsZipHandler = asyncHandler(async (req, res) => {
 
 module.exports = {
   downloadStudentIdCard: downloadStudentIdCardHandler,
+  downloadMyStudentIdCard: downloadMyStudentIdCardHandler,
   downloadClassIdCardsZip: downloadClassIdCardsZipHandler
 };

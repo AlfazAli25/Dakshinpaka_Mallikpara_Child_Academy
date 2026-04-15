@@ -160,6 +160,19 @@ const getValidUptoFromAcademicYear = (academicYearValue) => {
   return `31.12.${startYear}`;
 };
 
+const normalizeWebsiteUrlForQr = (value) => {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return 'http://localhost:3000';
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  return `https://${normalized.replace(/^\/+/, '')}`;
+};
+
 const resolveMimeType = (filePath) => {
   const extension = String(path.extname(filePath) || '').toLowerCase();
 
@@ -331,45 +344,6 @@ const buildStudentIdCardFileName = ({ student = {} } = {}) => {
   return `Student_ID_Card_${studentToken}.pdf`;
 };
 
-const buildStudentQrPayloads = ({
-  studentName,
-  studentId,
-  classLabel,
-  rollNo,
-  guardianContact,
-  schoolName
-}) => {
-  const compactPayload = {
-    t: 'SID',
-    v: 1,
-    st: [studentName, studentId, classLabel, rollNo, guardianContact],
-    sc: schoolName
-  };
-
-  const verbosePayload = {
-    documentType: 'STUDENT_ID_CARD',
-    version: 1,
-    schoolName,
-    student: {
-      name: studentName,
-      studentId,
-      classLabel,
-      rollNo,
-      guardianContact
-    }
-  };
-
-  const scannableTextPayload = [
-    'DMCA STUDENT ID',
-    `NAME:${studentName}`,
-    `ID:${studentId}`,
-    `CLASS:${classLabel}`,
-    `ROLL:${rollNo}`
-  ].join('/');
-
-  return [scannableTextPayload, compactPayload, verbosePayload, toSafeText(SCHOOL_WEBSITE_URL, 'http://localhost:3000')];
-};
-
 const buildTemplateModel = async ({ student = {} }) => {
   const studentName = toSafeText(student?.userId?.name, '-');
   const studentId = toSafeText(student?.admissionNo || student?._id, '-');
@@ -395,21 +369,13 @@ const buildTemplateModel = async ({ student = {} }) => {
   const websiteLabel = toSafeText(SCHOOL_WEBSITE_URL, '-')
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/g, '') || '-';
-
-  const studentQrPayloads = buildStudentQrPayloads({
-    studentName,
-    studentId,
-    classLabel,
-    rollNo,
-    guardianContact,
-    schoolName: toSafeText(SCHOOL_NAME)
-  });
+  const websiteUrlForQr = normalizeWebsiteUrlForQr(SCHOOL_WEBSITE_URL);
 
   const [schoolLogo, studentPhoto, studentQrCode] = await Promise.all([
     resolveSchoolLogoDataUri(),
     resolveStudentImageDataUri(student),
     generateQrCodeDataUri({
-      payloads: studentQrPayloads,
+      payloads: [websiteUrlForQr],
       width: 360,
       margin: 2,
       errorCorrectionLevel: 'M'
