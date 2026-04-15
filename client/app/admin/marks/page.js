@@ -1040,64 +1040,6 @@ export default function AdminMarksPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">{t.reportCards.title}</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-red-100/80">
-          {t.reportCards.subtitle}
-        </p>
-
-        <div className="mb-3 mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">{t.filters.selectedTitle}</p>
-          <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
-            {reportCardClassName ? (
-              <>
-                {t.filters.class}: <span className="font-bold">{reportCardClassName}</span>
-                {reportCardSection && (
-                  <>
-                    {' '} | {t.filters.section}: <span className="font-bold">{reportCardSection}</span>
-                  </>
-                )}
-                {!reportCardSection && ` | ${t.filters.section}: ${t.filters.examPlaceholder}`}
-              </>
-            ) : `${t.filters.class}: ${t.filters.examPlaceholder} | ${t.filters.section}: ${t.filters.examPlaceholder}`}
-          </p>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <Select
-            label={t.reportCards.className}
-            options={reportCardClassNameOptions}
-            value={reportCardClassName}
-            onChange={onReportCardClassChange}
-            disabled={loadingSetup || downloadingReportCardsZip}
-          />
-
-          <Select
-            label={t.reportCards.section}
-            options={reportCardSectionOptions}
-            value={reportCardSection}
-            onChange={onReportCardSectionChange}
-            disabled={loadingSetup || downloadingReportCardsZip || !reportCardClassName}
-          />
-
-          <div className="flex items-end">
-            <Button
-              type="button"
-              onClick={onDownloadReportCardsZip}
-              disabled={
-                downloadingReportCardsZip ||
-                !reportCardClassId ||
-                !reportCardSection
-              }
-              className="h-11 w-full"
-              fullWidth
-            >
-              {downloadingReportCardsZip ? t.reportCards.preparing : t.reportCards.downloadBtn}
-            </Button>
-          </div>
-        </div>
-      </div>
-
       <div className="overflow-hidden rounded-3xl border border-red-100/85 bg-white/85 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <div className="max-h-[420px] overflow-x-auto overflow-y-auto">
           <table className="min-w-full text-sm">
@@ -1210,6 +1152,64 @@ export default function AdminMarksPage() {
           >
             {t.pagination.next}
           </Button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-red-100/85 bg-white/85 p-4 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-red-50">{t.reportCards.title}</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-red-100/80">
+          {t.reportCards.subtitle}
+        </p>
+
+        <div className="mb-3 mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 dark:border-blue-400/20 dark:bg-blue-900/20">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-900 dark:text-blue-100">{t.filters.selectedTitle}</p>
+          <p className="mt-1 text-sm font-medium text-blue-700 dark:text-blue-200">
+            {reportCardClassName ? (
+              <>
+                {t.filters.class}: <span className="font-bold">{reportCardClassName}</span>
+                {reportCardSection && (
+                  <>
+                    {' '} | {t.filters.section}: <span className="font-bold">{reportCardSection}</span>
+                  </>
+                )}
+                {!reportCardSection && ` | ${t.filters.section}: ${t.filters.examPlaceholder}`}
+              </>
+            ) : `${t.filters.class}: ${t.filters.examPlaceholder} | ${t.filters.section}: ${t.filters.examPlaceholder}`}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <Select
+            label={t.reportCards.className}
+            options={reportCardClassNameOptions}
+            value={reportCardClassName}
+            onChange={onReportCardClassChange}
+            disabled={loadingSetup || downloadingReportCardsZip}
+          />
+
+          <Select
+            label={t.reportCards.section}
+            options={reportCardSectionOptions}
+            value={reportCardSection}
+            onChange={onReportCardSectionChange}
+            disabled={loadingSetup || downloadingReportCardsZip || !reportCardClassName}
+          />
+
+          <div className="flex items-end">
+            <Button
+              type="button"
+              onClick={onDownloadReportCardsZip}
+              disabled={
+                downloadingReportCardsZip ||
+                !reportCardClassId ||
+                !reportCardSection
+              }
+              className="h-11 w-full"
+              fullWidth
+            >
+              {downloadingReportCardsZip ? t.reportCards.preparing : t.reportCards.downloadBtn}
+            </Button>
+          </div>
         </div>
       </div>
 

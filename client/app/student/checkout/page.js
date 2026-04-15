@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
 import QRCode from 'qrcode';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
@@ -9,7 +8,7 @@ import Input from '@/components/Input';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 import { SCHOOL_NAME, SCHOOL_UPI_ID, SCHOOL_UPI_PAYEE_NAME } from '@/lib/school-config';
-import { buildUpiPaymentLink, createDefaultUpiReference, launchUpiPayment } from '@/lib/upi-payment';
+import { buildUpiPaymentLink, launchUpiPayment } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
 
@@ -54,31 +53,33 @@ const formatDateValue = (value) => {
 
 const formatMb = (bytes) => (Number(bytes || 0) / (1024 * 1024)).toFixed(1);
 
-const downloadQrAsJpeg = () => {
-  const img = new window.Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width || 512;
-    canvas.height = img.height || 512;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'payment-qr-code.jpeg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
-    }, 'image/jpeg', 0.95);
-  };
-  img.src = '/static-payment-qr.svg';
+const toReferenceToken = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+
+const buildStudentUpiReference = (studentIdentifier = '') => {
+  const normalizedStudentToken = toReferenceToken(studentIdentifier);
+  if (!normalizedStudentToken) {
+    return `${UPI_REFERENCE_PREFIX}STUDENT`;
+  }
+
+  return `${UPI_REFERENCE_PREFIX}${normalizedStudentToken}`.slice(0, 35);
+};
+
+const downloadDataUrlAsPng = ({ dataUrl, fileName }) => {
+  if (!dataUrl || typeof document === 'undefined') {
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 export default function StudentCheckoutPage() {
@@ -93,7 +94,8 @@ export default function StudentCheckoutPage() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [autoUpiReference, setAutoUpiReference] = useState(() => createDefaultUpiReference(UPI_REFERENCE_PREFIX));
+  const [autoUpiReference, setAutoUpiReference] = useState(() => buildStudentUpiReference(''));
+  const [studentReferenceId, setStudentReferenceId] = useState('');
   const [payNowModalOpen, setPayNowModalOpen] = useState(false);
   const [dynamicQrDataUrl, setDynamicQrDataUrl] = useState('');
   const [dynamicQrLoading, setDynamicQrLoading] = useState(false);
@@ -135,10 +137,15 @@ export default function StudentCheckoutPage() {
         setRows([]);
         setCheckoutHistory([]);
         setProfilePendingFees(0);
+        setStudentReferenceId('');
+        setAutoUpiReference(buildStudentUpiReference(''));
         return;
       }
 
       setProfilePendingFees(Math.max(Number(student.pendingFees || 0), 0));
+      const nextStudentReferenceId = String(student.admissionNo || student._id || '').trim();
+      setStudentReferenceId(nextStudentReferenceId);
+      setAutoUpiReference(buildStudentUpiReference(nextStudentReferenceId));
 
       const [feeResponse, paymentsResponse] = await Promise.all([
         get('/student/fees', token),
@@ -200,7 +207,7 @@ export default function StudentCheckoutPage() {
   const enteredAmount = Number(paymentAmount || payableAmount);
   const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= effectivePendingAmount;
   const upiPayAmount = isEnteredAmountValid ? enteredAmount : payableAmount;
-  const resolvedUpiReference = String(transactionReference || autoUpiReference || '').trim();
+  const resolvedUpiReference = String(autoUpiReference || buildStudentUpiReference(studentReferenceId)).trim();
   const upiPaymentLink = useMemo(
     () =>
       buildUpiPaymentLink({
@@ -358,7 +365,7 @@ export default function StudentCheckoutPage() {
       setScreenshotFile(null);
       setTransactionReference('');
       setPaymentAmount('');
-      setAutoUpiReference(createDefaultUpiReference(UPI_REFERENCE_PREFIX));
+      setAutoUpiReference(buildStudentUpiReference(studentReferenceId));
       setPayNowModalOpen(false);
       setDynamicQrDataUrl('');
       await loadCheckoutData();
@@ -406,6 +413,19 @@ export default function StudentCheckoutPage() {
     setMessage('Opening UPI app. Complete payment and upload screenshot for verification.');
   };
 
+  const onDownloadDynamicQr = () => {
+    if (!dynamicQrDataUrl) {
+      setError('Dynamic QR is not ready yet.');
+      return;
+    }
+
+    const referenceToken = toReferenceToken(resolvedUpiReference) || 'PAYMENT';
+    downloadDataUrlAsPng({
+      dataUrl: dynamicQrDataUrl,
+      fileName: `dynamic-upi-qr-${referenceToken}.png`
+    });
+  };
+
   const canSubmitOnline = hasPendingFeeMonth && Boolean(screenshotFile) && !paying && isEnteredAmountValid;
   const submitHint = !hasPendingFeeMonth
     ? profilePendingFees > 0
@@ -422,13 +442,13 @@ export default function StudentCheckoutPage() {
       <PageHeader
         eyebrow="Student Payments"
         title="Checkout"
-        description="Pay via UPI app or static QR, then submit screenshot for admin verification."
+        description="Enter amount, open Pay Now, complete payment, then upload screenshot for admin verification."
       />
 
       <div className="card-hover rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-600">Total Payable</p>
         <p className="mt-2 text-3xl font-bold text-slate-900">INR {payableAmount}</p>
-        <p className="mt-2 text-sm text-slate-500">Student payments are submitted via static QR only. Cash collection is handled by Admin at the school office.</p>
+        <p className="mt-2 text-sm text-slate-500">Enter payment amount, use Pay Now for dynamic QR, then submit payment screenshot.</p>
 
         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-800">Outstanding Fee</p>
@@ -446,53 +466,6 @@ export default function StudentCheckoutPage() {
                 Your profile has pending fees of INR {profilePendingFees}, but admin has not created fee ledger records yet.
               </p>
             )}
-
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
-                <button
-                  type="button"
-                  onClick={downloadQrAsJpeg}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                >
-                  Download QR
-                </button>
-              </div>
-              <Image
-                src="/static-payment-qr.svg"
-                alt="Static payment QR"
-                width={192}
-                height={192}
-                className="mt-3 h-48 w-48 rounded-lg border border-slate-200 bg-white p-2"
-              />
-              <p className="mt-2 text-xs text-slate-500">Scan this QR to pay online, then upload screenshot and submit.</p>
-
-              {/* Phone & UPI ID with copy feature */}
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-700">Phone:</span>
-                  <span id="school-phone" className="text-xs text-slate-800 select-all">{FALLBACK_PHONE}</span>
-                  <button
-                    type="button"
-                    className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
-                    onClick={() => {
-                      navigator.clipboard.writeText(FALLBACK_PHONE);
-                    }}
-                  >Copy</button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-700">UPI ID:</span>
-                  <span id="school-upi" className="text-xs text-slate-800 select-all">{configuredUpiId}</span>
-                  <button
-                    type="button"
-                    className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700 border border-slate-300 hover:bg-slate-200"
-                    onClick={() => {
-                      navigator.clipboard.writeText(configuredUpiId);
-                    }}
-                  >Copy</button>
-                </div>
-              </div>
-            </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
@@ -586,7 +559,17 @@ export default function StudentCheckoutPage() {
 
             <div className="grid h-[calc(80vh-70px)] gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(240px,320px)_1fr] md:p-6">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Dynamic UPI QR</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Dynamic UPI QR</p>
+                  <button
+                    type="button"
+                    onClick={onDownloadDynamicQr}
+                    disabled={!dynamicQrDataUrl || dynamicQrLoading}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Download QR
+                  </button>
+                </div>
                 <div className="mt-3 flex h-64 w-full items-center justify-center rounded-lg border border-slate-200 bg-white p-3">
                   {dynamicQrLoading ? (
                     <div className="flex flex-col items-center gap-2 text-slate-500">
