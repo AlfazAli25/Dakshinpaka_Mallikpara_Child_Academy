@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import Table from '@/components/Table';
@@ -550,7 +551,15 @@ export default function StudentProfilePage() {
   );
 
   if (!profile) {
-    return <p className="text-sm text-slate-500">{error ? 'Unable to load student profile right now.' : 'Loading student profile...'}</p>;
+    if (error) {
+      return <p className="text-sm text-slate-500">Unable to load student profile right now.</p>;
+    }
+
+    return (
+      <div className="flex min-h-[220px] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-500" aria-label="Loading student profile" />
+      </div>
+    );
   }
 
   const student = profile.student;
