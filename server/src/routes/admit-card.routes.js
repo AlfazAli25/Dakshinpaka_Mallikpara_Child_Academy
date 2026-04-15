@@ -58,7 +58,7 @@ router.get(
 router.get(
   '/:admitCardId/download',
   protect,
-  requireRole(['admin', 'student']),
+  requireRole(['admin']),
   [param('admitCardId').isMongoId().withMessage('Invalid admit card selected')],
   validate,
   controller.downloadAdmitCard

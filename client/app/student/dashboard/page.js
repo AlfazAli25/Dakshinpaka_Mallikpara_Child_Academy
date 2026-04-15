@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import useSWR from 'swr';
@@ -11,7 +11,7 @@ import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
 import PortalTopSection from '@/components/dashboard/PortalTopSection';
-import { get, getBlob } from '@/lib/api';
+import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
@@ -53,10 +53,7 @@ const text = {
       amount: 'Amount',
       important: 'Important',
       payNow: 'Pay Now',
-      viewInFees: 'View Payment History in Fees',
-      downloadAdmitCard: 'Download Admit Card',
-      downloadingAdmitCard: 'Downloading...',
-      admitCardDownloadFailed: 'Failed to download admit card right now.'
+      viewInFees: 'View Payment History in Fees'
     },
     welcomeBack: 'Welcome back',
     importantNotices: 'Important Notices',
@@ -103,10 +100,7 @@ const text = {
       amount: 'পরিমাণ',
       important: 'গুরুত্বপূর্ণ',
       payNow: 'এখনই পরিশোধ করুন',
-      viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন',
-      downloadAdmitCard: 'অ্যাডমিট কার্ড ডাউনলোড',
-      downloadingAdmitCard: 'ডাউনলোড হচ্ছে...',
-      admitCardDownloadFailed: 'এই মুহূর্তে অ্যাডমিট কার্ড ডাউনলোড করা যাচ্ছে না।'
+      viewInFees: 'ফি সেকশনে পেমেন্ট হিস্টোরি দেখুন'
     },
     welcomeBack: 'স্বাগতম ফিরে আসার জন্য',
     importantNotices: 'গুরুত্বপূর্ণ নোটিশ',
@@ -129,66 +123,8 @@ const getDefaults = (t) => [
   { title: 'Pending Fees', value: 'INR 0' }
 ];
 
-const parseAdmitCardIdFromPath = (pathValue) => {
-  const normalizedPath = String(pathValue || '').trim();
-  if (!normalizedPath) {
-    return '';
-  }
-
-  const match = normalizedPath.match(/\/admit-cards\/([a-f0-9]{24})\/download/i);
-  return match ? String(match[1]).trim() : '';
-};
-
-const buildAdmitCardSyntheticNotice = (card = {}) => {
-  const admitCardId = String(card?._id || '').trim();
-  if (!admitCardId) {
-    return null;
-  }
-
-  const examName = String(card?.examName || card?.examId?.examName || 'upcoming examination').trim() || 'upcoming examination';
-  const academicYear = String(card?.academicYear || card?.examId?.academicYear || '').trim();
-  const yearSuffix = academicYear ? ` (${academicYear})` : '';
-
-  return {
-    _id: `admit-card-${admitCardId}`,
-    title: t.synthetic.admitCardTitle,
-    description: t.synthetic.admitCardDesc.replace('{examName}', examName).replace('{yearSuffix}', yearSuffix),
-    noticeType: 'General',
-    status: 'Active',
-    isImportant: true,
-    sourceType: 'ADMIT_CARD_SYSTEM',
-    actionType: 'ADMIT_CARD_DOWNLOAD',
-    actionLabel: t.notices.downloadAdmitCard,
-    actionPath: `/admit-cards/${admitCardId}/download`,
-    admitCardId,
-    createdAt: card?.availableAt || card?.updatedAt || new Date().toISOString()
-  };
-};
-
-const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [], t } = {}) => {
-  const normalizedNotices = Array.isArray(notices) ? notices : [];
-  const availableCards = Array.isArray(availableAdmitCards) ? availableAdmitCards : [];
- 
-  const existingAdmitCardIds = new Set();
-  normalizedNotices.forEach((notice) => {
-    const directId = String(notice?.admitCardId || '').trim();
-    if (directId) {
-      existingAdmitCardIds.add(directId);
-      return;
-    }
- 
-    const fromPathId = parseAdmitCardIdFromPath(notice?.actionPath);
-    if (fromPathId) {
-      existingAdmitCardIds.add(fromPathId);
-    }
-  });
- 
-  const syntheticNotices = availableCards
-    .map((card) => buildAdmitCardSyntheticNotice(card, t))
-    .filter(Boolean)
-    .filter((item) => !existingAdmitCardIds.has(String(item.admitCardId || '').trim()));
-
-  return [...syntheticNotices, ...normalizedNotices].sort((left, right) => {
+const sortNoticesByPriority = (notices = []) =>
+  [...(Array.isArray(notices) ? notices : [])].sort((left, right) => {
     const leftImportant = left?.isImportant ? 1 : 0;
     const rightImportant = right?.isImportant ? 1 : 0;
     if (leftImportant !== rightImportant) {
@@ -199,7 +135,6 @@ const mergeNoticesWithAdmitCards = ({ notices = [], availableAdmitCards = [], t 
     const rightCreated = new Date(right?.createdAt || 0).getTime();
     return rightCreated - leftCreated;
   });
-};
 
 const toValidDate = (value) => {
   if (!value) {
@@ -308,15 +243,11 @@ const fetchStudentDashboardData = async (t) => {
     };
   }
 
-  const [attendanceRes, examsRes, feesRes, noticesRes, admitCardsRes] = await Promise.all([
+  const [attendanceRes, examsRes, feesRes, noticesRes] = await Promise.all([
     get('/student/attendance', token),
     get(`/exams?classId=${student.classId?._id || ''}`, token),
     get('/student/fees', token),
     get('/notices/student?page=1&limit=12', token, {
-      forceRefresh: true,
-      cacheTtlMs: 0
-    }),
-    get('/admit-cards/my/available', token, {
       forceRefresh: true,
       cacheTtlMs: 0
     })
@@ -339,11 +270,7 @@ const fetchStudentDashboardData = async (t) => {
     0
   );
  
-  const notices = mergeNoticesWithAdmitCards({
-    notices: Array.isArray(noticesRes?.data) ? noticesRes.data : [],
-    availableAdmitCards: Array.isArray(admitCardsRes?.data) ? admitCardsRes.data : [],
-    t
-  });
+  const notices = sortNoticesByPriority(Array.isArray(noticesRes?.data) ? noticesRes.data : []);
  
   return {
     studentProfile: student,
@@ -359,8 +286,6 @@ const fetchStudentDashboardData = async (t) => {
 export default function StudentDashboardPage() {
   const { language } = useLanguage();
   const t = text[language] || text.en;
-  const [downloadingNoticeId, setDownloadingNoticeId] = useState('');
-  const [admitCardDownloadError, setAdmitCardDownloadError] = useState('');
 
   const { data, isLoading } = useSWR(t ? ['student-dashboard', t] : null, () => fetchStudentDashboardData(t), {
     refreshInterval: 60000
@@ -386,46 +311,6 @@ export default function StudentDashboardPage() {
     }
 
     return parsed.toLocaleDateString('en-GB');
-  };
-
-  const downloadBlob = (blob, filename) => {
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = href;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(href);
-  };
-
-  const downloadAdmitCard = async (notice) => {
-    const noticeId = String(notice?._id || '').trim();
-    const actionPath = String(notice?.actionPath || '').trim();
-
-    if (!noticeId || !actionPath) {
-      setAdmitCardDownloadError(t.notices.admitCardDownloadFailed);
-      return;
-    }
-
-    const { token } = getAuthContext();
-    if (!token) {
-      setAdmitCardDownloadError(t.notices.admitCardDownloadFailed);
-      return;
-    }
-
-    try {
-      setAdmitCardDownloadError('');
-      setDownloadingNoticeId(noticeId);
-      const blob = await getBlob(actionPath, token, { timeoutMs: 120000 });
-
-      const examToken = String(notice?.title || 'Admit_Card').replace(/[^A-Za-z0-9_-]/g, '_') || 'Admit_Card';
-      downloadBlob(blob, `${examToken}.pdf`);
-    } catch (error) {
-      setAdmitCardDownloadError(String(error?.message || t.notices.admitCardDownloadFailed));
-    } finally {
-      setDownloadingNoticeId('');
-    }
   };
 
   return (
@@ -481,10 +366,6 @@ export default function StudentDashboardPage() {
               const noticeId = String(notice?._id || '');
               const isImportant = Boolean(notice?.isImportant);
               const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
-              const isAdmitCardDownloadNotice =
-                String(notice?.actionType || '').trim() === 'ADMIT_CARD_DOWNLOAD' &&
-                Boolean(String(notice?.actionPath || '').trim());
-              const actionLabel = String(notice?.actionLabel || '').trim() || t.notices.downloadAdmitCard;
 
               return (
                 <div
@@ -516,18 +397,7 @@ export default function StudentDashboardPage() {
                     ) : null}
                   </div>
 
-                  {isAdmitCardDownloadNotice ? (
-                    <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => downloadAdmitCard(notice)}
-                        disabled={downloadingNoticeId === noticeId}
-                        className="inline-flex rounded-xl bg-red-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {downloadingNoticeId === noticeId ? t.notices.downloadingAdmitCard : actionLabel}
-                      </button>
-                    </div>
-                  ) : isPaymentNotice ? (
+                  {isPaymentNotice ? (
                     <div className="mt-4">
                       {notice?.canPay ? (
                         <Link
@@ -549,10 +419,6 @@ export default function StudentDashboardPage() {
                 </div>
               );
             })}
-
-            {admitCardDownloadError ? (
-              <p className="text-sm font-medium text-red-600 dark:text-red-300">{admitCardDownloadError}</p>
-            ) : null}
           </div>
         )}
       </InfoCard>

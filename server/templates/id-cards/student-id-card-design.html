@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student ID Card</title>
+    <style>
+      @page {
+        size: 86mm 54mm;
+        margin: 0;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 86mm;
+        height: 54mm;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      .card {
+        position: relative;
+        width: 86mm;
+        height: 54mm;
+        overflow: hidden;
+        border: 1px solid #b91c1c;
+        border-radius: 3mm;
+        background: linear-gradient(155deg, #fff7ed 0%, #ffffff 55%, #fee2e2 100%);
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        top: -16mm;
+        right: -14mm;
+        width: 38mm;
+        height: 38mm;
+        border-radius: 50%;
+        background: radial-gradient(circle at center, #fca5a5 0%, #ef4444 60%, #dc2626 100%);
+        opacity: 0.15;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: 10mm 1fr;
+        gap: 2mm;
+        align-items: center;
+        padding: 2.2mm 3mm 1.4mm;
+        border-bottom: 1px solid #fecaca;
+        background: linear-gradient(90deg, #fee2e2 0%, #fff7ed 100%);
+      }
+
+      .logo-wrap {
+        width: 9.4mm;
+        height: 9.4mm;
+        border-radius: 50%;
+        border: 1px solid #fca5a5;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .logo-wrap img {
+        width: 90%;
+        height: 90%;
+        object-fit: contain;
+      }
+
+      .school-name {
+        margin: 0;
+        font-size: 3mm;
+        line-height: 1.12;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        color: #7f1d1d;
+        text-transform: uppercase;
+      }
+
+      .school-branch {
+        margin: 0.35mm 0 0;
+        font-size: 2.1mm;
+        line-height: 1.2;
+        color: #9a3412;
+        font-weight: 600;
+      }
+
+      .id-title {
+        margin: 0.7mm 0 0;
+        font-size: 2mm;
+        line-height: 1;
+        color: #b91c1c;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+      }
+
+      .body {
+        display: grid;
+        grid-template-columns: 20.5mm 1fr;
+        gap: 2.2mm;
+        padding: 2mm 3mm 2.2mm;
+        height: calc(54mm - 12.4mm);
+      }
+
+      .left {
+        display: grid;
+        grid-template-rows: auto auto;
+        gap: 1.5mm;
+        align-content: start;
+      }
+
+      .photo-wrap {
+        width: 20.5mm;
+        height: 23.5mm;
+        border-radius: 2.2mm;
+        border: 1px solid #fca5a5;
+        background: #ffffff;
+        overflow: hidden;
+      }
+
+      .photo-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .qr-wrap {
+        width: 20.5mm;
+        height: 20.5mm;
+        border-radius: 1.6mm;
+        border: 1px solid #fecaca;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .qr-wrap img {
+        width: 86%;
+        height: 86%;
+        object-fit: contain;
+      }
+
+      .right {
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: 1.2mm;
+        min-height: 0;
+      }
+
+      .student-name {
+        margin: 0;
+        font-size: 3mm;
+        line-height: 1.15;
+        font-weight: 800;
+        color: #7f1d1d;
+        text-transform: uppercase;
+      }
+
+      .student-id {
+        margin: 0;
+        font-size: 2.25mm;
+        line-height: 1.2;
+        font-weight: 700;
+        color: #991b1b;
+      }
+
+      .meta {
+        margin: 0;
+        display: grid;
+        gap: 0.55mm;
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: 14mm 1fr;
+        gap: 1.2mm;
+        align-items: start;
+      }
+
+      .meta-label,
+      .meta-value {
+        margin: 0;
+        font-size: 2.08mm;
+        line-height: 1.16;
+      }
+
+      .meta-label {
+        color: #7f1d1d;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+
+      .meta-value {
+        color: #1f2937;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .footer {
+        border-top: 1px dashed #fca5a5;
+        padding-top: 0.9mm;
+        display: grid;
+        gap: 0.5mm;
+      }
+
+      .footer-line {
+        margin: 0;
+        font-size: 1.75mm;
+        line-height: 1.14;
+        color: #7f1d1d;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .footer-line strong {
+        color: #991b1b;
+      }
+    </style>
+  </head>
+  <body>
+    <article class="card">
+      <header class="header">
+        <div class="logo-wrap">
+          <img src="{{schoolLogo}}" alt="School Logo" />
+        </div>
+        <div>
+          <p class="school-name">{{schoolName}}</p>
+          <p class="school-branch">{{schoolBranchName}}</p>
+          <p class="id-title">STUDENT IDENTITY CARD</p>
+        </div>
+      </header>
+
+      <section class="body">
+        <div class="left">
+          <div class="photo-wrap">
+            <img src="{{studentPhoto}}" alt="Student Photo" />
+          </div>
+          <div class="qr-wrap">
+            <img src="{{studentQrCode}}" alt="Student QR Code" />
+          </div>
+        </div>
+
+        <div class="right">
+          <div>
+            <p class="student-name">{{studentName}}</p>
+            <p class="student-id">ID: {{studentId}}</p>
+          </div>
+
+          <div class="meta">
+            <div class="meta-row">
+              <p class="meta-label">Class</p>
+              <p class="meta-value">{{classLabel}}</p>
+            </div>
+            <div class="meta-row">
+              <p class="meta-label">Roll No</p>
+              <p class="meta-value">{{rollNo}}</p>
+            </div>
+            <div class="meta-row">
+              <p class="meta-label">DOB</p>
+              <p class="meta-value">{{dateOfBirth}}</p>
+            </div>
+            <div class="meta-row">
+              <p class="meta-label">Guardian</p>
+              <p class="meta-value">{{guardianContact}}</p>
+            </div>
+            <div class="meta-row">
+              <p class="meta-label">Issued On</p>
+              <p class="meta-value">{{issueDate}}</p>
+            </div>
+            <div class="meta-row">
+              <p class="meta-label">Valid Upto</p>
+              <p class="meta-value">{{validUpto}}</p>
+            </div>
+          </div>
+
+          <footer class="footer">
+            <p class="footer-line"><strong>Address:</strong> {{schoolAddress}}</p>
+            <p class="footer-line"><strong>Phone:</strong> {{schoolPhone}}</p>
+            <p class="footer-line"><strong>Website:</strong> {{schoolWebsite}}</p>
+          </footer>
+        </div>
+      </section>
+    </article>
+  </body>
+</html>

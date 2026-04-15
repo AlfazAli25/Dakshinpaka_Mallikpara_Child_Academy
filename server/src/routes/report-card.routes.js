@@ -9,21 +9,27 @@ const router = express.Router();
 const ACADEMIC_YEAR_REGEX = /^\d{4}$/;
 
 router.get(
-  '/exam/:examId/student/me/status',
+  '/exam/:examId/student/:studentId/status',
   protect,
-  requireRole(['student']),
-  [param('examId').isMongoId().withMessage('Invalid exam selected')],
+  requireRole(['admin']),
+  [
+    param('examId').isMongoId().withMessage('Invalid exam selected'),
+    param('studentId').isMongoId().withMessage('Invalid student selected')
+  ],
   validate,
-  controller.getMyReportCardStatusByExam
+  controller.getStudentReportCardStatusByExam
 );
 
 router.get(
-  '/exam/:examId/student/me/download',
+  '/exam/:examId/student/:studentId/download',
   protect,
-  requireRole(['student']),
-  [param('examId').isMongoId().withMessage('Invalid exam selected')],
+  requireRole(['admin']),
+  [
+    param('examId').isMongoId().withMessage('Invalid exam selected'),
+    param('studentId').isMongoId().withMessage('Invalid student selected')
+  ],
   validate,
-  controller.downloadMyReportCardByExam
+  controller.downloadStudentReportCardByExam
 );
 
 router.get(

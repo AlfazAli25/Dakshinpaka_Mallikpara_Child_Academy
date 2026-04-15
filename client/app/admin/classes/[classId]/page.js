@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
-import { get } from '@/lib/api';
+import { get, getBlob } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
 import { getToken } from '@/lib/session';
 import { useToast } from '@/lib/toast-context';
@@ -24,6 +24,43 @@ export default function AdminClassStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [classLabel, setClassLabel] = useState('Class');
   const [rows, setRows] = useState([]);
+  const [downloadingIdCardsZip, setDownloadingIdCardsZip] = useState(false);
+
+  const downloadBlob = (blob, filename) => {
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+  };
+
+  const onDownloadIdCardsZip = async () => {
+    if (!classId) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      return;
+    }
+
+    setDownloadingIdCardsZip(true);
+    try {
+      const blob = await getBlob(`/id-cards/class/${classId}/download-zip`, token, {
+        timeoutMs: 300000
+      });
+
+      const safeClassLabel = String(classLabel || 'Class').replace(/[^A-Za-z0-9_-]/g, '_') || 'Class';
+      downloadBlob(blob, `Class_${safeClassLabel}_ID_Cards.zip`);
+    } catch (apiError) {
+      toast.error(apiError?.message || 'Failed to download class ID cards');
+    } finally {
+      setDownloadingIdCardsZip(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -77,6 +114,16 @@ export default function AdminClassStudentsPage() {
         eyebrow="Administration"
         title={`${classLabel} Students`}
         description="All registered students for this class."
+        rightSlot={
+          <button
+            type="button"
+            onClick={onDownloadIdCardsZip}
+            disabled={loading || downloadingIdCardsZip || rows.length === 0}
+            className="rounded-md bg-red-700 px-3 py-2 text-xs font-semibold text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloadingIdCardsZip ? 'Preparing ZIP...' : 'Download Class ID Cards (ZIP)'}
+          </button>
+        }
       />
 
       <Table

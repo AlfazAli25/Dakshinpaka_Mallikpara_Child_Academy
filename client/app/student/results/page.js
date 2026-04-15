@@ -5,10 +5,9 @@ import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
 import Select from '@/components/Select';
-import { get, getBlob } from '@/lib/api';
+import { get } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
-import { useToast } from '@/lib/toast-context';
 
 const text = {
   en: {
@@ -17,12 +16,7 @@ const text = {
     description: 'Select a year and review your final-exam subject-wise performance.',
     yearFilterLabel: 'Select Year',
     yearFilterPlaceholder: 'Select year',
-    downloadReportCard: 'Download Report Card',
-    downloadingReportCard: 'Downloading...',
-    checkingReportCard: 'Checking report card availability...',
-    archivedReportCardUnavailable: 'Report card download is available for current class final-exam years only.',
-    reportCardNotReady: 'Report card is not ready yet.',
-    reportCardDownloadFailed: 'Failed to download report card right now.',
+    reportCardAdminOnly: 'Report card download is now admin-only. Contact the administration office for a copy.',
     columns: [
       { key: 'subject', label: 'Subject' },
       { key: 'marks', label: 'Marks' },
@@ -36,12 +30,7 @@ const text = {
     description: 'বছর নির্বাচন করে ফাইনাল পরীক্ষার বিষয়ভিত্তিক ফলাফল দেখুন।',
     yearFilterLabel: 'বছর নির্বাচন করুন',
     yearFilterPlaceholder: 'বছর নির্বাচন করুন',
-    downloadReportCard: 'রিপোর্ট কার্ড ডাউনলোড',
-    downloadingReportCard: 'ডাউনলোড হচ্ছে...',
-    checkingReportCard: 'রিপোর্ট কার্ড প্রস্তুতি যাচাই করা হচ্ছে...',
-    archivedReportCardUnavailable: 'রিপোর্ট কার্ড ডাউনলোড কেবল বর্তমান শ্রেণির ফাইনাল পরীক্ষার বছরের জন্য উপলভ্য।',
-    reportCardNotReady: 'রিপোর্ট কার্ড এখনও প্রস্তুত হয়নি।',
-    reportCardDownloadFailed: 'এই মুহূর্তে রিপোর্ট কার্ড ডাউনলোড করা যাচ্ছে না।',
+    reportCardAdminOnly: 'রিপোর্ট কার্ড ডাউনলোড এখন কেবল প্রশাসনের জন্য। কপি পেতে প্রশাসনিক অফিসে যোগাযোগ করুন।',
     columns: [
       { key: 'subject', label: 'বিষয়' },
       { key: 'marks', label: 'নম্বর' },
@@ -196,36 +185,16 @@ const collectStudentExamHistory = async ({ studentId, token }) => {
   return Array.from(historyExamMap.values());
 };
 
-const downloadBlob = (blob, filename) => {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = href;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(href);
-};
-
 export default function StudentResultsPage() {
-  const toast = useToast();
   const { language } = useLanguage();
   const t = text[language] || text.en;
 
   const [loadingSetup, setLoadingSetup] = useState(true);
   const [loadingRows, setLoadingRows] = useState(false);
   const [studentId, setStudentId] = useState('');
-  const [studentClassId, setStudentClassId] = useState('');
   const [exams, setExams] = useState([]);
   const [selectedYear, setSelectedYear] = useState('');
   const [rows, setRows] = useState([]);
-  const [checkingReportCard, setCheckingReportCard] = useState(false);
-  const [downloadingReportCard, setDownloadingReportCard] = useState(false);
-  const [reportCardStatus, setReportCardStatus] = useState({
-    isDownloadReady: false,
-    message: '',
-    fileName: 'Report_Card.pdf'
-  });
 
   useEffect(() => {
     let active = true;
@@ -238,7 +207,6 @@ export default function StudentResultsPage() {
         if (!student || !token) {
           if (active) {
             setStudentId('');
-            setStudentClassId('');
             setExams([]);
             setSelectedYear('');
             setRows([]);
@@ -276,7 +244,6 @@ export default function StudentResultsPage() {
         }
 
         setStudentId(currentStudentId);
-        setStudentClassId(classId);
         setExams(sortedExams);
         setSelectedYear((prev) => {
           if (prev && reportCardMap.has(prev)) {
@@ -288,7 +255,6 @@ export default function StudentResultsPage() {
       } catch (_error) {
         if (active) {
           setStudentId('');
-          setStudentClassId('');
           setExams([]);
           setSelectedYear('');
           setRows([]);
@@ -375,107 +341,6 @@ export default function StudentResultsPage() {
     };
   }, [selectedExamId, studentId]);
 
-  useEffect(() => {
-    let active = true;
-
-    const loadReportCardStatus = async () => {
-      if (!studentId || !selectedExamId) {
-        setReportCardStatus({
-          isDownloadReady: false,
-          message: '',
-          fileName: 'Report_Card.pdf'
-        });
-        return;
-      }
-
-      const selectedExamClassId = toId(selectedReportCardExam?.classId);
-
-      if (studentClassId && selectedExamClassId && selectedExamClassId !== studentClassId) {
-        setReportCardStatus({
-          isDownloadReady: false,
-          message: t.archivedReportCardUnavailable,
-          fileName: 'Report_Card.pdf'
-        });
-        return;
-      }
-
-      setCheckingReportCard(true);
-
-      try {
-        const { token } = getAuthContext();
-        if (!token) {
-          if (active) {
-            setReportCardStatus({
-              isDownloadReady: false,
-              message: t.reportCardNotReady,
-              fileName: 'Report_Card.pdf'
-            });
-          }
-          return;
-        }
-
-        const response = await get(`/report-cards/exam/${selectedExamId}/student/me/status`, token, {
-          forceRefresh: true,
-          cacheTtlMs: 0
-        });
-
-        if (!active) {
-          return;
-        }
-
-        const statusData = response?.data || {};
-        setReportCardStatus({
-          isDownloadReady: Boolean(statusData?.isDownloadReady),
-          message: String(statusData?.message || '').trim(),
-          fileName: String(statusData?.fileName || 'Report_Card.pdf').trim() || 'Report_Card.pdf'
-        });
-      } catch (apiError) {
-        if (active) {
-          setReportCardStatus({
-            isDownloadReady: false,
-            message: String(apiError?.message || t.reportCardNotReady).trim(),
-            fileName: 'Report_Card.pdf'
-          });
-        }
-      } finally {
-        if (active) {
-          setCheckingReportCard(false);
-        }
-      }
-    };
-
-    loadReportCardStatus();
-
-    return () => {
-      active = false;
-    };
-  }, [selectedExamId, selectedReportCardExam, studentId, studentClassId, t.reportCardNotReady, t.archivedReportCardUnavailable]);
-
-  const onDownloadReportCard = async () => {
-    if (!selectedExamId) {
-      return;
-    }
-
-    setDownloadingReportCard(true);
-
-    try {
-      const { token } = getAuthContext();
-      if (!token) {
-        throw new Error('Session expired. Please login again.');
-      }
-
-      const blob = await getBlob(`/report-cards/exam/${selectedExamId}/student/me/download`, token, {
-        timeoutMs: 120000
-      });
-
-      downloadBlob(blob, reportCardStatus.fileName || 'Report_Card.pdf');
-    } catch (apiError) {
-      toast.error(apiError?.message || t.reportCardDownloadFailed);
-    } finally {
-      setDownloadingReportCard(false);
-    }
-  };
-
   const yearOptions = [
     { value: '', label: t.yearFilterPlaceholder },
     ...availableYears.map((year) => ({
@@ -507,27 +372,7 @@ export default function StudentResultsPage() {
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={onDownloadReportCard}
-            disabled={
-              !selectedYear ||
-              checkingReportCard ||
-              downloadingReportCard ||
-              !reportCardStatus.isDownloadReady
-            }
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {downloadingReportCard ? t.downloadingReportCard : t.downloadReportCard}
-          </button>
-
-          <p className="text-sm text-slate-600">
-            {checkingReportCard
-              ? t.checkingReportCard
-              : reportCardStatus.message || (reportCardStatus.isDownloadReady ? '' : t.reportCardNotReady)}
-          </p>
-        </div>
+        <p className="text-sm font-medium text-slate-600">{t.reportCardAdminOnly}</p>
       </div>
 
       <Table columns={t.columns} rows={rows} loading={loading} />

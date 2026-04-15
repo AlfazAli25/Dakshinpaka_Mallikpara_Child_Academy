@@ -106,6 +106,7 @@ export default function StudentProfilePage() {
   const [message, setMessage] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloadingIdCard, setDownloadingIdCard] = useState(false);
   const [downloadingReceiptPaymentId, setDownloadingReceiptPaymentId] = useState('');
   const [receiptError, setReceiptError] = useState('');
   const [classRecords, setClassRecords] = useState([]);
@@ -192,6 +193,33 @@ export default function StudentProfilePage() {
       setReceiptError(String(error?.message || 'Failed to download receipt'));
     } finally {
       setDownloadingReceiptPaymentId('');
+    }
+  };
+
+  const downloadStudentIdCard = async () => {
+    const normalizedStudentId = String(profile?.student?._id || '').trim();
+    if (!normalizedStudentId) {
+      return;
+    }
+
+    const token = getToken();
+    if (!token) {
+      return;
+    }
+
+    setDownloadingIdCard(true);
+    try {
+      const blob = await getBlob(`/id-cards/student/${normalizedStudentId}/download`, token, {
+        timeoutMs: 120000
+      });
+
+      const safeStudentToken = String(profile?.student?.admissionNo || profile?.student?.userId?.name || normalizedStudentId)
+        .replace(/[^A-Za-z0-9_-]/g, '_') || 'Student';
+      downloadBlob(blob, `Student_ID_Card_${safeStudentToken}.pdf`);
+    } catch (apiError) {
+      setError(String(apiError?.message || 'Failed to download student ID card'));
+    } finally {
+      setDownloadingIdCard(false);
     }
   };
 
@@ -587,17 +615,28 @@ export default function StudentProfilePage() {
           {!editMode ? (
             <>
               <DetailsGrid items={studentDetailItems} />
-              <button
-                type="button"
-                onClick={() => {
-                  setEditMode(true);
-                  setError('');
-                  setMessage('');
-                }}
-                className="mt-4 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
-              >
-                Edit Student Details
-              </button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={downloadStudentIdCard}
+                  disabled={downloadingIdCard}
+                  className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {downloadingIdCard ? 'Downloading ID Card...' : 'Download ID Card'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditMode(true);
+                    setError('');
+                    setMessage('');
+                  }}
+                  className="rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  Edit Student Details
+                </button>
+              </div>
             </>
           ) : (
             <form onSubmit={onSaveEdit} className="space-y-3">

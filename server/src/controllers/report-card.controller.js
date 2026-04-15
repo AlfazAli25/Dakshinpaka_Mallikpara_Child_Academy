@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const archiver = require('archiver');
 const asyncHandler = require('../middleware/async.middleware');
-const Student = require('../models/student.model');
 const {
   getStudentReportCardByExam,
   getClassReportCardsZipPayload
@@ -57,20 +56,21 @@ const createReportCardsZipFile = ({ reportCards, targetFilePath }) =>
     });
   });
 
-const getMyReportCardStatusByExamHandler = asyncHandler(async (req, res) => {
+const getStudentReportCardStatusByExamHandler = asyncHandler(async (req, res) => {
   const examId = String(req.params?.examId || '').trim();
+  const studentId = String(req.params?.studentId || '').trim();
+
   if (!mongoose.Types.ObjectId.isValid(examId)) {
     throw createHttpError(400, 'Invalid exam selected');
   }
 
-  const student = await Student.findOne({ userId: req.user?._id }).select('_id').lean();
-  if (!student?._id) {
-    throw createHttpError(404, 'Student profile not found');
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    throw createHttpError(400, 'Invalid student selected');
   }
 
   const result = await getStudentReportCardByExam({
     examId,
-    studentId: student._id
+    studentId
   });
 
   return res.json({
@@ -87,20 +87,21 @@ const getMyReportCardStatusByExamHandler = asyncHandler(async (req, res) => {
   });
 });
 
-const downloadMyReportCardByExamHandler = asyncHandler(async (req, res) => {
+const downloadStudentReportCardByExamHandler = asyncHandler(async (req, res) => {
   const examId = String(req.params?.examId || '').trim();
+  const studentId = String(req.params?.studentId || '').trim();
+
   if (!mongoose.Types.ObjectId.isValid(examId)) {
     throw createHttpError(400, 'Invalid exam selected');
   }
 
-  const student = await Student.findOne({ userId: req.user?._id }).select('_id').lean();
-  if (!student?._id) {
-    throw createHttpError(404, 'Student profile not found');
+  if (!mongoose.Types.ObjectId.isValid(studentId)) {
+    throw createHttpError(400, 'Invalid student selected');
   }
 
   const result = await getStudentReportCardByExam({
     examId,
-    studentId: student._id
+    studentId
   });
 
   if (!result.isDownloadReady) {
@@ -108,7 +109,7 @@ const downloadMyReportCardByExamHandler = asyncHandler(async (req, res) => {
   }
 
   const generatedFile = await getOrCreateGeneratedFile({
-    cacheKey: buildCacheKey('report-card', 'student', student._id, 'exam', examId),
+    cacheKey: buildCacheKey('report-card', 'student', studentId, 'exam', examId),
     fileName: result.fileName || 'Report_Card.pdf',
     contentType: 'application/pdf',
     ttlMs: 2 * 60 * 1000,
@@ -165,7 +166,7 @@ const downloadClassReportCardsZipHandler = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  getMyReportCardStatusByExam: getMyReportCardStatusByExamHandler,
-  downloadMyReportCardByExam: downloadMyReportCardByExamHandler,
+  getStudentReportCardStatusByExam: getStudentReportCardStatusByExamHandler,
+  downloadStudentReportCardByExam: downloadStudentReportCardByExamHandler,
   downloadClassReportCardsZip: downloadClassReportCardsZipHandler
 };
