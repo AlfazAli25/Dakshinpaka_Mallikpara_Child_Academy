@@ -8,9 +8,14 @@ import PageHeader from '@/components/PageHeader';
 import InfoCard from '@/components/InfoCard';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
-// UPI deep link logic removed for redesign
+import { SCHOOL_NAME, SCHOOL_UPI_ID, SCHOOL_UPI_PAYEE_NAME } from '@/lib/school-config';
+import { buildUpiPaymentLink, createDefaultUpiReference, launchUpiPayment } from '@/lib/upi-payment';
 import { getAuthContext, getCurrentStudentRecord } from '@/lib/user-records';
 import { useToast } from '@/lib/toast-context';
+
+const FALLBACK_UPI_ID = 'alfazali499-1@okicici';
+const FALLBACK_PHONE = '8509658357';
+const UPI_REFERENCE_PREFIX = 'DPMPCA';
 
 const formatDateLabel = (value) => {
   if (!value) {
@@ -53,7 +58,7 @@ export default function StudentNoticePaymentPage() {
   const [paying, setPaying] = useState(false);
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
-  // const [qrFallbackUpiLink, setQrFallbackUpiLink] = useState('');
+  const [autoUpiReference, setAutoUpiReference] = useState(() => createDefaultUpiReference(UPI_REFERENCE_PREFIX));
 
   const isPaymentNotice = String(notice?.noticeType || '') === 'Payment';
   const paymentStatus = normalizePaymentStatus(notice?.payment?.paymentStatus);
@@ -61,9 +66,20 @@ export default function StudentNoticePaymentPage() {
   const isPendingVerification = paymentStatus === 'PENDING_VERIFICATION';
   const isRejected = paymentStatus === 'REJECTED';
   const payableAmount = Number(notice?.amount || 0);
-  // const configuredUpiPaymentLink = useMemo(() => null, []);
-
-  // UPI deep link effect removed
+  const configuredUpiId = String(SCHOOL_UPI_ID || '').trim() || FALLBACK_UPI_ID;
+  const configuredPayeeName = String(SCHOOL_UPI_PAYEE_NAME || SCHOOL_NAME || 'School Payment').trim() || 'School Payment';
+  const resolvedUpiReference = String(transactionReference || autoUpiReference || '').trim();
+  const upiPaymentLink = useMemo(
+    () =>
+      buildUpiPaymentLink({
+        upiId: configuredUpiId,
+        payeeName: configuredPayeeName,
+        amount: payableAmount,
+        transactionReference: resolvedUpiReference,
+        note: `Notice Fee Payment ${resolvedUpiReference ? `(${resolvedUpiReference})` : ''}`.trim()
+      }),
+    [configuredPayeeName, configuredUpiId, payableAmount, resolvedUpiReference]
+  );
 
 
   const canPay = useMemo(
@@ -150,12 +166,33 @@ export default function StudentNoticePaymentPage() {
       toast.success('Screenshot uploaded. Waiting for admin verification.');
       setScreenshotFile(null);
       setTransactionReference('');
+      setAutoUpiReference(createDefaultUpiReference(UPI_REFERENCE_PREFIX));
       await loadNotice();
     } catch (apiError) {
       toast.error(apiError.message || 'Payment failed');
     } finally {
       setPaying(false);
     }
+  };
+
+  const onPayViaUpiApp = () => {
+    if (!canPay) {
+      toast.error('Notice payment is not available right now.');
+      return;
+    }
+
+    if (!upiPaymentLink) {
+      toast.error('UPI payment is not configured right now.');
+      return;
+    }
+
+    const didLaunch = launchUpiPayment(upiPaymentLink);
+    if (!didLaunch) {
+      toast.error('Unable to open UPI app on this device.');
+      return;
+    }
+
+    toast.success('Opening UPI app. Complete payment and upload screenshot for verification.');
   };
 
   return (
@@ -225,7 +262,17 @@ export default function StudentNoticePaymentPage() {
                 ) : null}
 
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
-                  <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-800">Static QR Code</p>
+                    <button
+                      type="button"
+                      onClick={onPayViaUpiApp}
+                      disabled={!canPay || payableAmount <= 0}
+                      className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Pay Via an UPI App
+                    </button>
+                  </div>
                   <Image
                     src="/static-payment-qr.svg"
                     alt="Static payment QR"
@@ -237,8 +284,35 @@ export default function StudentNoticePaymentPage() {
                     Scan this QR, complete payment, then upload screenshot below.
                   </p>
 
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-700">Phone:</span>
+                      <span className="text-xs text-slate-800 select-all">{FALLBACK_PHONE}</span>
+                      <button
+                        type="button"
+                        className="ml-1 rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-200"
+                        onClick={() => navigator.clipboard.writeText(FALLBACK_PHONE)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-700">UPI ID:</span>
+                      <span className="text-xs text-slate-800 select-all">{configuredUpiId}</span>
+                      <button
+                        type="button"
+                        className="ml-1 rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-200"
+                        onClick={() => navigator.clipboard.writeText(configuredUpiId)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {/* UPI deep link button and logic removed as per request */}
+                    <p className="text-xs text-slate-500">
+                      Use reference: <span className="font-semibold text-slate-700">{resolvedUpiReference || '-'}</span>
+                    </p>
                   </div>
                 </div>
 

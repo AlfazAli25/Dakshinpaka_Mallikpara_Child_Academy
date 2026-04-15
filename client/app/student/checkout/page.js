@@ -14,6 +14,7 @@ import { useToast } from '@/lib/toast-context';
 
 const FALLBACK_UPI_ID = 'alfazali499-1@okicici';
 const FALLBACK_PHONE = '8509658357';
+const UPI_REFERENCE_PREFIX = 'DPMPCA';
 
 const checkoutColumns = [
   { key: 'paymentDate', label: 'Payment Date' },
@@ -91,7 +92,7 @@ export default function StudentCheckoutPage() {
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
-  const [autoUpiReference, setAutoUpiReference] = useState(() => createDefaultUpiReference());
+  const [autoUpiReference, setAutoUpiReference] = useState(() => createDefaultUpiReference(UPI_REFERENCE_PREFIX));
 
   const configuredUpiId = String(SCHOOL_UPI_ID || '').trim() || FALLBACK_UPI_ID;
   const configuredPayeeName = String(SCHOOL_UPI_PAYEE_NAME || SCHOOL_NAME || 'School Payment').trim() || 'School Payment';
@@ -261,7 +262,7 @@ export default function StudentCheckoutPage() {
       setScreenshotFile(null);
       setTransactionReference('');
       setPaymentAmount('');
-      setAutoUpiReference(createDefaultUpiReference());
+      setAutoUpiReference(createDefaultUpiReference(UPI_REFERENCE_PREFIX));
       await loadCheckoutData();
     } catch (apiError) {
       setError(apiError.message);
