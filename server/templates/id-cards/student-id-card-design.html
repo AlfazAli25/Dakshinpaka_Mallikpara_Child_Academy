@@ -129,44 +129,46 @@
         top: 2.1mm;
         left: 27.5mm;
         right: 2.4mm;
+        height: 15.6mm;
+        overflow: hidden;
         z-index: 5;
       }
 
       .school-name {
         margin: 0;
         color: #2c5f2f;
-        font-size: 4.2mm;
-        line-height: 1.03;
+        font-size: 3.25mm;
+        line-height: 1.02;
         text-transform: uppercase;
         font-weight: 900;
-        letter-spacing: 0.08mm;
+        letter-spacing: 0.05mm;
       }
 
       .school-address {
-        margin: 1.05mm 0 0;
-        font-size: 2.55mm;
+        margin: 0.65mm 0 0;
+        font-size: 2.18mm;
         font-weight: 600;
         color: #1f2937;
-        line-height: 1.12;
+        line-height: 1.05;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
 
       .school-reg {
-        margin: 0.52mm 0 0;
-        font-size: 2.8mm;
+        margin: 0.35mm 0 0;
+        font-size: 2.18mm;
         font-weight: 800;
         color: #1f3f72;
-        line-height: 1.1;
+        line-height: 1.02;
       }
 
       .school-phone {
-        margin: 0.48mm 0 0;
-        font-size: 2.75mm;
+        margin: 0.35mm 0 0;
+        font-size: 2.12mm;
         font-weight: 700;
         color: #1f2937;
-        line-height: 1.05;
+        line-height: 1.02;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -245,10 +247,19 @@
         min-height: 3.5mm;
       }
 
+      .row.name-id {
+        grid-template-columns: 1.2fr 1fr;
+      }
+
+      .row.single {
+        grid-template-columns: 1fr;
+      }
+
       .line-cell {
         display: flex;
         align-items: flex-end;
         gap: 0.55mm;
+        padding-right: 0.3mm;
         border-bottom: 0.24mm solid #cad6e1;
         min-height: 3.5mm;
         overflow: hidden;
@@ -261,7 +272,7 @@
       .line-cell .label {
         margin: 0;
         color: #111827;
-        font-size: 1.98mm;
+        font-size: 1.92mm;
         line-height: 1;
         font-weight: 600;
         white-space: nowrap;
@@ -272,7 +283,7 @@
         flex: 1;
         min-width: 0;
         color: #111827;
-        font-size: 1.92mm;
+        font-size: 1.82mm;
         line-height: 1;
         font-weight: 500;
         white-space: nowrap;
@@ -375,7 +386,7 @@
       </div>
 
       <section class="details">
-        <div class="row">
+        <div class="row name-id">
           <div class="line-cell">
             <p class="label">Name:</p>
             <p class="value bold">{{studentName}}</p>
@@ -386,12 +397,11 @@
           </div>
         </div>
 
-        <div class="row">
+        <div class="row single">
           <div class="line-cell">
             <p class="label">Class:</p>
             <p class="value soft upper">{{className}}</p>
           </div>
-          <div class="line-cell empty"></div>
         </div>
 
         <div class="row">
@@ -405,20 +415,18 @@
           </div>
         </div>
 
-        <div class="row">
+        <div class="row single">
           <div class="line-cell">
             <p class="label">Academic Session:</p>
             <p class="value soft">{{academicSession}}</p>
           </div>
-          <div class="line-cell empty"></div>
         </div>
 
-        <div class="row">
+        <div class="row single">
           <div class="line-cell">
             <p class="label">Valid Up to:</p>
             <p class="value strong">{{validUpto}}</p>
           </div>
-          <div class="line-cell empty"></div>
         </div>
       </section>
 
