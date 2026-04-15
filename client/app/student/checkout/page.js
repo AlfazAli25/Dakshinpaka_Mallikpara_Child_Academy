@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import PageHeader from '@/components/PageHeader';
 import Table from '@/components/Table';
 import Input from '@/components/Input';
+import PendingFeeReminderPopup from '@/components/PendingFeeReminderPopup';
 import { get, postForm } from '@/lib/api';
 import { prepareScreenshotForUpload, SCREENSHOT_UPLOAD_MAX_BYTES } from '@/lib/screenshot-upload';
 import { SCHOOL_NAME, SCHOOL_UPI_ID, SCHOOL_UPI_PAYEE_NAME } from '@/lib/school-config';
@@ -15,6 +16,7 @@ import { useToast } from '@/lib/toast-context';
 const FALLBACK_UPI_ID = 'alfazali499-1@okicici';
 const FALLBACK_PHONE = '8509658357';
 const UPI_REFERENCE_PREFIX = 'DPMPCA';
+const MONTHLY_FEE_AMOUNT = 200;
 
 const checkoutColumns = [
   { key: 'paymentDate', label: 'Payment Date' },
@@ -439,6 +441,8 @@ export default function StudentCheckoutPage() {
 
   return (
     <div className="space-y-5">
+      <PendingFeeReminderPopup pendingAmount={effectivePendingAmount} monthlyFeeAmount={MONTHLY_FEE_AMOUNT} />
+
       <PageHeader
         eyebrow="Student Payments"
         title="Checkout"

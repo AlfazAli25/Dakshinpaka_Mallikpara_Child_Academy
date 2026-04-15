@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import LanguageToggle from '@/components/LanguageToggle';
+import PendingFeeReminderPopup from '@/components/PendingFeeReminderPopup';
 import { get, getBlob } from '@/lib/api';
 import { useLanguage } from '@/lib/language-context';
 import { getAuthContext } from '@/lib/user-records';
@@ -337,6 +338,8 @@ export default function StudentFeesPage() {
 
   return (
     <div className="space-y-5">
+      <PendingFeeReminderPopup pendingAmount={pendingTotal} monthlyFeeAmount={MONTHLY_FEE_AMOUNT} />
+
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

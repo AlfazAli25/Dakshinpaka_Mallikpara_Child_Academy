@@ -10,6 +10,7 @@ import LanguageToggle from '@/components/LanguageToggle';
 import SchoolBrandPanel from '@/components/SchoolBrandPanel';
 import InfoCard from '@/components/InfoCard';
 import DetailsGrid from '@/components/DetailsGrid';
+import PendingFeeReminderPopup from '@/components/PendingFeeReminderPopup';
 import PortalTopSection from '@/components/dashboard/PortalTopSection';
 import { get } from '@/lib/api';
 import { formatClassLabel } from '@/lib/class-label';
@@ -226,7 +227,8 @@ const fetchStudentDashboardData = async (t) => {
     return {
       studentProfile: null,
       stats: defaultStats,
-      notices: []
+      notices: [],
+      pendingFeeAmount: 0
     };
   }
 
@@ -239,7 +241,8 @@ const fetchStudentDashboardData = async (t) => {
     return {
       studentProfile: null,
       stats: defaultStats,
-      notices: []
+      notices: [],
+      pendingFeeAmount: 0
     };
   }
 
@@ -279,7 +282,8 @@ const fetchStudentDashboardData = async (t) => {
       { title: 'Upcoming Exam', value: upcomingExamValue },
       { title: 'Pending Fees', value: `INR ${pendingFromFees}` }
     ],
-    notices
+    notices,
+    pendingFeeAmount: pendingFromFees
   };
 };
 
@@ -295,6 +299,7 @@ export default function StudentDashboardPage() {
   const defaultStats = useMemo(() => getDefaults(t), [t]);
   const stats = useMemo(() => (Array.isArray(data?.stats) ? data.stats : defaultStats), [data, defaultStats]);
   const notices = useMemo(() => (Array.isArray(data?.notices) ? data.notices : []), [data]);
+  const pendingFeeAmount = Number(data?.pendingFeeAmount || 0);
   const importantNoticeCount = useMemo(
     () => notices.filter((item) => Boolean(item?.isImportant)).length,
     [notices]
@@ -315,6 +320,8 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="space-y-5">
+      <PendingFeeReminderPopup pendingAmount={pendingFeeAmount} />
+
       <PageHeader
         eyebrow={t.eyebrow}
         title={t.title}

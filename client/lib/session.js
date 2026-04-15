@@ -1,23 +1,36 @@
+const TOKEN_KEY = 'sms_token';
+const USER_KEY = 'sms_user';
+const LOGIN_SESSION_KEY = 'sms_login_session_id';
+
+const createLoginSessionId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
 export const saveSession = (token, user) => {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('sms_token', token);
-  localStorage.setItem('sms_user', JSON.stringify(user));
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.setItem(LOGIN_SESSION_KEY, createLoginSessionId());
 };
 
 export const clearSession = () => {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem('sms_token');
-  localStorage.removeItem('sms_user');
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(LOGIN_SESSION_KEY);
 };
 
 export const getToken = () => {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('sms_token') || '';
+  return localStorage.getItem(TOKEN_KEY) || '';
+};
+
+export const getLoginSessionId = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(LOGIN_SESSION_KEY) || '';
 };
 
 export const getUser = () => {
   if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem('sms_user');
+  const raw = localStorage.getItem(USER_KEY);
 
   if (raw) {
     try {
@@ -26,7 +39,7 @@ export const getUser = () => {
         return parsed;
       }
     } catch (_error) {
-      localStorage.removeItem('sms_user');
+      localStorage.removeItem(USER_KEY);
     }
   }
 
@@ -44,7 +57,7 @@ export const getUser = () => {
   };
 
   try {
-    localStorage.setItem('sms_user', JSON.stringify(restoredUser));
+    localStorage.setItem(USER_KEY, JSON.stringify(restoredUser));
   } catch (_error) {
     // no-op
   }
