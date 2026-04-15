@@ -14,6 +14,13 @@ router.get(
 );
 
 router.get(
+  '/student/me/preview',
+  protect,
+  requireRole(['student']),
+  controller.previewMyStudentIdCard
+);
+
+router.get(
   '/student/:studentId/download',
   protect,
   requireRole(['admin']),

@@ -493,6 +493,43 @@ const generatePdfFromHtml = async ({ html, fileName }) => {
   }
 };
 
+const generatePreviewImageFromHtml = async ({ html, fileName }) => {
+  let browser;
+
+  try {
+    browser = await launchBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 980, height: 620, deviceScaleFactor: 2 });
+    await page.setContent(html, {
+      waitUntil: 'networkidle0',
+      timeout: 45000
+    });
+
+    const cardElement = await page.$('.card');
+    if (!cardElement) {
+      throw createHttpError('Student ID card preview generation failure', 500);
+    }
+
+    const imageBytes = await cardElement.screenshot({
+      type: 'png'
+    });
+
+    const imageBuffer = Buffer.isBuffer(imageBytes) ? imageBytes : Buffer.from(imageBytes);
+
+    return {
+      imageBuffer,
+      fileName,
+      generator: 'student-id-card-template-puppeteer-preview-v1'
+    };
+  } catch (error) {
+    throw createHttpError(error?.message || 'Preview generation failure', Number(error?.statusCode || 500));
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
+};
+
 const createStudentIdCardPdf = async ({ student = {} }) => {
   const templateHtml = await loadTemplateHtml();
   const model = await buildTemplateModel({ student });
@@ -504,7 +541,20 @@ const createStudentIdCardPdf = async ({ student = {} }) => {
   });
 };
 
+const createStudentIdCardPreviewImage = async ({ student = {} }) => {
+  const templateHtml = await loadTemplateHtml();
+  const model = await buildTemplateModel({ student });
+  const finalHtml = renderTemplate(templateHtml, model);
+  const previewFileName = buildStudentIdCardFileName({ student }).replace(/\.pdf$/i, '_Preview.png');
+
+  return generatePreviewImageFromHtml({
+    html: finalHtml,
+    fileName: previewFileName
+  });
+};
+
 module.exports = {
   createStudentIdCardPdf,
+  createStudentIdCardPreviewImage,
   buildStudentIdCardFileName
 };

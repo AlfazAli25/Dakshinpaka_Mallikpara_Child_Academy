@@ -348,8 +348,8 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
 
     setStudentIdCardLoading(true);
     try {
-      const pdfBlob = await getBlob('/id-cards/student/me/download', token, { timeoutMs: 120000 });
-      const nextPreviewUrl = URL.createObjectURL(pdfBlob);
+      const previewImageBlob = await getBlob('/id-cards/student/me/preview', token, { timeoutMs: 120000 });
+      const nextPreviewUrl = URL.createObjectURL(previewImageBlob);
 
       setStudentIdCardPreviewUrl((previousPreviewUrl) => {
         if (previousPreviewUrl) {
@@ -474,6 +474,17 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
               </div>
             ) : null}
 
+            {user?.role === 'student' ? (
+              <button
+                type="button"
+                onClick={openStudentIdCardPreview}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/35 bg-white/10 text-white transition hover:bg-white/20 md:hidden"
+                aria-label="Open student identity card"
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
+
             {user ? (
               user.role === 'student' ? (
                 <button
@@ -564,10 +575,10 @@ export default function AppShell({ title, links, children, sidebarExtra = null }
                   <p className="text-sm font-medium text-slate-600">{studentIdCardError}</p>
                 </div>
               ) : studentIdCardPreviewUrl ? (
-                <iframe
+                <img
                   src={studentIdCardPreviewUrl}
-                  title="Student ID card"
-                  className="h-full w-full"
+                  alt="Student ID card preview"
+                  className="h-full w-full bg-slate-100 object-contain"
                 />
               ) : null}
             </div>

@@ -5,6 +5,7 @@ const asyncHandler = require('../middleware/async.middleware');
 const Student = require('../models/student.model');
 const {
   createStudentIdCardPdf,
+  createStudentIdCardPreviewImage,
   buildStudentIdCardFileName
 } = require('../services/student-id-card-pdf.service');
 const {
@@ -186,6 +187,41 @@ const downloadMyStudentIdCardHandler = asyncHandler(async (req, res) => {
   });
 });
 
+const previewMyStudentIdCardHandler = asyncHandler(async (req, res) => {
+  const userId = String(req.user?._id || '').trim();
+
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    throw createHttpError(401, 'Unauthorized');
+  }
+
+  const student = await findStudentByUserId(userId);
+  if (!student) {
+    throw createHttpError(404, 'Student profile not found');
+  }
+
+  const generatedFile = await getOrCreateGeneratedFile({
+    cacheKey: buildCacheKey(
+      'student-id-card',
+      'self-preview',
+      userId,
+      String(student?.updatedAt || ''),
+      String(student?.profileImageUrl || '')
+    ),
+    fileName: buildStudentIdCardFileName({ student }).replace(/\.pdf$/i, '_Preview.png'),
+    contentType: 'image/png',
+    ttlMs: 2 * 60 * 1000,
+    generateBuffer: async () => {
+      const generated = await createStudentIdCardPreviewImage({ student });
+      return generated.imageBuffer;
+    }
+  });
+
+  await streamGeneratedFile(res, generatedFile, {
+    'Cache-Control': 'private, max-age=60',
+    'X-Generated-File-Cache': generatedFile.cacheHit ? 'HIT' : 'MISS'
+  });
+});
+
 const downloadClassIdCardsZipHandler = asyncHandler(async (req, res) => {
   const classId = String(req.params?.classId || '').trim();
 
@@ -232,5 +268,6 @@ const downloadClassIdCardsZipHandler = asyncHandler(async (req, res) => {
 module.exports = {
   downloadStudentIdCard: downloadStudentIdCardHandler,
   downloadMyStudentIdCard: downloadMyStudentIdCardHandler,
+  previewMyStudentIdCard: previewMyStudentIdCardHandler,
   downloadClassIdCardsZip: downloadClassIdCardsZipHandler
 };
