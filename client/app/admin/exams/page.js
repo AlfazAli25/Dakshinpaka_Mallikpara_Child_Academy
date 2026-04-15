@@ -361,7 +361,6 @@ export default function AdminExamsPage() {
   const columns = useMemo(() => [
     { key: 'examName', label: t.table.columns.examName },
     { key: 'className', label: t.table.columns.className },
-    { key: 'section', label: t.table.columns.section },
     { key: 'subjects', label: t.table.columns.subjects },
     { key: 'examWindow', label: t.table.columns.examWindow },
     { key: 'academicYear', label: t.table.columns.academicYear },
@@ -491,7 +490,9 @@ export default function AdminExamsPage() {
     for (const item of examRecords) {
       const key = `${item.examName || '-'}|${item.academicYear || '-'}`;
       if (!grouped[key]) grouped[key] = { ...item, classes: [] };
-      grouped[key].classes.push(item.classId?.name || '-');
+      const normalizedClassId = toId(item?.classId);
+      const classLabel = formatClassLabel(item?.classId, classLabelMap.get(normalizedClassId) || '-');
+      grouped[key].classes.push(classLabel);
     }
     return Object.values(grouped).map((item) => {
       const scheduleRows = getScheduleFromExam(item);
@@ -501,8 +502,7 @@ export default function AdminExamsPage() {
       return {
         id: toId(item),
         examName: item.examName || '-',
-        className: item.classes.join(', '),
-        section: '-',
+        className: Array.from(new Set(item.classes.filter(Boolean))).join(', ') || '-',
         subjects:
           scheduleRows.length === 0 ? (
             '-'
@@ -567,7 +567,7 @@ export default function AdminExamsPage() {
         )
       };
     });
-  }, [examRecords, subjectMap]);
+  }, [classLabelMap, examRecords, subjectMap]);
 
   const clearForm = () => {
     setForm(DEFAULT_FORM);
