@@ -181,6 +181,10 @@ const text = {
 
 const toId = (value) => String(value?._id || value || '');
 
+const toExamGroupKey = (exam = {}) => {
+  return `${String(exam?.examName || exam?.description || '').trim()}|${String(exam?.examDate || exam?.date || '').trim()}|${String(exam?.academicYear || '').trim()}`;
+};
+
 const downloadBlob = (blob, filename) => {
   const href = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -253,6 +257,7 @@ export default function AdminMarksPage() {
   const [subjectOptionsRaw, setSubjectOptionsRaw] = useState([]);
   const [examOptionsRaw, setExamOptionsRaw] = useState([]);
   const [studentOptionsRaw, setStudentOptionsRaw] = useState([]);
+  const [classIdsWithMarksForSelectedExam, setClassIdsWithMarksForSelectedExam] = useState([]);
 
   const [selectedClassName, setSelectedClassName] = useState('');
   const [selectedClassSection, setSelectedClassSection] = useState('');
@@ -362,6 +367,60 @@ export default function AdminMarksPage() {
     };
   }, [selectedClassId]);
 
+  // Exam is the first filter — show each exam name only once (unique by name+date+year)
+  const uniqueExamMap = useMemo(() => {
+    const map = new Map();
+    for (const exam of examOptionsRaw) {
+      // Key: examName + date + academicYear
+      const key = `${exam.examName || ''}|${exam.examDate || exam.date || ''}|${exam.academicYear || ''}`;
+      if (!map.has(key)) map.set(key, exam);
+    }
+    return map;
+  }, [examOptionsRaw]);
+
+  const examOptions = useMemo(
+    () => [
+      { value: '', label: t.filters.allExams },
+      ...Array.from(uniqueExamMap.values()).map((item) => ({
+        value: toId(item),
+        label: formatExamLabel(item)
+      }))
+    ],
+    [uniqueExamMap, t.filters.allExams]
+  );
+
+  const selectedExamGroupExams = useMemo(() => {
+    if (!selectedExamId) {
+      return [];
+    }
+
+    const selectedExam = examOptionsRaw.find((item) => toId(item) === selectedExamId);
+    if (!selectedExam) {
+      return [];
+    }
+
+    const selectedExamGroupKey = toExamGroupKey(selectedExam);
+    return examOptionsRaw.filter((item) => toExamGroupKey(item) === selectedExamGroupKey);
+  }, [examOptionsRaw, selectedExamId]);
+
+  const examIdForSelectedClass = useMemo(() => {
+    if (!selectedExamId || !selectedClassId) {
+      return selectedExamId;
+    }
+
+    const selectedExam = examOptionsRaw.find((item) => toId(item) === selectedExamId);
+    if (!selectedExam) {
+      return selectedExamId;
+    }
+
+    const selectedExamGroupKey = toExamGroupKey(selectedExam);
+    const matchedClassExam = examOptionsRaw.find(
+      (item) => toExamGroupKey(item) === selectedExamGroupKey && toId(item?.classId) === selectedClassId
+    );
+
+    return matchedClassExam ? toId(matchedClassExam) : selectedExamId;
+  }, [examOptionsRaw, selectedClassId, selectedExamId]);
+
   useEffect(() => {
     let active = true;
 
@@ -378,8 +437,8 @@ export default function AdminMarksPage() {
         if (selectedSubjectId) {
           query.set('subjectId', selectedSubjectId);
         }
-        if (selectedExamId) {
-          query.set('examId', selectedExamId);
+        if (examIdForSelectedClass) {
+          query.set('examId', examIdForSelectedClass);
         }
         if (selectedStudentId) {
           query.set('studentId', selectedStudentId);
@@ -415,78 +474,85 @@ export default function AdminMarksPage() {
     return () => {
       active = false;
     };
-  }, [pagination.page, pagination.limit, selectedClassId, selectedSubjectId, selectedExamId, selectedStudentId]);
+  }, [examIdForSelectedClass, pagination.page, pagination.limit, selectedClassId, selectedSubjectId, selectedStudentId]);
 
-  // Exam is the first filter — show each exam name only once (unique by name+date+year)
-  const uniqueExamMap = useMemo(() => {
-    const map = new Map();
-    for (const exam of examOptionsRaw) {
-      // Key: examName + date + academicYear
-      const key = `${exam.examName || ''}|${exam.examDate || exam.date || ''}|${exam.academicYear || ''}`;
-      if (!map.has(key)) map.set(key, exam);
-    }
-    return map;
-  }, [examOptionsRaw]);
+  useEffect(() => {
+    let active = true;
 
-  const examOptions = useMemo(
-    () => [
-      { value: '', label: t.filters.allExams },
-      ...Array.from(uniqueExamMap.values()).map((item) => ({
-        value: toId(item),
-        label: formatExamLabel(item)
-      }))
-    ],
-    [uniqueExamMap, t.filters.allExams]
-  );
-
-  // When exam is selected, show only classes that have marks entered for that exam (i.e., completed the exam)
-  const uniqueClassNamesForFilter = useMemo(() => {
-    if (selectedExamId) {
-      const selectedExam = examOptionsRaw.find((e) => toId(e) === selectedExamId);
-      if (!selectedExam) return [];
-      const selectedExamIdStr = String(selectedExamId).trim();
-      const selectedExamName = (selectedExam.examName || selectedExam.description || '').trim().toLowerCase();
-      // Build a normalized map of class option names for lookup
-      const classOptionNameMap = new Map();
-      classOptionsRaw.forEach((c) => {
-        classOptionNameMap.set((c.name || '').trim().toLowerCase(), c.name);
-      });
-      const completedClassNames = new Set();
-      rows.forEach((row) => {
-        // Normalize examId, examName, and className for comparison
-        const rowExamIdStr = String(row.examId).trim();
-        const rowExamName = (row.examName || '').trim().toLowerCase();
-        const rowClassNameNorm = (row.className || '').trim().toLowerCase();
-        if (
-          rowExamIdStr === selectedExamIdStr ||
-          (rowExamName && rowExamName === selectedExamName)
-        ) {
-          // Use the canonical class name from classOptionsRaw if available
-          if (classOptionNameMap.has(rowClassNameNorm)) {
-            completedClassNames.add(classOptionNameMap.get(rowClassNameNorm));
-          } else if (row.className) {
-            completedClassNames.add(row.className);
-          }
-        }
-      });
-      // Fallback: if no class found by examId, try matching by examName only
-      if (completedClassNames.size === 0 && selectedExamName) {
-        rows.forEach((row) => {
-          const rowExamName = (row.examName || '').trim().toLowerCase();
-          const rowClassNameNorm = (row.className || '').trim().toLowerCase();
-          if (rowExamName === selectedExamName) {
-            if (classOptionNameMap.has(rowClassNameNorm)) {
-              completedClassNames.add(classOptionNameMap.get(rowClassNameNorm));
-            } else if (row.className) {
-              completedClassNames.add(row.className);
-            }
-          }
-        });
+    const loadClassAvailabilityForExam = async () => {
+      if (!selectedExamId) {
+        setClassIdsWithMarksForSelectedExam([]);
+        return;
       }
-      return Array.from(completedClassNames).sort();
+
+      if (selectedExamGroupExams.length === 0) {
+        setClassIdsWithMarksForSelectedExam([]);
+        return;
+      }
+
+      try {
+        const token = getToken();
+        const availabilityByExam = await Promise.all(
+          selectedExamGroupExams.map(async (exam) => {
+            const examId = toId(exam);
+            if (!examId) {
+              return { examId: '', hasMarks: false };
+            }
+
+            try {
+              const response = await get(`/marks?examId=${examId}&page=1&limit=1`, token);
+              const total = Number(response?.pagination?.total || 0);
+              return { examId, hasMarks: total > 0 };
+            } catch (_error) {
+              return { examId, hasMarks: false };
+            }
+          })
+        );
+
+        if (!active) {
+          return;
+        }
+
+        const availableClassIds = availabilityByExam
+          .filter((item) => item.hasMarks)
+          .map((item) => {
+            const exam = selectedExamGroupExams.find((row) => toId(row) === item.examId);
+            return toId(exam?.classId);
+          })
+          .filter(Boolean);
+
+        setClassIdsWithMarksForSelectedExam(Array.from(new Set(availableClassIds)));
+      } catch (apiError) {
+        if (active) {
+          setClassIdsWithMarksForSelectedExam([]);
+          setError(apiError.message || t.alerts.loadSetupError);
+        }
+      }
+    };
+
+    loadClassAvailabilityForExam();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedExamGroupExams, selectedExamId, t.alerts.loadSetupError]);
+
+  const filteredClassOptionsForSelectedExam = useMemo(() => {
+    if (!selectedExamId) {
+      return classOptionsRaw;
     }
-    return Array.from(new Set(classOptionsRaw.map((c) => c.name))).sort();
-  }, [classOptionsRaw, examOptionsRaw, selectedExamId, rows]);
+
+    const availableClassIds = new Set(classIdsWithMarksForSelectedExam.map((value) => String(value)));
+    if (availableClassIds.size === 0) {
+      return [];
+    }
+
+    return classOptionsRaw.filter((item) => availableClassIds.has(toId(item)));
+  }, [classIdsWithMarksForSelectedExam, classOptionsRaw, selectedExamId]);
+
+  const uniqueClassNamesForFilter = useMemo(() => {
+    return Array.from(new Set(filteredClassOptionsForSelectedExam.map((item) => item.name))).sort();
+  }, [filteredClassOptionsForSelectedExam]);
 
   const classNameFilterOptions = useMemo(
     () => [
@@ -496,24 +562,17 @@ export default function AdminMarksPage() {
     [uniqueClassNamesForFilter, t.filters.allClasses]
   );
 
-  // When class is selected, show only sections of that class that completed the selected exam
   const availableSectionsForFilter = useMemo(() => {
-    if (!selectedClassName || !selectedExamId) return [];
-    // Find the selected exam object
-    const selectedExam = [...uniqueExamMap.values()].find((e) => toId(e) === selectedExamId);
-    if (!selectedExam) return [];
-    // Find all sections for the selected class that have completed this exam
-    const completedSections = new Set();
-    rows.forEach((row) => {
-      if (
-        row.examName === (selectedExam.examName || selectedExam.description || '-') &&
-        row.className === selectedClassName
-      ) {
-        completedSections.add(row.classSection);
-      }
-    });
-    return Array.from(completedSections).sort();
-  }, [classOptionsRaw, selectedClassName, selectedExamId, rows, uniqueExamMap]);
+    if (!selectedClassName) {
+      return [];
+    }
+
+    const source = selectedExamId ? filteredClassOptionsForSelectedExam : classOptionsRaw;
+    return source
+      .filter((item) => item.name === selectedClassName)
+      .map((item) => item.section || '')
+      .sort();
+  }, [classOptionsRaw, filteredClassOptionsForSelectedExam, selectedClassName, selectedExamId]);
 
   const classSectionFilterOptions = useMemo(
     () => [
@@ -676,29 +735,29 @@ export default function AdminMarksPage() {
       });
   }, [filteredRows]);
 
+  useEffect(() => {
+    if (!selectedClassName) {
+      return;
+    }
+
+    if (uniqueClassNamesForFilter.includes(selectedClassName)) {
+      return;
+    }
+
+    setSelectedClassName('');
+    setSelectedClassSection('');
+    setSelectedClassId('');
+    setSelectedSubjectId('');
+    setSelectedStudentId('');
+  }, [selectedClassName, uniqueClassNamesForFilter]);
+
   // Exam is first — resets everything downstream.
   const onExamChange = (event) => {
     const nextExamId = event.target.value;
     setSelectedExamId(nextExamId);
-    // When exam changes, auto-select class name if that exam belongs to a single class.
-    if (nextExamId) {
-      const selectedExam = examOptionsRaw.find((e) => toId(e) === nextExamId);
-      const examClassId = toId(selectedExam?.classId);
-      const matchedClass = examClassId ? classOptionsRaw.find((c) => toId(c) === examClassId) : null;
-      if (matchedClass) {
-        setSelectedClassName(matchedClass.name);
-        setSelectedClassSection(matchedClass.section || '');
-        setSelectedClassId(toId(matchedClass));
-      } else {
-        setSelectedClassName('');
-        setSelectedClassSection('');
-        setSelectedClassId('');
-      }
-    } else {
-      setSelectedClassName('');
-      setSelectedClassSection('');
-      setSelectedClassId('');
-    }
+    setSelectedClassName('');
+    setSelectedClassSection('');
+    setSelectedClassId('');
     setSelectedSubjectId('');
     setSelectedStudentId('');
     setPagination((prev) => ({ ...prev, page: 1 }));
@@ -709,14 +768,15 @@ export default function AdminMarksPage() {
     const nextClassName = event.target.value;
     setSelectedClassName(nextClassName);
     setSelectedClassSection('');
-    const sectionsForName = classOptionsRaw
+    const source = selectedExamId ? filteredClassOptionsForSelectedExam : classOptionsRaw;
+    const sectionsForName = source
       .filter((c) => c.name === nextClassName)
       .map((c) => c.section || '')
       .sort();
     if (!nextClassName) {
       setSelectedClassId('');
     } else if (sectionsForName.length === 1) {
-      const matched = classOptionsRaw.find(
+      const matched = source.find(
         (c) => c.name === nextClassName && (c.section || '') === sectionsForName[0]
       );
       setSelectedClassId(matched ? toId(matched) : '');
@@ -732,7 +792,8 @@ export default function AdminMarksPage() {
   const onClassSectionFilterChange = (event) => {
     const nextSection = event.target.value;
     setSelectedClassSection(nextSection);
-    const matched = classOptionsRaw.find(
+    const source = selectedExamId ? filteredClassOptionsForSelectedExam : classOptionsRaw;
+    const matched = source.find(
       (c) => c.name === selectedClassName && (c.section || '') === nextSection
     );
     setSelectedClassId(matched ? toId(matched) : '');
@@ -827,8 +888,8 @@ export default function AdminMarksPage() {
         if (selectedSubjectId) {
           query.set('subjectId', selectedSubjectId);
         }
-        if (selectedExamId) {
-          query.set('examId', selectedExamId);
+        if (examIdForSelectedClass) {
+          query.set('examId', examIdForSelectedClass);
         }
         if (selectedStudentId) {
           query.set('studentId', selectedStudentId);
