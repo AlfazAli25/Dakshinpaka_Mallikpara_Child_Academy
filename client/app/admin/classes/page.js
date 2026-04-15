@@ -293,7 +293,7 @@ export default function AdminClassesPage() {
               {classSubjects.map((subject) => {
                 const assignedTeacherNames = teacherNamesBySubjectId[subject.id] || [];
                 return (
-                  <p key={subject.id} className="text-xs text-slate-700">
+                  <p key={subject.id} className="text-xs text-slate-700 dark:text-slate-100">
                     {subject.name}: {assignedTeacherNames.length > 0 ? assignedTeacherNames.join(', ') : t.teacherStatus.notAssigned}
                   </p>
                 );

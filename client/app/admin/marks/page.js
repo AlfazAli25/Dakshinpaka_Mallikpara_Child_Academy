@@ -1063,16 +1063,16 @@ export default function AdminMarksPage() {
                 Array.from({ length: 6 }).map((_, rowIndex) => (
                   <tr
                     key={`marks-skeleton-${rowIndex}`}
-                    className={`border-t border-slate-100 ${rowIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
+                    className={`border-t border-slate-100 dark:border-red-400/20 ${rowIndex % 2 === 1 ? 'bg-red-50/25 dark:bg-slate-800/70' : ''}`}
                   >
                     <td className="px-4 py-4" colSpan={11}>
-                      <div className="h-4 w-full animate-pulse rounded bg-slate-200" />
+                      <div className="h-4 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
                     </td>
                   </tr>
                 ))
               ) : groupedRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-center text-slate-500" colSpan={11}>
+                  <td className="px-4 py-6 text-center text-slate-500 dark:text-slate-200" colSpan={11}>
                     {t.table.noRecords}
                   </td>
                 </tr>
@@ -1081,32 +1081,32 @@ export default function AdminMarksPage() {
                   group.items.map((row, rowIndex) => (
                     <tr
                       key={row.id || `${group.key}-${rowIndex}`}
-                      className={`border-t border-slate-100 ${groupIndex % 2 === 1 ? 'bg-red-50/25' : ''}`}
+                      className={`border-t border-slate-100 dark:border-red-400/20 ${groupIndex % 2 === 1 ? 'bg-red-50/25 dark:bg-slate-800/70' : ''}`}
                     >
                       {rowIndex === 0 ? (
                         <>
-                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700 dark:text-slate-100">
                             {group.studentName}
                           </td>
-                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700 dark:text-slate-100">
                             {group.rollNumber}
                           </td>
-                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700 dark:text-slate-100">
                             {group.className}
                           </td>
-                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700">
+                          <td rowSpan={group.items.length} className="px-4 py-3 align-top text-slate-700 dark:text-slate-100">
                             {group.classSection}
                           </td>
                         </>
                       ) : null}
 
-                      <td className="px-4 py-3 text-slate-700">{row.subjectName}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.examName}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.marks}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.percentage}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.grade}</td>
-                      <td className="px-4 py-3 text-slate-700">{row.remarks}</td>
-                      <td className="px-4 py-3 text-slate-700">
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.subjectName}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.examName}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.marks}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.percentage}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.grade}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">{row.remarks}</td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-100">
                         <Button
                           type="button"
                           onClick={(event) => {

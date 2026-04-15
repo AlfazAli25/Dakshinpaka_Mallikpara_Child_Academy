@@ -366,11 +366,14 @@ function ModernTable({
           <tbody>
             {loading ? (
               Array.from({ length: Math.max(3, skeletonRowCount) }).map((_, rowIndex) => (
-                <tr key={`skeleton-row-${rowIndex}`} className={`border-t border-red-50 ${rowIndex % 2 === 1 ? 'bg-red-50/20' : ''}`}>
+                <tr
+                  key={`skeleton-row-${rowIndex}`}
+                  className={`border-t border-red-50 dark:border-red-400/20 ${rowIndex % 2 === 1 ? 'bg-red-50/20 dark:bg-slate-800/70' : ''}`}
+                >
                   {columns.map((column, colIndex) => (
                     <td key={`${column.key}-${rowIndex}`} className="px-4 py-4">
                       <div
-                        className={`h-4 animate-pulse rounded bg-red-100 ${colIndex === 0 ? 'w-3/4 max-w-40' : 'w-full max-w-32'}`}
+                        className={`h-4 animate-pulse rounded bg-red-100 dark:bg-slate-700 ${colIndex === 0 ? 'w-3/4 max-w-40' : 'w-full max-w-32'}`}
                       />
                     </td>
                   ))}
@@ -378,7 +381,7 @@ function ModernTable({
               ))
             ) : rowsToRender.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-slate-500 dark:text-red-100/80" colSpan={Math.max(columns.length, 1)}>
+                <td className="px-4 py-8 text-center text-slate-500 dark:text-slate-200" colSpan={Math.max(columns.length, 1)}>
                   No records found.
                 </td>
               </tr>
@@ -403,13 +406,13 @@ function ModernTable({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
                         transition={{ duration: 0.18 }}
-                        className={`border-t border-red-50 ${rowIndex % 2 === 1 ? 'bg-red-50/20' : ''} ${
-                          clickable ? 'cursor-pointer hover:bg-red-50/60 hover:shadow-inner' : ''
+                        className={`border-t border-red-50 dark:border-red-400/20 ${rowIndex % 2 === 1 ? 'bg-red-50/20 dark:bg-slate-800/70' : ''} ${
+                          clickable ? 'cursor-pointer hover:bg-red-50/60 hover:shadow-inner dark:hover:bg-slate-800/90' : ''
                         }`}
                         onClick={() => onRowClick(clickable ? href : '')}
                       >
                         {columns.map((column) => (
-                          <td key={column.key} className="px-4 py-3 text-slate-700 dark:text-red-100">
+                          <td key={column.key} className="px-4 py-3 text-slate-700 dark:text-slate-100">
                             {renderCell(column, row)}
                           </td>
                         ))}
@@ -430,7 +433,7 @@ function ModernTable({
       </div>
 
       {paginate && !loading ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-red-100/85 px-3 py-3 text-xs text-slate-600 dark:border-red-400/20 dark:text-red-100/80">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-red-100/85 px-3 py-3 text-xs text-slate-600 dark:border-red-400/20 dark:text-slate-200">
           {(() => {
             const hasRows = sortedRows.length > 0;
             const startCount = hasRows ? (currentPage - 1) * pageSize + 1 : 0;
@@ -447,7 +450,7 @@ function ModernTable({
             <select
               value={pageSize}
               onChange={(event) => setPageSize(Math.max(1, Number(event.target.value) || 10))}
-              className="h-8 rounded-lg border border-red-200 bg-white px-2 text-xs dark:border-red-400/30 dark:bg-slate-900 dark:text-red-100"
+              className="h-8 rounded-lg border border-red-200 bg-white px-2 text-xs dark:border-red-400/30 dark:bg-slate-900 dark:text-slate-100"
               aria-label="Rows per page"
             >
               {pageSizeOptions.map((size) => (
@@ -461,19 +464,19 @@ function ModernTable({
               type="button"
               onClick={() => setCurrentPage((previousPage) => Math.max(1, previousPage - 1))}
               disabled={currentPage <= 1}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 disabled:opacity-50 dark:border-red-400/30 dark:bg-slate-900 dark:text-red-100"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 disabled:opacity-50 dark:border-red-400/30 dark:bg-slate-900 dark:text-slate-100"
               aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
-            <span className="min-w-[50px] text-center font-semibold text-red-700 dark:text-red-100">{currentPage} / {totalPages}</span>
+            <span className="min-w-[50px] text-center font-semibold text-red-700 dark:text-slate-100">{currentPage} / {totalPages}</span>
 
             <button
               type="button"
               onClick={() => setCurrentPage((previousPage) => Math.min(totalPages, previousPage + 1))}
               disabled={currentPage >= totalPages}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 disabled:opacity-50 dark:border-red-400/30 dark:bg-slate-900 dark:text-red-100"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-white text-red-700 disabled:opacity-50 dark:border-red-400/30 dark:bg-slate-900 dark:text-slate-100"
               aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />
