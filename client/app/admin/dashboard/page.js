@@ -28,8 +28,7 @@ const text = {
     charts: {
       collected: 'Collected',
       due: 'Due',
-      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
-      months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     }
   },
   bn: {
@@ -49,8 +48,7 @@ const text = {
     charts: {
       collected: 'সংগৃহীত',
       due: 'বাকি',
-      days: ['সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি'],
-      months: ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন']
+      days: ['সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি']
     }
   }
 };
@@ -84,14 +82,6 @@ const DEFAULT_DASHBOARD_DATA = {
   feeSeries: [
     { label: 'Collected', value: 0 },
     { label: 'Due', value: 0 }
-  ],
-  growthSeries: [
-    { label: 'Jan', value: 0 },
-    { label: 'Feb', value: 0 },
-    { label: 'Mar', value: 0 },
-    { label: 'Apr', value: 0 },
-    { label: 'May', value: 0 },
-    { label: 'Jun', value: 0 }
   ]
 };
 
@@ -105,18 +95,6 @@ const buildAttendanceSeries = (averagePercent, labels) => {
   return dayLabels.map((label, index) => ({
     label,
     value: clampPercent(base + offsets[index])
-  }));
-};
-
-const buildGrowthSeries = (studentsCount, labels) => {
-  const months = labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  const total = Math.max(Number(studentsCount) || 0, 0);
-  const baseline = total > 0 ? Math.max(1, Math.round(total * 0.72)) : 0;
-  const increment = total > baseline ? Math.max(1, Math.round((total - baseline) / Math.max(months.length - 1, 1))) : 0;
-
-  return months.map((label, index) => ({
-    label,
-    value: Math.min(total || Number.MAX_SAFE_INTEGER, baseline + increment * index)
   }));
 };
 
@@ -152,8 +130,7 @@ const fetchAdminDashboardStats = async (t) => {
     feeSeries: [
       { label: t.charts.collected, value: estimatedCollectedFees },
       { label: t.charts.due, value: estimatedDueFees }
-    ],
-    growthSeries: buildGrowthSeries(studentsCount, t.charts.months)
+    ]
   };
 };
 
@@ -197,7 +174,6 @@ export default function AdminDashboardPage() {
       <AdminAnalyticsCharts
         attendanceSeries={dashboardData.attendanceSeries}
         feeSeries={dashboardData.feeSeries}
-        growthSeries={dashboardData.growthSeries}
       />
     </div>
   );

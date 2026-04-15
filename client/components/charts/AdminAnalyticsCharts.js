@@ -10,15 +10,13 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis,
-  Line,
-  LineChart
+  YAxis
 } from 'recharts';
 
 const chartCardClassName =
   'rounded-2xl border border-red-100/80 bg-white/85 p-4 shadow-[0_20px_45px_-34px_rgba(153,27,27,0.55)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75';
 
-export default function AdminAnalyticsCharts({ attendanceSeries = [], feeSeries = [], growthSeries = [] }) {
+export default function AdminAnalyticsCharts({ attendanceSeries = [], feeSeries = [] }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <motion.section
@@ -69,33 +67,6 @@ export default function AdminAnalyticsCharts({ attendanceSeries = [], feeSeries 
               <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #fecaca' }} />
               <Bar dataKey="value" fill="url(#feeGradient)" radius={[10, 10, 4, 4]} />
             </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </motion.section>
-
-      <motion.section
-        className={`lg:col-span-2 ${chartCardClassName}`}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, delay: 0.08 }}
-      >
-        <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-red-700 dark:text-red-200">Student Growth</h3>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={growthSeries}>
-              <CartesianGrid strokeDasharray="4 4" stroke="rgba(239,68,68,0.12)" />
-              <XAxis dataKey="label" stroke="#b91c1c" tick={{ fontSize: 12 }} />
-              <YAxis stroke="#b91c1c" tick={{ fontSize: 12 }} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #fecaca' }} />
-              <Line
-                type="monotone"
-                dataKey="value"
-                stroke="#dc2626"
-                strokeWidth={2.4}
-                dot={{ r: 4, fill: '#991b1b' }}
-                activeDot={{ r: 6, fill: '#ef4444' }}
-              />
-            </LineChart>
           </ResponsiveContainer>
         </div>
       </motion.section>
