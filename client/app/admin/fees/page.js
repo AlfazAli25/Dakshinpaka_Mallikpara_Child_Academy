@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import QRCode from 'qrcode';
 import Image from 'next/image';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
@@ -8,7 +9,9 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import Button from '@/components/ui/button';
 import { get, getBlob, post } from '@/lib/api';
+import { SCHOOL_NAME, SCHOOL_UPI_ID, SCHOOL_UPI_PAYEE_NAME } from '@/lib/school-config';
 import { getToken } from '@/lib/session';
+import { buildUpiPaymentLink } from '@/lib/upi-payment';
 import { useToast } from '@/lib/toast-context';
 import { useLanguage } from '@/lib/language-context';
 
@@ -44,11 +47,22 @@ const text = {
       onlineDirect: 'Online (Direct Record)',
       amount: 'Payment Amount',
       amountPlaceholder: 'Enter amount',
+      payNow: 'Pay Now',
+      payNowHint: 'Enter amount and open Pay Now to generate QR for this cash collection.',
       transactionRef: 'Transaction Reference (optional)',
       transactionRefPlaceholder: 'UPI reference',
       qrTitle: 'Static QR Code (Reference)',
       downloadQr: 'Download QR',
       qrHint: 'For in-person collection, confirm payment and record it directly. Screenshot upload is not required here.',
+      paymentPageTitle: 'Cash Payment QR',
+      paymentPageSubtitle: 'Show this QR for the entered amount, collect payment, then close and process cash record.',
+      paymentSteps: '1. Show this QR to payer. 2. Confirm payment for the exact amount. 3. Close this page. 4. Click process cash payment.',
+      dynamicQrTitle: 'Dynamic Amount QR',
+      dynamicQrLoading: 'Generating QR...',
+      dynamicQrPlaceholder: 'QR will appear here.',
+      referenceLabel: 'Reference',
+      upiIdLabel: 'UPI ID',
+      closePaymentPage: 'Close Payment Page',
       processing: 'Processing...',
       processCash: 'Process Cash Payment',
       processOnline: 'Record Online Payment'
@@ -74,7 +88,11 @@ const text = {
       searchExactError: 'Search with exact Student ID or full name to select a student.',
       noPendingError: 'No pending monthly fee found for this student.',
       invalidAmountError: 'Enter a valid payment amount greater than 0.',
+      enterAmountFirstError: 'Enter payment amount first.',
       amountExceedError: 'Amount cannot exceed total pending',
+      upiConfigError: 'UPI payment is not configured right now.',
+      dynamicQrError: 'Unable to generate payment QR right now.',
+      dynamicQrNotReadyError: 'Dynamic QR is not ready yet.',
       cashSuccess: 'Cash payment processed and auto-allocated successfully.',
       onlineSuccess: 'Online payment recorded and auto-allocated successfully.',
       verifySuccess: 'Payment approved successfully.',
@@ -119,11 +137,22 @@ const text = {
       onlineDirect: 'অনলাইন (সরাসরি রেকর্ড)',
       amount: 'পেমেন্টের পরিমাণ',
       amountPlaceholder: 'পরিমাণ লিখুন',
+      payNow: 'এখন পে করুন',
+      payNowHint: 'পরিমাণ লিখে Pay Now খুলুন, এই নগদ সংগ্রহের জন্য QR তৈরি হবে।',
       transactionRef: 'ট্রানজ্যাকশন রেফারেন্স (ঐচ্ছিক)',
       transactionRefPlaceholder: 'UPI রেফারেন্স',
       qrTitle: 'স্ট্যাটিক QR কোড (রেফারেন্স)',
       downloadQr: 'QR ডাউনলোড করুন',
       qrHint: 'সরাসরি কালেকশনের ক্ষেত্রে পেমেন্ট নিশ্চিত করে সরাসরি রেকর্ড করুন। এখানে স্ক্রিনশট আপলোড করার প্রয়োজন নেই।',
+      paymentPageTitle: 'নগদ পেমেন্ট QR',
+      paymentPageSubtitle: 'লিখিত পরিমাণের জন্য এই QR দেখিয়ে পেমেন্ট নিন, তারপর বন্ধ করে নগদ রেকর্ড করুন।',
+      paymentSteps: '১. পেমেন্টকারীর কাছে এই QR দেখান। ২. নির্দিষ্ট পরিমাণের পেমেন্ট নিশ্চিত করুন। ৩. এই পেজ বন্ধ করুন। ৪. নগদ পেমেন্ট প্রক্রিয়া করুন।',
+      dynamicQrTitle: 'ডায়নামিক পরিমাণ QR',
+      dynamicQrLoading: 'QR তৈরি হচ্ছে...',
+      dynamicQrPlaceholder: 'QR এখানে দেখাবে।',
+      referenceLabel: 'রেফারেন্স',
+      upiIdLabel: 'UPI আইডি',
+      closePaymentPage: 'পেমেন্ট পেজ বন্ধ করুন',
       processing: 'প্রক্রিয়া হচ্ছে...',
       processCash: 'নগদ পেমেন্ট প্রক্রিয়া করুন',
       processOnline: 'অনলাইন পেমেন্ট রেকর্ড করুন'
@@ -149,7 +178,11 @@ const text = {
       searchExactError: 'শিক্ষার্থী নির্বাচন করতে সঠিক আইডি বা পুরো নাম দিয়ে খুঁজুন।',
       noPendingError: 'এই শিক্ষার্থীর জন্য কোনো বকেয়া মাসিক ফি পাওয়া যায়নি।',
       invalidAmountError: '০-এর বেশি সঠিক পেমেন্টের পরিমাণ লিখুন।',
+      enterAmountFirstError: 'প্রথমে পেমেন্টের পরিমাণ লিখুন।',
       amountExceedError: 'পরিমাণ মোট বকেয়ার বেশি হতে পারবে না',
+      upiConfigError: 'এখন UPI পেমেন্ট কনফিগার করা নেই।',
+      dynamicQrError: 'এখন পেমেন্ট QR তৈরি করা যাচ্ছে না।',
+      dynamicQrNotReadyError: 'ডায়নামিক QR এখনও প্রস্তুত নয়।',
       cashSuccess: 'নগদ পেমেন্ট সফলভাবে প্রক্রিয়া এবং বরাদ্দ করা হয়েছে।',
       onlineSuccess: 'অনলাইন পেমেন্ট সফলভাবে রেকর্ড এবং বরাদ্দ করা হয়েছে।',
       verifySuccess: 'পেমেন্ট সফলভাবে অনুমোদন করা হয়েছে।',
@@ -167,6 +200,8 @@ const text = {
 
 
 const PENDING_SCREENSHOT_VERIFICATION_MESSAGE = 'Payment screenshot pending verification. Please verify before processing payment.';
+const FALLBACK_UPI_ID = 'alfazali499-1@okicici';
+const ADMIN_UPI_REFERENCE_PREFIX = 'DMCAFEE';
 
 const normalizeStatus = (status, t) => {
   const value = String(status || '').trim().toUpperCase();
@@ -221,6 +256,35 @@ const filterVerificationRows = (items, searchText) => {
   }
 
   return items.filter((item) => String(item.studentId?.userId?.name || '').toLowerCase().includes(query));
+};
+
+const toReferenceToken = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase();
+
+const buildAdminUpiReference = (studentIdentifier = '') => {
+  const normalizedStudentToken = toReferenceToken(studentIdentifier);
+  if (!normalizedStudentToken) {
+    return `${ADMIN_UPI_REFERENCE_PREFIX}STUDENT`;
+  }
+
+  return `${ADMIN_UPI_REFERENCE_PREFIX}${normalizedStudentToken}`.slice(0, 35);
+};
+
+const downloadDataUrlAsPng = ({ dataUrl, fileName }) => {
+  if (!dataUrl || typeof document === 'undefined') {
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 const downloadQrAsJpeg = () => {
@@ -279,6 +343,13 @@ export default function AdminFeesPage() {
   const [debouncedVerificationSearch, setDebouncedVerificationSearch] = useState('');
   const [transactionReference, setTransactionReference] = useState('');
   const [amount, setAmount] = useState('');
+  const [payNowModalOpen, setPayNowModalOpen] = useState(false);
+  const [dynamicQrDataUrl, setDynamicQrDataUrl] = useState('');
+  const [dynamicQrLoading, setDynamicQrLoading] = useState(false);
+
+  const configuredUpiId = String(SCHOOL_UPI_ID || '').trim() || FALLBACK_UPI_ID;
+  const configuredPayeeName = String(SCHOOL_UPI_PAYEE_NAME || SCHOOL_NAME || 'School Payment').trim() || 'School Payment';
+
   useEffect(() => {
     if (error) {
       toast.error(error);
@@ -404,6 +475,32 @@ export default function AdminFeesPage() {
     [selectedStudentRows]
   );
 
+  const hasEnteredAmount = String(amount || '').trim().length > 0;
+  const enteredAmount = Number(amount || 0);
+  const isEnteredAmountValid = Number.isFinite(enteredAmount) && enteredAmount > 0 && enteredAmount <= selectedStudentPendingTotal;
+  const payNowAmount = isEnteredAmountValid ? enteredAmount : 0;
+
+  const resolvedUpiReference = useMemo(
+    () => buildAdminUpiReference(selectedStudent?.admissionNo || selectedStudent?._id || ''),
+    [selectedStudent?._id, selectedStudent?.admissionNo]
+  );
+
+  const upiPaymentLink = useMemo(() => {
+    if (!selectedStudentId || !isEnteredAmountValid) {
+      return '';
+    }
+
+    return buildUpiPaymentLink({
+      upiId: configuredUpiId,
+      payeeName: configuredPayeeName,
+      amount: payNowAmount,
+      transactionReference: resolvedUpiReference,
+      note: `Admin Cash Fee Collection ${resolvedUpiReference ? `(${resolvedUpiReference})` : ''}`.trim()
+    });
+  }, [configuredPayeeName, configuredUpiId, isEnteredAmountValid, payNowAmount, resolvedUpiReference, selectedStudentId]);
+
+  const canOpenPayNow = paymentMode === 'CASH' && Boolean(oldestPendingFee) && hasEnteredAmount && isEnteredAmountValid && Boolean(upiPaymentLink);
+
   const feeSummary = useMemo(() => {
     const totalDue = rows.reduce((sum, row) => sum + Number(row.amountDueValue || 0), 0);
     const totalPaid = rows.reduce((sum, row) => sum + Number(row.amountPaidValue || 0), 0);
@@ -417,6 +514,120 @@ export default function AdminFeesPage() {
       filteredVerificationCount: filteredPendingVerifications.length
     };
   }, [filteredPendingVerifications.length, pendingVerifications.length, rows]);
+
+  useEffect(() => {
+    if (paymentMode !== 'CASH') {
+      setPayNowModalOpen(false);
+    }
+  }, [paymentMode]);
+
+  useEffect(() => {
+    if (!payNowModalOpen || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setPayNowModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [payNowModalOpen]);
+
+  useEffect(() => {
+    let isDisposed = false;
+
+    if (!payNowModalOpen || !upiPaymentLink) {
+      setDynamicQrDataUrl('');
+      setDynamicQrLoading(false);
+      return undefined;
+    }
+
+    const generateDynamicQr = async () => {
+      setDynamicQrLoading(true);
+      try {
+        const qrDataUrl = await QRCode.toDataURL(upiPaymentLink, {
+          errorCorrectionLevel: 'M',
+          margin: 1,
+          width: 360
+        });
+        if (!isDisposed) {
+          setDynamicQrDataUrl(qrDataUrl);
+        }
+      } catch (qrError) {
+        if (!isDisposed) {
+          setDynamicQrDataUrl('');
+          setError(qrError?.message || t.alerts.dynamicQrError);
+        }
+      } finally {
+        if (!isDisposed) {
+          setDynamicQrLoading(false);
+        }
+      }
+    };
+
+    generateDynamicQr();
+
+    return () => {
+      isDisposed = true;
+    };
+  }, [payNowModalOpen, t.alerts.dynamicQrError, upiPaymentLink]);
+
+  const closePayNowModal = () => {
+    setPayNowModalOpen(false);
+  };
+
+  const onOpenPayNow = () => {
+    setError('');
+    setMessage('');
+
+    if (!selectedStudentId) {
+      setError(t.alerts.searchExactError);
+      return;
+    }
+
+    if (!oldestPendingFee) {
+      setError(t.alerts.noPendingError);
+      return;
+    }
+
+    if (!hasEnteredAmount) {
+      setError(t.alerts.enterAmountFirstError);
+      return;
+    }
+
+    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) {
+      setError(t.alerts.invalidAmountError);
+      return;
+    }
+
+    if (!isEnteredAmountValid) {
+      setError(`${t.alerts.amountExceedError} INR ${selectedStudentPendingTotal}.`);
+      return;
+    }
+
+    if (!upiPaymentLink) {
+      setError(t.alerts.upiConfigError);
+      return;
+    }
+
+    setPayNowModalOpen(true);
+  };
+
+  const onDownloadDynamicQr = () => {
+    if (!dynamicQrDataUrl) {
+      setError(t.alerts.dynamicQrNotReadyError);
+      return;
+    }
+
+    const referenceToken = toReferenceToken(resolvedUpiReference) || 'PAYMENT';
+    downloadDataUrlAsPng({
+      dataUrl: dynamicQrDataUrl,
+      fileName: `admin-cash-upi-qr-${referenceToken}.png`
+    });
+  };
 
   const onProcessPayment = async (event) => {
     event.preventDefault();
@@ -463,6 +674,8 @@ export default function AdminFeesPage() {
       }
 
       setAmount('');
+      setPayNowModalOpen(false);
+      setDynamicQrDataUrl('');
       await loadData();
     } catch (apiError) {
       if ((apiError.rawMessage || apiError.message) === 'Payment screenshot pending verification. Please verify before processing payment.') {
@@ -586,6 +799,27 @@ export default function AdminFeesPage() {
             placeholder={selectedStudentId ? String(selectedStudentPendingTotal || 0) : t.process.amountPlaceholder}
           />
 
+          {paymentMode === 'CASH' && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-3 dark:border-emerald-400/30 dark:bg-emerald-900/20">
+              <p className="text-xs text-emerald-900 dark:text-emerald-100/90">{t.process.payNowHint}</p>
+              <button
+                type="button"
+                onClick={onOpenPayNow}
+                disabled={!canOpenPayNow}
+                className="mt-3 inline-flex h-10 items-center justify-center rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {t.process.payNow}
+              </button>
+              {hasEnteredAmount && !isEnteredAmountValid ? (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-200">
+                  {Number.isFinite(enteredAmount) && enteredAmount > 0
+                    ? `${t.alerts.amountExceedError} INR ${selectedStudentPendingTotal}.`
+                    : t.alerts.invalidAmountError}
+                </p>
+              ) : null}
+            </div>
+          )}
+
           {paymentMode === 'ONLINE' && (
             <Input
               label={t.process.transactionRef}
@@ -629,6 +863,99 @@ export default function AdminFeesPage() {
           {submittingCash ? t.process.processing : paymentMode === 'CASH' ? t.process.processCash : t.process.processOnline}
         </Button>
       </form>
+
+      {payNowModalOpen ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-3 sm:p-6"
+          onClick={closePayNowModal}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.process.paymentPageTitle}
+        >
+          <div
+            className="h-[80vh] w-[80vw] overflow-hidden rounded-2xl border border-red-100 bg-white shadow-2xl dark:border-red-400/20 dark:bg-slate-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-red-100 px-4 py-3 sm:px-6 dark:border-red-400/20">
+              <div>
+                <p className="text-base font-semibold text-slate-900 dark:text-red-50">{t.process.paymentPageTitle}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-red-100/75">{t.process.paymentPageSubtitle}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closePayNowModal}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-red-400/30 dark:bg-slate-800 dark:text-red-100 dark:hover:bg-slate-700"
+              >
+                {t.process.closePaymentPage}
+              </button>
+            </div>
+
+            <div className="grid h-[calc(80vh-70px)] gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(240px,320px)_1fr] md:p-6">
+              <div className="rounded-xl border border-red-100 bg-red-50/50 p-4 dark:border-red-400/20 dark:bg-red-900/20">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-red-100">{t.process.dynamicQrTitle}</p>
+                  <button
+                    type="button"
+                    onClick={onDownloadDynamicQr}
+                    disabled={!dynamicQrDataUrl || dynamicQrLoading}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-400/30 dark:bg-slate-800 dark:text-red-100 dark:hover:bg-slate-700"
+                  >
+                    {t.process.downloadQr}
+                  </button>
+                </div>
+                <div className="mt-3 flex h-64 w-full items-center justify-center rounded-lg border border-red-100 bg-white p-3 dark:border-red-400/20 dark:bg-slate-900/80">
+                  {dynamicQrLoading ? (
+                    <div className="flex flex-col items-center gap-2 text-slate-500 dark:text-red-100/80">
+                      <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-red-200/30 dark:border-t-red-100" />
+                      <p className="text-xs">{t.process.dynamicQrLoading}</p>
+                    </div>
+                  ) : dynamicQrDataUrl ? (
+                    <img
+                      src={dynamicQrDataUrl}
+                      alt="Dynamic payment QR"
+                      className="h-full w-full max-w-[260px] rounded-md object-contain"
+                    />
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-red-100/75">{t.process.dynamicQrPlaceholder}</p>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-1 text-xs text-slate-700 dark:text-red-100">
+                  <p>
+                    {t.process.amount}: <span className="font-semibold">INR {payNowAmount.toFixed(2)}</span>
+                  </p>
+                  <p>
+                    {t.process.referenceLabel}: <span className="font-semibold">{resolvedUpiReference || '-'}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col rounded-xl border border-red-100 bg-white p-4 dark:border-red-400/20 dark:bg-slate-900/80">
+                <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{t.process.processCash}</p>
+                <p className="mt-2 text-sm text-slate-600 dark:text-red-100/80">
+                  {t.process.paymentSteps}
+                </p>
+
+                <div className="mt-4 rounded-lg border border-red-100 bg-red-50/50 p-3 text-xs text-slate-700 dark:border-red-400/20 dark:bg-red-900/20 dark:text-red-100">
+                  <p>
+                    {t.process.upiIdLabel}: <span className="font-semibold">{configuredUpiId}</span>
+                  </p>
+                </div>
+
+                <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={closePayNowModal}
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-red-400/30 dark:bg-slate-800 dark:text-red-100 dark:hover:bg-slate-700"
+                  >
+                    {t.process.closePaymentPage}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="rounded-3xl border border-red-100/85 bg-white/85 p-5 shadow-[0_26px_56px_-36px_rgba(153,27,27,0.75)] backdrop-blur-xl dark:border-red-400/20 dark:bg-slate-900/75">
         <h3 className="text-lg font-semibold text-slate-900 dark:text-red-50">{t.verification.title}</h3>
