@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import Image from 'next/image';
 import Table from '@/components/Table';
 import PageHeader from '@/components/PageHeader';
 import Input from '@/components/Input';
@@ -48,15 +47,15 @@ const text = {
       amount: 'Payment Amount',
       amountPlaceholder: 'Enter amount',
       payNow: 'Pay Now',
-      payNowHint: 'Enter amount and open Pay Now to generate QR for this cash collection.',
+      payNowHint: 'Enter amount and open Pay Now to generate QR for online direct record.',
       transactionRef: 'Transaction Reference (optional)',
       transactionRefPlaceholder: 'UPI reference',
       qrTitle: 'Static QR Code (Reference)',
       downloadQr: 'Download QR',
       qrHint: 'For in-person collection, confirm payment and record it directly. Screenshot upload is not required here.',
-      paymentPageTitle: 'Cash Payment QR',
-      paymentPageSubtitle: 'Show this QR for the entered amount, collect payment, then close and process cash record.',
-      paymentSteps: '1. Show this QR to payer. 2. Confirm payment for the exact amount. 3. Close this page. 4. Click process cash payment.',
+      paymentPageTitle: 'Online Payment QR',
+      paymentPageSubtitle: 'Show this QR for the entered amount, collect payment, then close and record online payment.',
+      paymentSteps: '1. Show this QR to payer. 2. Confirm payment for the exact amount. 3. Close this page. 4. Click record online payment.',
       dynamicQrTitle: 'Dynamic Amount QR',
       dynamicQrLoading: 'Generating QR...',
       dynamicQrPlaceholder: 'QR will appear here.',
@@ -138,15 +137,15 @@ const text = {
       amount: 'পেমেন্টের পরিমাণ',
       amountPlaceholder: 'পরিমাণ লিখুন',
       payNow: 'এখন পে করুন',
-      payNowHint: 'পরিমাণ লিখে Pay Now খুলুন, এই নগদ সংগ্রহের জন্য QR তৈরি হবে।',
+      payNowHint: 'পরিমাণ লিখে Pay Now খুলুন, অনলাইন সরাসরি রেকর্ডের জন্য QR তৈরি হবে।',
       transactionRef: 'ট্রানজ্যাকশন রেফারেন্স (ঐচ্ছিক)',
       transactionRefPlaceholder: 'UPI রেফারেন্স',
       qrTitle: 'স্ট্যাটিক QR কোড (রেফারেন্স)',
       downloadQr: 'QR ডাউনলোড করুন',
       qrHint: 'সরাসরি কালেকশনের ক্ষেত্রে পেমেন্ট নিশ্চিত করে সরাসরি রেকর্ড করুন। এখানে স্ক্রিনশট আপলোড করার প্রয়োজন নেই।',
-      paymentPageTitle: 'নগদ পেমেন্ট QR',
-      paymentPageSubtitle: 'লিখিত পরিমাণের জন্য এই QR দেখিয়ে পেমেন্ট নিন, তারপর বন্ধ করে নগদ রেকর্ড করুন।',
-      paymentSteps: '১. পেমেন্টকারীর কাছে এই QR দেখান। ২. নির্দিষ্ট পরিমাণের পেমেন্ট নিশ্চিত করুন। ৩. এই পেজ বন্ধ করুন। ৪. নগদ পেমেন্ট প্রক্রিয়া করুন।',
+      paymentPageTitle: 'অনলাইন পেমেন্ট QR',
+      paymentPageSubtitle: 'লিখিত পরিমাণের জন্য এই QR দেখিয়ে পেমেন্ট নিন, তারপর বন্ধ করে অনলাইন পেমেন্ট রেকর্ড করুন।',
+      paymentSteps: '১. পেমেন্টকারীর কাছে এই QR দেখান। ২. নির্দিষ্ট পরিমাণের পেমেন্ট নিশ্চিত করুন। ৩. এই পেজ বন্ধ করুন। ৪. অনলাইন পেমেন্ট রেকর্ড করুন।',
       dynamicQrTitle: 'ডায়নামিক পরিমাণ QR',
       dynamicQrLoading: 'QR তৈরি হচ্ছে...',
       dynamicQrPlaceholder: 'QR এখানে দেখাবে।',
@@ -285,33 +284,6 @@ const downloadDataUrlAsPng = ({ dataUrl, fileName }) => {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-};
-
-const downloadQrAsJpeg = () => {
-  const img = new window.Image();
-  img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width || 512;
-    canvas.height = img.height || 512;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'payment-qr-code.jpeg';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
-    }, 'image/jpeg', 0.95);
-  };
-  img.src = '/static-payment-qr.svg';
 };
 
 export default function AdminFeesPage() {
@@ -495,11 +467,11 @@ export default function AdminFeesPage() {
       payeeName: configuredPayeeName,
       amount: payNowAmount,
       transactionReference: resolvedUpiReference,
-      note: `Admin Cash Fee Collection ${resolvedUpiReference ? `(${resolvedUpiReference})` : ''}`.trim()
+      note: `Admin Online Fee Collection ${resolvedUpiReference ? `(${resolvedUpiReference})` : ''}`.trim()
     });
   }, [configuredPayeeName, configuredUpiId, isEnteredAmountValid, payNowAmount, resolvedUpiReference, selectedStudentId]);
 
-  const canOpenPayNow = paymentMode === 'CASH' && Boolean(oldestPendingFee) && hasEnteredAmount && isEnteredAmountValid && Boolean(upiPaymentLink);
+  const canOpenPayNow = paymentMode === 'ONLINE' && Boolean(oldestPendingFee) && hasEnteredAmount && isEnteredAmountValid && Boolean(upiPaymentLink);
 
   const feeSummary = useMemo(() => {
     const totalDue = rows.reduce((sum, row) => sum + Number(row.amountDueValue || 0), 0);
@@ -516,7 +488,7 @@ export default function AdminFeesPage() {
   }, [filteredPendingVerifications.length, pendingVerifications.length, rows]);
 
   useEffect(() => {
-    if (paymentMode !== 'CASH') {
+    if (paymentMode !== 'ONLINE') {
       setPayNowModalOpen(false);
     }
   }, [paymentMode]);
@@ -625,7 +597,7 @@ export default function AdminFeesPage() {
     const referenceToken = toReferenceToken(resolvedUpiReference) || 'PAYMENT';
     downloadDataUrlAsPng({
       dataUrl: dynamicQrDataUrl,
-      fileName: `admin-cash-upi-qr-${referenceToken}.png`
+      fileName: `admin-online-upi-qr-${referenceToken}.png`
     });
   };
 
@@ -799,7 +771,7 @@ export default function AdminFeesPage() {
             placeholder={selectedStudentId ? String(selectedStudentPendingTotal || 0) : t.process.amountPlaceholder}
           />
 
-          {paymentMode === 'CASH' && (
+          {paymentMode === 'ONLINE' && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-3 dark:border-emerald-400/30 dark:bg-emerald-900/20">
               <p className="text-xs text-emerald-900 dark:text-emerald-100/90">{t.process.payNowHint}</p>
               <button
@@ -830,29 +802,6 @@ export default function AdminFeesPage() {
             />
           )}
         </div>
-
-        {paymentMode === 'ONLINE' && (
-          <div className="mt-4 rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-400/20 dark:bg-red-900/20">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-800 dark:text-red-100">{t.process.qrTitle}</p>
-              <button
-                type="button"
-                onClick={downloadQrAsJpeg}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-red-400/30 dark:bg-slate-800 dark:text-red-100 dark:hover:bg-slate-700"
-              >
-                {t.process.downloadQr}
-              </button>
-            </div>
-            <Image
-              src="/static-payment-qr.svg"
-              alt="Static payment QR"
-              width={192}
-              height={192}
-              className="mt-3 h-48 w-48 rounded-xl border border-red-100 bg-white p-2 dark:border-red-400/20 dark:bg-slate-900/80"
-            />
-            <p className="mt-2 text-xs text-slate-500 dark:text-red-100/75">{t.process.qrHint}</p>
-          </div>
-        )}
 
         <Button
           type="submit"
@@ -931,7 +880,7 @@ export default function AdminFeesPage() {
               </div>
 
               <div className="flex flex-col rounded-xl border border-red-100 bg-white p-4 dark:border-red-400/20 dark:bg-slate-900/80">
-                <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{t.process.processCash}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-red-50">{t.process.processOnline}</p>
                 <p className="mt-2 text-sm text-slate-600 dark:text-red-100/80">
                   {t.process.paymentSteps}
                 </p>
