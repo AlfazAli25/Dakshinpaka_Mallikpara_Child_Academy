@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/lib/theme-context';
 
 import PageTransitionLoader from '@/components/animations/PageTransitionLoader';
 import TopProgressBar from '@/components/TopProgressBar';
+import InstallAppButton from '@/components/InstallAppButton';
+import FirebaseNotificationListener from '@/components/FirebaseNotificationListener';
 
 export default function Providers({ children }) {
   return (
@@ -26,6 +28,8 @@ export default function Providers({ children }) {
           >
             <TopProgressBar />
             <PageTransitionLoader />
+            <FirebaseNotificationListener />
+            <InstallAppButton />
             {children}
           </SWRConfig>
         </ToastProvider>

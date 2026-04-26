@@ -10,6 +10,7 @@ import { get, post } from '@/lib/api';
 import { clearSession, getUser, saveSession } from '@/lib/session';
 import { SCHOOL_NAME } from '@/lib/school-config';
 import { useToast } from '@/lib/toast-context';
+import { registerPushNotificationsOnLogin } from '@/lib/push-notifications';
 
 const roleRoutes = {
   admin: '/admin/dashboard',
@@ -159,6 +160,10 @@ export default function LoginPage() {
     try {
       const response = await post('/auth/login', form);
       saveSession(response.data.token, response.data.user);
+      void registerPushNotificationsOnLogin({
+        user: response?.data?.user,
+        authToken: response?.data?.token
+      });
       router.replace(roleRoutes[response.data.user.role] || '/login');
     } catch (apiError) {
       setError(apiError.message);

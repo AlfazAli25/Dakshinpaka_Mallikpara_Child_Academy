@@ -28,6 +28,7 @@ const studentIdCardRoutes = require('./routes/student-id-card.routes');
 const noticeRoutes = require('./routes/notice.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const systemRoutes = require('./routes/system.routes');
+const pushNotificationRoutes = require('./routes/push-notification.routes');
 const { SCHOOL_NAME } = require('./config/school');
 const { notFound, errorHandler } = require('./middleware/error.middleware');
 const { attachRequestContext } = require('./middleware/request-context.middleware');
@@ -149,6 +150,7 @@ app.use('/api/id-cards', studentIdCardRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api', pushNotificationRoutes);
 // UPI deep link API removed
 
 app.use(notFound);
