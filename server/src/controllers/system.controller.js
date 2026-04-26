@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async.middleware');
 const { runMonthlySync, isMonthlyBoundaryInConfiguredTimezone } = require('../services/monthly-sync.service');
 const { enqueueMonthlySyncJob } = require('../services/system-jobs.service');
+const { runDailyFeePendingReminders } = require('../services/fee-reminder-push.service');
 
 const parseBoolean = (value) => {
   if (typeof value === 'boolean') {
@@ -9,6 +10,15 @@ const parseBoolean = (value) => {
 
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'true' || normalized === '1' || normalized === 'yes';
+};
+
+const parsePositiveInt = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return Math.floor(parsed);
 };
 
 const runMonthlySyncFromCron = asyncHandler(async (req, res) => {
@@ -80,7 +90,43 @@ const runMonthlySyncFromAdmin = asyncHandler(async (req, res) => {
   });
 });
 
+const runDailyFeeReminderFromCron = asyncHandler(async (req, res) => {
+  const dryRun = parseBoolean(req.query?.dryRun);
+  const limit = parsePositiveInt(req.query?.limit);
+
+  const result = await runDailyFeePendingReminders({
+    reason: 'vercel-cron-daily-fee-reminder',
+    dryRun,
+    limitStudents: limit
+  });
+
+  return res.json({
+    success: true,
+    message: dryRun ? 'Daily fee reminder dry-run completed' : 'Daily fee reminder run completed',
+    data: result
+  });
+});
+
+const runDailyFeeReminderFromAdmin = asyncHandler(async (req, res) => {
+  const dryRun = parseBoolean(req.body?.dryRun);
+  const limit = parsePositiveInt(req.body?.limit);
+
+  const result = await runDailyFeePendingReminders({
+    reason: 'admin-manual-daily-fee-reminder',
+    dryRun,
+    limitStudents: limit
+  });
+
+  return res.json({
+    success: true,
+    message: dryRun ? 'Daily fee reminder dry-run completed' : 'Daily fee reminder run completed',
+    data: result
+  });
+});
+
 module.exports = {
   runMonthlySyncFromCron,
-  runMonthlySyncFromAdmin
+  runMonthlySyncFromAdmin,
+  runDailyFeeReminderFromCron,
+  runDailyFeeReminderFromAdmin
 };

@@ -53,4 +53,27 @@ router.post(
   controller.runMonthlySyncFromAdmin
 );
 
+router.get(
+  '/fee-reminder/run',
+  requireCronSecret,
+  [
+    query('dryRun').optional().isIn(['true', 'false', '1', '0', 'yes', 'no']).withMessage('dryRun must be boolean-like'),
+    query('limit').optional().isInt({ min: 1, max: 2000 }).withMessage('limit must be between 1 and 2000')
+  ],
+  validate,
+  controller.runDailyFeeReminderFromCron
+);
+
+router.post(
+  '/fee-reminder/run',
+  protect,
+  requireRole(['admin']),
+  [
+    body('dryRun').optional().isBoolean().withMessage('dryRun must be true or false'),
+    body('limit').optional().isInt({ min: 1, max: 2000 }).withMessage('limit must be between 1 and 2000')
+  ],
+  validate,
+  controller.runDailyFeeReminderFromAdmin
+);
+
 module.exports = router;

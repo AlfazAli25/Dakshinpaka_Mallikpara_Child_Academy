@@ -33,6 +33,21 @@ router.post(
 );
 
 router.post(
+  '/send-notification/by-identifier',
+  protect,
+  requireRole(['admin']),
+  [
+    body('identifier').isString().notEmpty().withMessage('identifier is required'),
+    body('title').isString().notEmpty().withMessage('title is required'),
+    body('body').isString().notEmpty().withMessage('body is required'),
+    body('icon').optional().isString().isLength({ max: 300 }),
+    body('clickAction').optional().isString().isLength({ max: 300 })
+  ],
+  validate,
+  controller.sendNotificationByIdentifier
+);
+
+router.post(
   '/broadcast-notification',
   protect,
   requireRole(['admin']),
