@@ -1,5 +1,6 @@
 const Fee = require('../models/fee.model');
 const Student = require('../models/student.model');
+const FeeReminderNotification = require('../models/fee-reminder-notification.model');
 const {
   ensureMonthlyFeesForAllStudents,
   calculateFeePendingAmount
@@ -11,6 +12,7 @@ const PENDING_STATUS_VALUES = ['PENDING', 'PARTIALLY PAID'];
 const DEFAULT_NOTIFICATION_TITLE = 'Fee Reminder';
 const DEFAULT_NOTIFICATION_ICON = '/icons/icon-192.png';
 const DEFAULT_NOTIFICATION_CLICK_ACTION = '/student/fees';
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
 const toPositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -21,12 +23,6 @@ const toPositiveInt = (value, fallback) => {
   return Math.floor(parsed);
 };
 
-const DEFAULT_OVERDUE_DAYS = toPositiveInt(process.env.FEE_REMINDER_OVERDUE_DAYS, 30);
-const DEFAULT_MAX_STUDENTS_PER_RUN = Math.min(
-  toPositiveInt(process.env.FEE_REMINDER_MAX_STUDENTS_PER_RUN, 300),
-  2000
-);
-
 const toAmount = (value) => {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) {
@@ -36,8 +32,21 @@ const toAmount = (value) => {
   return Math.round(numeric * 100) / 100;
 };
 
-const getThresholdDate = ({ now = new Date(), overdueDays = DEFAULT_OVERDUE_DAYS }) =>
-  new Date(now.getTime() - overdueDays * 24 * 60 * 60 * 1000);
+const toPositiveAmount = (value, fallback) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return toAmount(fallback);
+  }
+
+  return toAmount(parsed);
+};
+
+const DEFAULT_MIN_PENDING_AMOUNT = toPositiveAmount(process.env.FEE_REMINDER_MIN_PENDING_AMOUNT, 200);
+const DEFAULT_REMINDER_INTERVAL_DAYS = toPositiveInt(process.env.FEE_REMINDER_INTERVAL_DAYS, 2);
+const DEFAULT_MAX_STUDENTS_PER_RUN = Math.min(
+  toPositiveInt(process.env.FEE_REMINDER_MAX_STUDENTS_PER_RUN, 300),
+  2000
+);
 
 const parseMonthKeyToDate = (monthKey) => {
   const [year, month] = String(monthKey || '').split('-').map(Number);
@@ -70,44 +79,34 @@ const formatCurrency = (value) => {
   return amount.toFixed(2);
 };
 
-const buildReminderBody = ({ admissionNo, overdueMonthKey, totalPendingAmount }) => {
-  const monthLabel = formatMonthLabel(overdueMonthKey);
-  const pendingAmountLabel = formatCurrency(totalPendingAmount);
-
-  return `Student ${admissionNo}: Your school fee has been pending for over a month (since ${monthLabel}). Total pending amount is Rs ${pendingAmountLabel}. Please complete payment to avoid further action.`;
-};
-
-const groupOverdueRowsByStudent = (rows = []) => {
-  const grouped = new Map();
-
-  for (const row of rows) {
-    const studentId = String(row?.studentId || '').trim();
-    if (!studentId) {
-      continue;
-    }
-
-    if (!grouped.has(studentId)) {
-      grouped.set(studentId, {
-        oldestDueDate: row.dueDate || null,
-        overdueMonthKey: row.monthKey || '',
-        overdueMonthsCount: 1
-      });
-      continue;
-    }
-
-    const existing = grouped.get(studentId);
-    existing.overdueMonthsCount += 1;
-
-    const existingDueTime = existing.oldestDueDate ? new Date(existing.oldestDueDate).getTime() : Number.MAX_SAFE_INTEGER;
-    const candidateDueTime = row?.dueDate ? new Date(row.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
-
-    if (candidateDueTime < existingDueTime) {
-      existing.oldestDueDate = row.dueDate || existing.oldestDueDate;
-      existing.overdueMonthKey = row.monthKey || existing.overdueMonthKey;
-    }
+const asDate = (value) => {
+  if (!value) {
+    return null;
   }
 
-  return grouped;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
+
+const shouldSkipForReminderInterval = ({ lastSentAt, now, reminderIntervalMs }) => {
+  const lastSentDate = asDate(lastSentAt);
+  if (!lastSentDate) {
+    return false;
+  }
+
+  return now.getTime() - lastSentDate.getTime() < reminderIntervalMs;
+};
+
+const buildReminderBody = ({ admissionNo, oldestPendingMonthKey, totalPendingAmount, minimumPendingAmount }) => {
+  const monthLabel = formatMonthLabel(oldestPendingMonthKey);
+  const pendingAmountLabel = formatCurrency(totalPendingAmount);
+  const minimumPendingLabel = formatCurrency(minimumPendingAmount);
+
+  return `Student ${admissionNo}: Your pending school fee is Rs ${pendingAmountLabel} (from ${monthLabel}). Since your dues are above Rs ${minimumPendingLabel}, please clear the amount as soon as possible.`;
 };
 
 const buildPendingSummaryByStudent = (rows = []) => {
@@ -119,12 +118,32 @@ const buildPendingSummaryByStudent = (rows = []) => {
       continue;
     }
 
-    const current = grouped.get(studentId) || {
-      totalPendingAmount: 0
-    };
+    const pendingAmount = toAmount(calculateFeePendingAmount(row));
+    if (pendingAmount <= 0) {
+      continue;
+    }
 
-    current.totalPendingAmount = toAmount(current.totalPendingAmount + calculateFeePendingAmount(row));
-    grouped.set(studentId, current);
+    if (!grouped.has(studentId)) {
+      grouped.set(studentId, {
+        oldestPendingDueDate: row.dueDate || null,
+        oldestPendingMonthKey: row.monthKey || '',
+        pendingMonthsCount: 1,
+        totalPendingAmount: pendingAmount
+      });
+      continue;
+    }
+
+    const existing = grouped.get(studentId);
+    existing.totalPendingAmount = toAmount(existing.totalPendingAmount + pendingAmount);
+    existing.pendingMonthsCount += 1;
+
+    const existingDueDate = asDate(existing.oldestPendingDueDate);
+    const candidateDueDate = asDate(row?.dueDate);
+
+    if (!existingDueDate || (candidateDueDate && candidateDueDate.getTime() < existingDueDate.getTime())) {
+      existing.oldestPendingDueDate = row.dueDate || existing.oldestPendingDueDate;
+      existing.oldestPendingMonthKey = row.monthKey || existing.oldestPendingMonthKey;
+    }
   }
 
   return grouped;
@@ -133,39 +152,44 @@ const buildPendingSummaryByStudent = (rows = []) => {
 const runDailyFeePendingReminders = async ({
   reason = 'daily-fee-reminder',
   dryRun = false,
-  overdueDays = DEFAULT_OVERDUE_DAYS,
-  limitStudents = DEFAULT_MAX_STUDENTS_PER_RUN
+  limitStudents = DEFAULT_MAX_STUDENTS_PER_RUN,
+  minPendingAmount = DEFAULT_MIN_PENDING_AMOUNT,
+  reminderIntervalDays = DEFAULT_REMINDER_INTERVAL_DAYS
 } = {}) => {
-  const effectiveOverdueDays = toPositiveInt(overdueDays, DEFAULT_OVERDUE_DAYS);
   const effectiveLimit = Math.min(
     toPositiveInt(limitStudents, DEFAULT_MAX_STUDENTS_PER_RUN),
     DEFAULT_MAX_STUDENTS_PER_RUN
   );
+  const effectiveMinPendingAmount = toPositiveAmount(minPendingAmount, DEFAULT_MIN_PENDING_AMOUNT);
+  const effectiveReminderIntervalDays = toPositiveInt(reminderIntervalDays, DEFAULT_REMINDER_INTERVAL_DAYS);
+  const reminderIntervalMs = effectiveReminderIntervalDays * DAY_IN_MS;
+  const now = new Date();
 
   await ensureMonthlyFeesForAllStudents();
 
-  const thresholdDate = getThresholdDate({ overdueDays: effectiveOverdueDays });
-  const overdueRows = await Fee.find({
-    status: { $in: PENDING_STATUS_VALUES },
-    dueDate: { $lte: thresholdDate }
-  })
+  const pendingRows = await Fee.find({ status: { $in: PENDING_STATUS_VALUES } })
     .select('studentId monthKey dueDate amountDue amountPaid status')
     .sort({ dueDate: 1, createdAt: 1 })
     .lean();
 
-  const groupedOverdue = groupOverdueRowsByStudent(overdueRows);
-  const candidateStudentIds = Array.from(groupedOverdue.keys()).slice(0, effectiveLimit);
+  const pendingSummaryByStudent = buildPendingSummaryByStudent(pendingRows);
+  const candidateEntries = Array.from(pendingSummaryByStudent.entries())
+    .filter(([, summary]) => summary.totalPendingAmount > effectiveMinPendingAmount)
+    .slice(0, effectiveLimit);
+
+  const candidateStudentIds = candidateEntries.map(([studentId]) => studentId);
 
   if (candidateStudentIds.length === 0) {
     const emptySummary = {
       reason,
       dryRun,
-      thresholdDate,
-      overdueDays: effectiveOverdueDays,
-      scannedOverdueRows: overdueRows.length,
+      minPendingAmount: effectiveMinPendingAmount,
+      reminderIntervalDays: effectiveReminderIntervalDays,
+      scannedPendingRows: pendingRows.length,
       eligibleStudents: 0,
       notifiedStudents: 0,
       studentsWithoutToken: 0,
+      skippedByInterval: 0,
       failedStudents: 0,
       reminders: []
     };
@@ -174,29 +198,32 @@ const runDailyFeePendingReminders = async ({
     return emptySummary;
   }
 
-  const allPendingRows = await Fee.find({
-    studentId: { $in: candidateStudentIds },
-    status: { $in: PENDING_STATUS_VALUES }
-  })
-    .select('studentId amountDue amountPaid')
-    .lean();
-
-  const pendingSummaryByStudent = buildPendingSummaryByStudent(allPendingRows);
-  const studentRows = await Student.find({ _id: { $in: candidateStudentIds } })
-    .select('_id userId admissionNo')
-    .lean();
+  const [studentRows, reminderStateRows] = await Promise.all([
+    Student.find({ _id: { $in: candidateStudentIds } })
+      .select('_id userId admissionNo')
+      .lean(),
+    FeeReminderNotification.find({
+      studentId: { $in: candidateStudentIds }
+    })
+      .select('studentId lastSentAt lastPendingAmount lastOverdueMonthKey')
+      .lean()
+  ]);
 
   const studentById = new Map(studentRows.map((row) => [String(row._id), row]));
+  const reminderStateByStudent = new Map(
+    reminderStateRows.map((row) => [String(row.studentId), row])
+  );
 
   const reminderLogs = [];
   let notifiedStudents = 0;
   let studentsWithoutToken = 0;
+  let skippedByInterval = 0;
   let failedStudents = 0;
 
-  for (const studentId of candidateStudentIds) {
+  for (const [studentId, pendingSummary] of candidateEntries) {
     const student = studentById.get(studentId);
-    const overdueInfo = groupedOverdue.get(studentId);
-    const pendingSummary = pendingSummaryByStudent.get(studentId) || { totalPendingAmount: 0 };
+    const reminderState = reminderStateByStudent.get(studentId);
+    const lastSentAt = asDate(reminderState?.lastSentAt);
 
     if (!student || !student.userId) {
       failedStudents += 1;
@@ -209,12 +236,27 @@ const runDailyFeePendingReminders = async ({
       continue;
     }
 
+    if (shouldSkipForReminderInterval({ lastSentAt, now, reminderIntervalMs })) {
+      skippedByInterval += 1;
+      reminderLogs.push({
+        studentId,
+        userId: String(student.userId),
+        admissionNo: student.admissionNo,
+        status: 'SKIPPED_INTERVAL',
+        lastSentAt,
+        nextEligibleAt: new Date(lastSentAt.getTime() + reminderIntervalMs),
+        totalPendingAmount: pendingSummary.totalPendingAmount
+      });
+      continue;
+    }
+
     const payload = {
       title: DEFAULT_NOTIFICATION_TITLE,
       body: buildReminderBody({
         admissionNo: student.admissionNo,
-        overdueMonthKey: overdueInfo?.overdueMonthKey,
-        totalPendingAmount: pendingSummary.totalPendingAmount
+        oldestPendingMonthKey: pendingSummary?.oldestPendingMonthKey,
+        totalPendingAmount: pendingSummary.totalPendingAmount,
+        minimumPendingAmount: effectiveMinPendingAmount
       }),
       icon: DEFAULT_NOTIFICATION_ICON,
       clickAction: DEFAULT_NOTIFICATION_CLICK_ACTION
@@ -225,9 +267,10 @@ const runDailyFeePendingReminders = async ({
         studentId,
         userId: String(student.userId),
         admissionNo: student.admissionNo,
-        overdueMonthKey: overdueInfo?.overdueMonthKey || '',
-        overdueMonthsCount: overdueInfo?.overdueMonthsCount || 0,
+        oldestPendingMonthKey: pendingSummary?.oldestPendingMonthKey || '',
+        pendingMonthsCount: pendingSummary?.pendingMonthsCount || 0,
         totalPendingAmount: pendingSummary.totalPendingAmount,
+        wouldBeSkippedByInterval: false,
         status: 'DRY_RUN'
       });
       continue;
@@ -251,9 +294,37 @@ const runDailyFeePendingReminders = async ({
         continue;
       }
 
-      if (Number(sendResult?.sentCount || 0) > 0) {
-        notifiedStudents += 1;
+      if (Number(sendResult?.sentCount || 0) <= 0) {
+        failedStudents += 1;
+        reminderLogs.push({
+          studentId,
+          userId: String(student.userId),
+          admissionNo: student.admissionNo,
+          status: 'FAILED_DELIVERY',
+          totalTokens: sendResult?.totalTokens || 0,
+          sentCount: sendResult?.sentCount || 0,
+          failedCount: sendResult?.failedCount || 0
+        });
+        continue;
       }
+
+      notifiedStudents += 1;
+
+      await FeeReminderNotification.findOneAndUpdate(
+        { studentId },
+        {
+          $set: {
+            lastSentAt: now,
+            lastPendingAmount: pendingSummary.totalPendingAmount,
+            lastOverdueMonthKey: pendingSummary?.oldestPendingMonthKey || ''
+          }
+        },
+        {
+          upsert: true,
+          setDefaultsOnInsert: true,
+          new: true
+        }
+      );
 
       reminderLogs.push({
         studentId,
@@ -286,12 +357,13 @@ const runDailyFeePendingReminders = async ({
   const summary = {
     reason,
     dryRun,
-    thresholdDate,
-    overdueDays: effectiveOverdueDays,
-    scannedOverdueRows: overdueRows.length,
+    minPendingAmount: effectiveMinPendingAmount,
+    reminderIntervalDays: effectiveReminderIntervalDays,
+    scannedPendingRows: pendingRows.length,
     eligibleStudents: candidateStudentIds.length,
     notifiedStudents,
     studentsWithoutToken,
+    skippedByInterval,
     failedStudents,
     reminders: reminderLogs
   };
@@ -299,11 +371,13 @@ const runDailyFeePendingReminders = async ({
   logInfo('daily_fee_reminder_completed', {
     reason,
     dryRun,
-    overdueDays: effectiveOverdueDays,
-    scannedOverdueRows: overdueRows.length,
+    minPendingAmount: effectiveMinPendingAmount,
+    reminderIntervalDays: effectiveReminderIntervalDays,
+    scannedPendingRows: pendingRows.length,
     eligibleStudents: candidateStudentIds.length,
     notifiedStudents,
     studentsWithoutToken,
+    skippedByInterval,
     failedStudents
   });
 

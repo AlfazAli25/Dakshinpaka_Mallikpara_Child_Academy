@@ -12,7 +12,7 @@
     },
     {
       "path": "/api/system/fee-reminder/run",
-      "schedule": "0 3 * * *"
+      "schedule": "0 3 */2 * *"
     }
   ],
   "routes": [

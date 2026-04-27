@@ -7,7 +7,9 @@ const Teacher = require('../models/teacher.model');
 const ClassModel = require('../models/class.model');
 const AdmitCard = require('../models/admit-card.model');
 const Exam = require('../models/exam.model');
+const { sendNoticePushNotifications } = require('../services/notice-push.service');
 const { isExamCompletedForAdmitCard } = require('../utils/admit-card-exam-completion');
+const { logError } = require('../utils/logger');
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
@@ -550,6 +552,15 @@ const createNotice = asyncHandler(async (req, res) => {
     createdBy: req.user._id
   });
 
+  try {
+    await sendNoticePushNotifications({ notice });
+  } catch (error) {
+    logError('notice_push_dispatch_failed', {
+      noticeId: String(notice?._id || ''),
+      message: error?.message || 'Unknown notice push delivery failure'
+    });
+  }
+
   const data = await Notice.findById(notice._id)
     .populate({ path: 'classIds', select: 'name section' })
     .populate({ path: 'createdBy', select: 'name email role' })
@@ -586,6 +597,15 @@ const updateNotice = asyncHandler(async (req, res) => {
     .populate({ path: 'classIds', select: 'name section' })
     .populate({ path: 'createdBy', select: 'name email role' })
     .lean();
+
+  try {
+    await sendNoticePushNotifications({ notice: updated });
+  } catch (error) {
+    logError('notice_push_dispatch_failed', {
+      noticeId: String(updated?._id || id),
+      message: error?.message || 'Unknown notice push delivery failure on update'
+    });
+  }
 
   res.json({
     success: true,

@@ -33,6 +33,23 @@ const uniqueTokens = (tokenDocs = []) => {
   return output;
 };
 
+const uniqueUserIds = (values = []) => {
+  const output = [];
+  const seen = new Set();
+
+  for (const value of Array.isArray(values) ? values : []) {
+    const userId = String(value || '').trim();
+    if (!userId || seen.has(userId)) {
+      continue;
+    }
+
+    seen.add(userId);
+    output.push(userId);
+  }
+
+  return output;
+};
+
 const removeInvalidTokens = async (tokens = []) => {
   if (!tokens.length) {
     return;
@@ -134,6 +151,45 @@ const sendNotificationToUser = async ({ userId, payload }) => {
   });
 };
 
+const sendNotificationToUsers = async ({ userIds = [], payload }) => {
+  const normalizedUserIds = uniqueUserIds(userIds);
+  if (!normalizedUserIds.length) {
+    return {
+      targetUsers: 0,
+      usersWithToken: 0,
+      usersWithoutToken: 0,
+      totalTokens: 0,
+      sentCount: 0,
+      failedCount: 0,
+      removedInvalidTokens: 0
+    };
+  }
+
+  const tokenDocs = await UserNotificationToken.find({
+    userId: { $in: normalizedUserIds }
+  })
+    .select('userId token')
+    .lean();
+
+  const usersWithTokenSet = new Set(
+    tokenDocs
+      .map((item) => String(item?.userId || '').trim())
+      .filter(Boolean)
+  );
+
+  const sendResult = await sendToTokens({
+    tokenList: uniqueTokens(tokenDocs),
+    payload
+  });
+
+  return {
+    targetUsers: normalizedUserIds.length,
+    usersWithToken: usersWithTokenSet.size,
+    usersWithoutToken: Math.max(normalizedUserIds.length - usersWithTokenSet.size, 0),
+    ...sendResult
+  };
+};
+
 const broadcastNotification = async ({ payload }) => {
   const tokenDocs = await UserNotificationToken.find({}).select('token').lean();
 
@@ -146,5 +202,6 @@ const broadcastNotification = async ({ payload }) => {
 module.exports = {
   saveToken,
   sendNotificationToUser,
+  sendNotificationToUsers,
   broadcastNotification
 };
