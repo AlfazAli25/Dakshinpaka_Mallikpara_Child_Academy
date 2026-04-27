@@ -4,32 +4,46 @@
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-firebase.initializeApp({
-  apiKey: 'AIzaSyBvTipZCqOiwrwAmtwZBt2WJuWRlvr59qQ',
-  authDomain: 'school-management-system-aa5f1.firebaseapp.com',
-  projectId: 'school-management-system-aa5f1',
-  storageBucket: 'school-management-system-aa5f1.firebasestorage.app',
-  messagingSenderId: '792042411645',
-  appId: '1:792042411645:web:bf59a17a29498607354314',
-  measurementId: 'G-6D0SYT72YY'
-});
+const params = new URL(self.location.href).searchParams;
 
-const messaging = firebase.messaging();
+const firebaseConfig = {
+  apiKey: params.get('apiKey') || '',
+  authDomain: params.get('authDomain') || '',
+  projectId: params.get('projectId') || '',
+  storageBucket: params.get('storageBucket') || '',
+  messagingSenderId: params.get('messagingSenderId') || '',
+  appId: params.get('appId') || '',
+  measurementId: params.get('measurementId') || ''
+};
 
-messaging.onBackgroundMessage((payload) => {
-  const title = payload?.notification?.title || payload?.data?.title || 'School Notification';
-  const body = payload?.notification?.body || payload?.data?.body || 'You have a new update.';
-  const icon = payload?.notification?.icon || payload?.data?.icon || '/icons/icon-192.png';
-  const clickAction = payload?.data?.clickAction || '/';
+const hasMessagingConfig =
+  Boolean(firebaseConfig.apiKey) &&
+  Boolean(firebaseConfig.projectId) &&
+  Boolean(firebaseConfig.messagingSenderId) &&
+  Boolean(firebaseConfig.appId);
 
-  self.registration.showNotification(title, {
-    body,
-    icon,
-    data: {
-      clickAction
-    }
+if (hasMessagingConfig) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+const messaging = hasMessagingConfig ? firebase.messaging() : null;
+
+if (messaging) {
+  messaging.onBackgroundMessage((payload) => {
+    const title = payload?.notification?.title || payload?.data?.title || 'School Notification';
+    const body = payload?.notification?.body || payload?.data?.body || 'You have a new update.';
+    const icon = payload?.notification?.icon || payload?.data?.icon || '/icons/icon-192.png';
+    const clickAction = payload?.data?.clickAction || '/';
+
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      data: {
+        clickAction
+      }
+    });
   });
-});
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
